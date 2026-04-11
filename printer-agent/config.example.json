@@ -1,0 +1,7 @@
+{
+  "api_base_url": "http://localhost:4100",
+  "api_token": "fdrest_xxxxxxxxxxxxxxxxx",
+  "poll_interval_seconds": 5,
+  "printer_name": "",
+  "heartbeat_interval_seconds": 30
+}

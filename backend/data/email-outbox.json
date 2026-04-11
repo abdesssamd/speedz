@@ -1,0 +1,29 @@
+[
+  {
+    "id": "mail_1775298071397",
+    "to": "ech@gmail.com",
+    "subject": "FoodDelyvry - Votre candidature a ete acceptee",
+    "text": "Bonjour Échappatoire, votre compte restaurant a ete valide.\nPlan: 5% par commande\nToken API: fdrest_c1cbed81ec9b6189ca608364d94fedec5a51\nLien QR: http://localhost:4100/qr/qr_e9f36a4bc43817ced63401a2a112ad1906f5\nCe token sert de cle d'activation pour le logiciel d'impression.",
+    "status": "QUEUED",
+    "applicationId": "app_1775298022585",
+    "createdAt": "2026-04-04T10:21:11.397Z"
+  },
+  {
+    "id": "mail_1774868340652",
+    "to": "abdessamade13t@gmail.com",
+    "subject": "FoodDelyvry - Votre candidature a ete acceptee",
+    "text": "Bonjour Kherbouvhe abdessamad, votre candidature COURIER a ete acceptee.",
+    "status": "QUEUED",
+    "applicationId": "app_1774101396425",
+    "createdAt": "2026-03-30T10:59:00.652Z"
+  },
+  {
+    "id": "mail_1774101687864",
+    "to": "abdessamade13t@gmail.com",
+    "subject": "FoodDelyvry - Votre candidature a ete acceptee",
+    "text": "Bonjour Kherbouvhe abdessamad, votre candidature COURIER a ete acceptee.",
+    "status": "QUEUED",
+    "applicationId": "app_1774101396425",
+    "createdAt": "2026-03-21T14:01:27.864Z"
+  }
+]
