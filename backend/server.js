@@ -5,6 +5,7 @@ const http = require("http");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const multer = require("multer");
+const nodemailer = require("nodemailer");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -26,6 +27,12 @@ const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN || "";
 const WHATSAPP_TEMPLATE_NAME = process.env.WHATSAPP_TEMPLATE_NAME || "";
 const WHATSAPP_TEMPLATE_LANG = process.env.WHATSAPP_TEMPLATE_LANG || "fr";
 const WHATSAPP_WEBHOOK_VERIFY_TOKEN = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || "";
+const SMTP_HOST = process.env.SMTP_HOST || "";
+const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
+const SMTP_SECURE = String(process.env.SMTP_SECURE || "false").toLowerCase() === "true";
+const SMTP_USER = process.env.SMTP_USER || "";
+const SMTP_PASS = process.env.SMTP_PASS || "";
+const SMTP_FROM = process.env.SMTP_FROM || SMTP_USER || "no-reply@speedz.app";
 const MOBILE_MIN_VERSION = process.env.MOBILE_MIN_VERSION || "1.0.0";
 const MOBILE_LATEST_VERSION = process.env.MOBILE_LATEST_VERSION || MOBILE_MIN_VERSION;
 const MOBILE_FORCE_UPDATE = String(process.env.MOBILE_FORCE_UPDATE || "false").toLowerCase() === "true";
@@ -209,6 +216,27 @@ function generateCustomerEmailFromPhone(phone) {
   return `customer_${digits || Date.now()}@fooddelyvry.app`;
 }
 
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function hasSmtpConfig() {
+  return Boolean(SMTP_HOST && SMTP_PORT && SMTP_FROM);
+}
+
+function splitFullName(value) {
+  const normalized = String(value || "").trim().replace(/\s+/g, " ");
+  if (!normalized) {
+    return { firstName: "", lastName: "" };
+  }
+
+  const [firstName, ...rest] = normalized.split(" ");
+  return {
+    firstName: firstName || normalized,
+    lastName: rest.join(" ").trim() || firstName || normalized,
+  };
+}
+
 function hasWhatsAppCloudConfig() {
   return Boolean(WHATSAPP_PHONE_NUMBER_ID && WHATSAPP_ACCESS_TOKEN && WHATSAPP_TEMPLATE_NAME);
 }
@@ -356,7 +384,7 @@ function serializeUserProfile(record) {
     gender: record.gender || "UNSPECIFIED",
     authMethod: record.authProvider || undefined,
     isPhoneVerified: Boolean(record.phoneVerifiedAt),
-    onboardingCompleted: Boolean(record.phoneVerifiedAt && record.firstName && record.lastName && defaultAddress),
+    onboardingCompleted: Boolean(record.phoneVerifiedAt && record.firstName && record.lastName),
   };
 }
 
@@ -529,6 +557,91 @@ async function sendWhatsAppVerificationCode(phone, code) {
     status: "SENT",
     messageId: payload?.messages?.[0]?.id || null,
   };
+}
+
+async function sendEmailMessage({ to, subject, text, html, metadata }) {
+  const outbox = readEmailOutbox();
+  const entry = {
+    id: `mail_${Date.now()}`,
+    to,
+    subject,
+    text,
+    html: html || null,
+    status: "QUEUED",
+    provider: hasSmtpConfig() ? "smtp" : "outbox",
+    metadata: metadata || null,
+    createdAt: new Date().toISOString(),
+  };
+
+  if (!hasSmtpConfig()) {
+    outbox.unshift(entry);
+    writeEmailOutbox(outbox);
+    return {
+      provider: "outbox",
+      status: "QUEUED",
+      messageId: entry.id,
+    };
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_SECURE,
+    auth: SMTP_USER && SMTP_PASS ? { user: SMTP_USER, pass: SMTP_PASS } : undefined,
+  });
+
+  const result = await transporter.sendMail({
+    from: SMTP_FROM,
+    to,
+    subject,
+    text,
+    html,
+  });
+
+  entry.status = "SENT";
+  entry.provider = "smtp";
+  entry.messageId = result.messageId || null;
+  entry.sentAt = new Date().toISOString();
+  outbox.unshift(entry);
+  writeEmailOutbox(outbox);
+
+  return {
+    provider: "smtp",
+    status: "SENT",
+    messageId: result.messageId || entry.id,
+  };
+}
+
+async function sendEmailVerificationCode({ email, code, fullName }) {
+  const greetingName = String(fullName || "").trim() || email;
+  const subject = "Speedz - Votre code de connexion";
+  const text =
+    `Bonjour ${greetingName},\n` +
+    `Votre code OTP Speedz est: ${code}\n` +
+    `Ce code expire dans 10 minutes.\n` +
+    `Si vous n'etes pas a l'origine de cette demande, ignorez cet email.`;
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;background:#f8f4ee;padding:24px;color:#111827">
+      <div style="max-width:560px;margin:0 auto;background:#fffaf5;border-radius:24px;padding:24px;border:1px solid #eee4d8">
+        <div style="display:inline-block;background:#111827;color:#ffffff;border-radius:999px;padding:8px 14px;font-weight:700">Speedz</div>
+        <h1 style="margin:18px 0 8px;font-size:28px;line-height:1.2;color:#111827">Code de connexion</h1>
+        <p style="margin:0 0 18px;color:#64748b;line-height:1.6">Bonjour ${greetingName}, utilisez ce code pour valider votre connexion.</p>
+        <div style="background:#fff4e8;border-radius:18px;padding:18px;text-align:center;border:1px solid #f3d7bc">
+          <div style="font-size:34px;letter-spacing:8px;font-weight:800;color:#ea580c">${code}</div>
+        </div>
+        <p style="margin:18px 0 0;color:#64748b;line-height:1.6">Ce code expire dans 10 minutes.</p>
+      </div>
+    </div>
+  `;
+
+  return sendEmailMessage({
+    to: email,
+    subject,
+    text,
+    html,
+    metadata: { kind: "email-otp" },
+  });
 }
 
 function extractWhatsAppStatuses(payload) {
@@ -1168,6 +1281,48 @@ app.post("/api/auth/request-code", async (req, res) => {
   }
 });
 
+app.post("/api/auth/request-email-code", async (req, res) => {
+  const email = normalizeEmail(req.body?.email);
+  const fullName = String(req.body?.fullName || "").trim();
+
+  if (!email) {
+    res.status(400).json({ message: "Email requis." });
+    return;
+  }
+
+  const existingUser = await prisma.user.findUnique({ where: { email } });
+  const code = generateVerificationCode();
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+  try {
+    const delivery = await sendEmailVerificationCode({ email, code, fullName });
+    const challenge = await prisma.authChallenge.create({
+      data: {
+        userId: existingUser?.id || null,
+        phone: email,
+        method: "SMS",
+        code,
+        providerMessageId: delivery.messageId,
+        deliveryStatus: delivery.status,
+        sentAt: delivery.status === "SENT" ? new Date() : null,
+        expiresAt,
+      },
+    });
+
+    res.status(201).json({
+      challengeId: challenge.id,
+      expiresAt: challenge.expiresAt.toISOString(),
+      provider: delivery.provider,
+      userExists: Boolean(existingUser),
+      demoCode: delivery.provider === "outbox" ? code : undefined,
+    });
+  } catch (error) {
+    res.status(502).json({
+      message: error instanceof Error ? error.message : "Envoi email impossible.",
+    });
+  }
+});
+
 app.post("/api/auth/verify-code", async (req, res) => {
   const challengeId = String(req.body?.challengeId || "").trim();
   const code = String(req.body?.code || "").trim();
@@ -1226,6 +1381,104 @@ app.post("/api/auth/verify-code", async (req, res) => {
     userExists: Boolean(user),
     isProfileComplete: false,
     phone: updatedChallenge.phone,
+  });
+});
+
+app.post("/api/auth/verify-email-code", async (req, res) => {
+  const challengeId = String(req.body?.challengeId || "").trim();
+  const code = String(req.body?.code || "").trim();
+  const email = normalizeEmail(req.body?.email);
+  const fullName = String(req.body?.fullName || "").trim();
+  const phone = normalizePhoneNumber(req.body?.phone);
+
+  if (!challengeId || !code || !email || !fullName || !phone) {
+    res.status(400).json({ message: "Informations de verification incompletes." });
+    return;
+  }
+
+  const challenge = await prisma.authChallenge.findUnique({
+    where: { id: challengeId },
+    include: { user: { include: { addresses: true, favorites: true } } },
+  });
+
+  if (!challenge || challenge.consumedAt || challenge.expiresAt < new Date()) {
+    res.status(400).json({ message: "Code expire ou invalide." });
+    return;
+  }
+
+  if (challenge.phone !== email) {
+    res.status(400).json({ message: "Cet email ne correspond pas a la verification en cours." });
+    return;
+  }
+
+  if (challenge.code !== code) {
+    res.status(401).json({ message: "Code de verification incorrect." });
+    return;
+  }
+
+  const phoneOwner = await prisma.user.findUnique({ where: { phone } }).catch(() => null);
+  if (phoneOwner && phoneOwner.id !== challenge.userId) {
+    res.status(400).json({ message: "Ce numero est deja utilise par un autre compte." });
+    return;
+  }
+
+  const { firstName, lastName } = splitFullName(fullName);
+  if (!firstName || !lastName) {
+    res.status(400).json({ message: "Nom et prenom requis." });
+    return;
+  }
+
+  const user = await prisma.$transaction(async (tx) => {
+    const passwordHash = challenge.user?.passwordHash || (await bcrypt.hash(generateOpaqueToken("cust"), 8));
+    const upsertedUser = challenge.userId
+      ? await tx.user.update({
+          where: { id: challenge.userId },
+          data: {
+            firstName,
+            lastName,
+            name: `${firstName} ${lastName}`.trim(),
+            email,
+            phone,
+            authProvider: "SMS",
+            phoneVerifiedAt: new Date(),
+            role: "CUSTOMER",
+          },
+        })
+      : await tx.user.create({
+          data: {
+            email,
+            passwordHash,
+            firstName,
+            lastName,
+            name: `${firstName} ${lastName}`.trim(),
+            phone,
+            defaultAddress: "",
+            authProvider: "SMS",
+            phoneVerifiedAt: new Date(),
+            role: "CUSTOMER",
+          },
+        });
+
+    await tx.authChallenge.update({
+      where: { id: challenge.id },
+      data: {
+        userId: upsertedUser.id,
+        verifiedAt: new Date(),
+        consumedAt: new Date(),
+      },
+    });
+
+    return tx.user.findUnique({
+      where: { id: upsertedUser.id },
+      include: { addresses: true, favorites: true },
+    });
+  });
+
+  res.json({
+    token: signToken(user),
+    user: serializeUserProfile(user),
+    savedAddresses: (user.addresses || []).map(serializeUserAddress),
+    notificationPreferences: serializeNotificationPreferences(user),
   });
 });
 

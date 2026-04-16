@@ -1,4 +1,26 @@
-import { cloneElement, isValidElement, useEffect, useMemo, useRef, useState } from "react";
+import { cloneElement, isValidElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  BarChart2,
+  Bike,
+  Check,
+  Clock,
+  Download,
+  Edit3,
+  ExternalLink,
+  Inbox,
+  LayoutDashboard,
+  Mail,
+  Moon,
+  Plus,
+  Power,
+  ShoppingBag,
+  Sparkles,
+  Store,
+  Sun,
+  Tags,
+  Users,
+  X,
+} from "lucide-react";
 import { AdminDialog } from "./components/AdminDialog";
 import "./index.css";
 
@@ -394,6 +416,156 @@ const emptyMenuItem = {
 };
 
 const orderStatuses = ["Confirmed", "Preparing", "On the way", "Delivered", "Cancelled"];
+const TABLE_PAGE_SIZE = 6;
+const TABLE_PAGE_SIZES = [6, 10, 20];
+const TABLE_SORT_OPTIONS = {
+  customers: [
+    { key: "name", label: "Nom" },
+    { key: "email", label: "Email" },
+    { key: "ordersCount", label: "Commandes" },
+    { key: "loyaltyPoints", label: "Points" },
+    { key: "favoritesCount", label: "Favoris" },
+  ],
+  applications: [
+    { key: "applicantName", label: "Nom" },
+    { key: "email", label: "Email" },
+    { key: "city", label: "Ville" },
+    { key: "status", label: "Statut" },
+  ],
+  couriers: [
+    { key: "name", label: "Nom" },
+    { key: "vehicle", label: "Vehicule" },
+    { key: "zoneLabel", label: "Zone" },
+    { key: "activeOrders", label: "Actifs" },
+    { key: "deliveredOrders", label: "Livres" },
+    { key: "status", label: "Statut" },
+  ],
+  categories: [
+    { key: "name", label: "Categorie" },
+    { key: "sortOrder", label: "Ordre" },
+    { key: "isActive", label: "Actif" },
+  ],
+};
+
+const CSV_COLUMN_OPTIONS = {
+  customers: [
+    { key: "name", label: "Nom" },
+    { key: "email", label: "Email" },
+    { key: "ordersCount", label: "Commandes" },
+    { key: "loyaltyPoints", label: "Points" },
+    { key: "favoritesCount", label: "Favoris" },
+    { key: "isActive", label: "Actif", format: (value) => (value ? "Oui" : "Non") },
+  ],
+  applications: [
+    { key: "applicantName", label: "Nom" },
+    { key: "type", label: "Type" },
+    { key: "email", label: "Email" },
+    { key: "phone", label: "Telephone" },
+    { key: "city", label: "Ville" },
+    { key: "businessName", label: "Activite", format: (_value, row) => row.businessName || row.vehicle || "" },
+    { key: "status", label: "Statut" },
+  ],
+  couriers: [
+    { key: "name", label: "Nom" },
+    { key: "phone", label: "Telephone" },
+    { key: "vehicle", label: "Vehicule" },
+    { key: "zoneLabel", label: "Zone" },
+    { key: "activeOrders", label: "Actifs" },
+    { key: "deliveredOrders", label: "Livres" },
+    { key: "status", label: "Statut" },
+  ],
+  categories: [
+    { key: "name", label: "Categorie" },
+    { key: "sortOrder", label: "Ordre" },
+    { key: "isActive", label: "Actif", format: (value) => (value ? "Oui" : "Non") },
+  ],
+};
+
+function sortRows(rows, sorts = []) {
+  if (!sorts.length) return rows;
+  const normalized = sorts.filter((sort) => sort?.key);
+  if (!normalized.length) return rows;
+  return [...rows].sort((left, right) => {
+    for (const sort of normalized) {
+      const multiplier = sort.dir === "desc" ? -1 : 1;
+      const a = left?.[sort.key];
+      const b = right?.[sort.key];
+      if (a == null && b == null) continue;
+      if (a == null) return 1 * multiplier;
+      if (b == null) return -1 * multiplier;
+      if (typeof a === "number" && typeof b === "number") {
+        const diff = (a - b) * multiplier;
+        if (diff !== 0) return diff;
+        continue;
+      }
+      const diff = String(a).localeCompare(String(b)) * multiplier;
+      if (diff !== 0) return diff;
+    }
+    return 0;
+  });
+}
+
+function exportCsv(filename, columns, rows) {
+  const header = columns.map((col) => col.label);
+  const data = rows.map((row) =>
+    columns.map((col) => {
+      const value = col.format ? col.format(row[col.key], row) : row[col.key];
+      const stringified = value == null ? "" : String(value);
+      return `"${stringified.replace(/"/g, '""')}"`;
+    })
+  );
+  const content = [header, ...data].map((line) => line.join(",")).join("\n");
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  link.href = url;
+  link.setAttribute("download", filename);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function getCsvColumns(options, overrides) {
+  const resolved = options.map((option) => ({
+    ...option,
+    enabled: overrides?.[option.key] ?? true,
+  }));
+  return resolved.filter((option) => option.enabled);
+}
+
+function toggleSortByColumn(currentPrimary, currentSecondary, nextKey, shiftKey) {
+  const nextDir =
+    currentPrimary.key === nextKey
+      ? currentPrimary.dir === "asc"
+        ? "desc"
+        : "asc"
+      : "asc";
+  if (shiftKey) {
+    return {
+      primary: currentPrimary,
+      secondary: { key: nextKey, dir: nextDir },
+    };
+  }
+  return {
+    primary: { key: nextKey, dir: nextDir },
+    secondary: currentSecondary.key ? currentSecondary : { key: "", dir: "asc" },
+  };
+}
+
+function buildSparkline(values, width = 120, height = 32) {
+  if (!values?.length) return "";
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  return values
+    .map((value, index) => {
+      const x = (index / (values.length - 1 || 1)) * width;
+      const y = height - ((value - min) / range) * height;
+      return `${index === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+}
 
 async function apiRequest(path, options = {}, token) {
   const response = await fetch(`${API_URL}${path}`, {
@@ -597,6 +769,7 @@ function sameErrors(left, right) {
 
 export default function App() {
   const [language, setLanguage] = useState(localStorage.getItem("admin_language") || "fr");
+  const [theme, setTheme] = useState(localStorage.getItem("admin_theme") || "light");
   const [token, setToken] = useState(localStorage.getItem("admin_token") || "");
   const [user, setUser] = useState(() => {
     const raw = localStorage.getItem("admin_user");
@@ -624,6 +797,8 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState("");
   const [activeView, setActiveView] = useState("overview");
   const [restaurantSearch, setRestaurantSearch] = useState("");
+  const [restaurantStatusFilter, setRestaurantStatusFilter] = useState("ALL");
+  const [restaurantSort, setRestaurantSort] = useState({ key: "name", dir: "asc" });
   const [orderSearch, setOrderSearch] = useState("");
   const [orderFilter, setOrderFilter] = useState("All");
   const [expandedOrderId, setExpandedOrderId] = useState("");
@@ -672,14 +847,53 @@ export default function App() {
   const [courierErrors, setCourierErrors] = useState({});
   const [categoryErrors, setCategoryErrors] = useState({});
   const [promotionErrors, setPromotionErrors] = useState({});
+  const [customerQuery, setCustomerQuery] = useState("");
+  const [customerSort, setCustomerSort] = useState({ key: "name", dir: "asc" });
+  const [customerSecondarySort, setCustomerSecondarySort] = useState({ key: "", dir: "asc" });
+  const [customerCsvColumns, setCustomerCsvColumns] = useState(() => ({}));
+  const [customerPage, setCustomerPage] = useState(1);
+  const [customerPageSize, setCustomerPageSize] = useState(TABLE_PAGE_SIZE);
+  const [customerStatusFilter, setCustomerStatusFilter] = useState("ALL");
+  const [customersScrolled, setCustomersScrolled] = useState(false);
+  const [applicationQuery, setApplicationQuery] = useState("");
+  const [applicationSort, setApplicationSort] = useState({ key: "applicantName", dir: "asc" });
+  const [applicationSecondarySort, setApplicationSecondarySort] = useState({ key: "", dir: "asc" });
+  const [applicationCsvColumns, setApplicationCsvColumns] = useState(() => ({}));
+  const [applicationPage, setApplicationPage] = useState(1);
+  const [applicationPageSize, setApplicationPageSize] = useState(TABLE_PAGE_SIZE);
+  const [applicationStatusFilter, setApplicationStatusFilter] = useState("ALL");
+  const [applicationTypeFilter, setApplicationTypeFilter] = useState("ALL");
+  const [applicationCityFilter, setApplicationCityFilter] = useState("ALL");
+  const [applicationsScrolled, setApplicationsScrolled] = useState(false);
+  const [courierQuery, setCourierQuery] = useState("");
+  const [courierSort, setCourierSort] = useState({ key: "name", dir: "asc" });
+  const [courierSecondarySort, setCourierSecondarySort] = useState({ key: "", dir: "asc" });
+  const [courierCsvColumns, setCourierCsvColumns] = useState(() => ({}));
+  const [courierPage, setCourierPage] = useState(1);
+  const [courierPageSize, setCourierPageSize] = useState(TABLE_PAGE_SIZE);
+  const [courierStatusFilter, setCourierStatusFilter] = useState("ALL");
+  const [courierZoneFilter, setCourierZoneFilter] = useState("ALL");
+  const [couriersScrolled, setCouriersScrolled] = useState(false);
+  const [categoryQuery, setCategoryQuery] = useState("");
+  const [categorySort, setCategorySort] = useState({ key: "name", dir: "asc" });
+  const [categorySecondarySort, setCategorySecondarySort] = useState({ key: "", dir: "asc" });
+  const [categoryCsvColumns, setCategoryCsvColumns] = useState(() => ({}));
+  const [categoryPage, setCategoryPage] = useState(1);
+  const [categoryPageSize, setCategoryPageSize] = useState(TABLE_PAGE_SIZE);
+  const [categoryStatusFilter, setCategoryStatusFilter] = useState("ALL");
+  const [categoriesScrolled, setCategoriesScrolled] = useState(false);
+  const [tableComfort, setTableComfort] = useState(false);
+  const [actionCompact, setActionCompact] = useState(false);
   const requestInFlightRef = useRef(false);
   const hasHydratedLiveFeedRef = useRef(false);
+  const selectedRestaurantIdRef = useRef("");
   const previousOrdersRef = useRef([]);
   const previousApplicationsRef = useRef([]);
   const realtimeSocketRef = useRef(null);
   const realtimeRetryRef = useRef(null);
+  const isWideTableView = ["customers", "applications", "couriers", "categories"].includes(activeView);
   const isRTL = language === "ar";
-  const t = (key) => translations[language]?.[key] || translations.fr[key] || key;
+  const t = useCallback((key) => translations[language]?.[key] || translations.fr[key] || key, [language]);
   const availableMealCategories = menuCategories.length
     ? menuCategories.filter((category) => category.isActive).map((category) => category.name)
     : mealCategories;
@@ -690,11 +904,20 @@ export default function App() {
   );
 
   const filteredRestaurants = useMemo(() => {
-    return restaurants.filter((restaurant) => {
+    const statusFiltered = restaurants.filter((restaurant) => {
+      if (restaurantStatusFilter === "ACTIVE") return restaurant.isActive;
+      if (restaurantStatusFilter === "INACTIVE") return !restaurant.isActive;
+      if (restaurantStatusFilter === "VALIDATED") return restaurant.validationStatus === "VALIDATED";
+      if (restaurantStatusFilter === "PENDING") return restaurant.validationStatus === "PENDING";
+      if (restaurantStatusFilter === "REJECTED") return restaurant.validationStatus === "REJECTED";
+      return true;
+    });
+    const searched = statusFiltered.filter((restaurant) => {
       const haystack = `${restaurant.name} ${restaurant.category} ${restaurant.address}`.toLowerCase();
       return haystack.includes(restaurantSearch.toLowerCase());
     });
-  }, [restaurantSearch, restaurants]);
+    return sortRows(searched, [restaurantSort]);
+  }, [restaurantSearch, restaurantStatusFilter, restaurantSort, restaurants]);
 
   const filteredOrders = useMemo(() => {
     const query = orderSearch.trim().toLowerCase();
@@ -721,17 +944,157 @@ export default function App() {
     });
   }, [orderFilter, orderSearch, orders]);
 
+  const filteredCustomers = useMemo(() => {
+    const query = customerQuery.trim().toLowerCase();
+    if (!query) return customers;
+    return customers.filter((customer) =>
+      `${customer.name} ${customer.email}`.toLowerCase().includes(query)
+    );
+  }, [customerQuery, customers]);
+
+  const filteredCustomersByStatus = useMemo(() => {
+    if (customerStatusFilter === "ACTIVE") {
+      return filteredCustomers.filter((customer) => customer.isActive);
+    }
+    if (customerStatusFilter === "INACTIVE") {
+      return filteredCustomers.filter((customer) => !customer.isActive);
+    }
+    return filteredCustomers;
+  }, [customerStatusFilter, filteredCustomers]);
+
+  const filteredApplications = useMemo(() => {
+    const query = applicationQuery.trim().toLowerCase();
+    if (!query) return applications;
+    return applications.filter((application) =>
+      `${application.applicantName} ${application.email} ${application.phone} ${application.city} ${application.businessName || ""} ${application.vehicle || ""}`
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [applicationQuery, applications]);
+
+  const filteredApplicationsByStatus = useMemo(() => {
+    if (applicationStatusFilter === "ALL") return filteredApplications;
+    return filteredApplications.filter((application) => application.status === applicationStatusFilter);
+  }, [applicationStatusFilter, filteredApplications]);
+
+  const filteredApplicationsByType = useMemo(() => {
+    if (applicationTypeFilter === "ALL") return filteredApplicationsByStatus;
+    return filteredApplicationsByStatus.filter((application) => application.type === applicationTypeFilter);
+  }, [applicationTypeFilter, filteredApplicationsByStatus]);
+
+  const filteredApplicationsByCity = useMemo(() => {
+    if (applicationCityFilter === "ALL") return filteredApplicationsByType;
+    return filteredApplicationsByType.filter((application) => application.city === applicationCityFilter);
+  }, [applicationCityFilter, filteredApplicationsByType]);
+
+  const filteredCouriers = useMemo(() => {
+    const query = courierQuery.trim().toLowerCase();
+    if (!query) return couriers;
+    return couriers.filter((courier) =>
+      `${courier.name} ${courier.phone} ${courier.vehicle} ${courier.zoneLabel || ""}`.toLowerCase().includes(query)
+    );
+  }, [courierQuery, couriers]);
+
+  const filteredCouriersByStatus = useMemo(() => {
+    if (courierStatusFilter === "ALL") return filteredCouriers;
+    return filteredCouriers.filter((courier) => courier.status === courierStatusFilter);
+  }, [courierStatusFilter, filteredCouriers]);
+
+  const filteredCouriersByZone = useMemo(() => {
+    if (courierZoneFilter === "ALL") return filteredCouriersByStatus;
+    return filteredCouriersByStatus.filter((courier) => courier.zoneLabel === courierZoneFilter);
+  }, [courierZoneFilter, filteredCouriersByStatus]);
+
+  const filteredCategories = useMemo(() => {
+    const query = categoryQuery.trim().toLowerCase();
+    if (!query) return menuCategories;
+    return menuCategories.filter((category) =>
+      `${category.name}`.toLowerCase().includes(query)
+    );
+  }, [categoryQuery, menuCategories]);
+
+  const filteredCategoriesByStatus = useMemo(() => {
+    if (categoryStatusFilter === "ACTIVE") {
+      return filteredCategories.filter((category) => category.isActive);
+    }
+    if (categoryStatusFilter === "INACTIVE") {
+      return filteredCategories.filter((category) => !category.isActive);
+    }
+    return filteredCategories;
+  }, [categoryStatusFilter, filteredCategories]);
+
+  const applicationCities = useMemo(() => {
+    const values = new Set(applications.map((application) => application.city).filter(Boolean));
+    return Array.from(values).sort();
+  }, [applications]);
+
+  const courierZones = useMemo(() => {
+    const values = new Set(couriers.map((courier) => courier.zoneLabel).filter(Boolean));
+    return Array.from(values).sort();
+  }, [couriers]);
+
+  const sortedCustomers = useMemo(
+    () => sortRows(filteredCustomersByStatus, [customerSort, customerSecondarySort]),
+    [filteredCustomersByStatus, customerSort, customerSecondarySort]
+  );
+  const sortedApplications = useMemo(
+    () => sortRows(filteredApplicationsByCity, [applicationSort, applicationSecondarySort]),
+    [filteredApplicationsByCity, applicationSort, applicationSecondarySort]
+  );
+  const sortedCouriers = useMemo(
+    () => sortRows(filteredCouriersByZone, [courierSort, courierSecondarySort]),
+    [filteredCouriersByZone, courierSort, courierSecondarySort]
+  );
+  const sortedCategories = useMemo(
+    () => sortRows(filteredCategoriesByStatus, [categorySort, categorySecondarySort]),
+    [filteredCategoriesByStatus, categorySort, categorySecondarySort]
+  );
+
+  const customerPages = Math.max(1, Math.ceil(sortedCustomers.length / customerPageSize));
+  const applicationPages = Math.max(1, Math.ceil(sortedApplications.length / applicationPageSize));
+  const courierPages = Math.max(1, Math.ceil(sortedCouriers.length / courierPageSize));
+  const categoryPages = Math.max(1, Math.ceil(sortedCategories.length / categoryPageSize));
+
+  const customerPageSafe = Math.min(customerPage, customerPages);
+  const applicationPageSafe = Math.min(applicationPage, applicationPages);
+  const courierPageSafe = Math.min(courierPage, courierPages);
+  const categoryPageSafe = Math.min(categoryPage, categoryPages);
+
+  const pagedCustomers = sortedCustomers.slice(
+    (customerPageSafe - 1) * customerPageSize,
+    customerPageSafe * customerPageSize
+  );
+  const pagedApplications = sortedApplications.slice(
+    (applicationPageSafe - 1) * applicationPageSize,
+    applicationPageSafe * applicationPageSize
+  );
+  const pagedCouriers = sortedCouriers.slice(
+    (courierPageSafe - 1) * courierPageSize,
+    courierPageSafe * courierPageSize
+  );
+  const pagedCategories = sortedCategories.slice(
+    (categoryPageSafe - 1) * categoryPageSize,
+    categoryPageSafe * categoryPageSize
+  );
+
   const dashboardStats = useMemo(() => {
     const delivered = orders.filter((order) => order.status === "Delivered").length;
     const inProgress = orders.filter((order) => order.status !== "Delivered").length;
     const revenue = orders.reduce((sum, order) => sum + Number(order.total || 0), 0);
     const menuItemsCount = restaurants.reduce((sum, restaurant) => sum + restaurant.menu.length, 0);
+    const recentOrders = [...orders].slice(-7);
+    const orderSpark = recentOrders.length
+      ? recentOrders.map((_order, index) => index + 1)
+      : [0, 0, 0, 0];
+    const revenueSpark = recentOrders.length
+      ? recentOrders.map((order) => Number(order.total || 0))
+      : [0, 0, 0, 0];
 
     return [
       { label: "Restaurants", value: restaurants.length, caption: "catalogue actif", accent: "orange" },
       { label: "Menus", value: menuItemsCount, caption: "plats publies", accent: "blue" },
-      { label: "Commandes", value: inProgress, caption: "en cours", accent: "gold" },
-      { label: "CA", value: formatMoney(revenue), caption: `${delivered} livrees`, accent: "green" },
+      { label: "Commandes", value: inProgress, caption: "en cours", accent: "gold", sparkline: orderSpark },
+      { label: "CA", value: formatMoney(revenue), caption: `${delivered} livrees`, accent: "green", sparkline: revenueSpark },
     ];
   }, [orders, restaurants]);
 
@@ -750,7 +1113,7 @@ export default function App() {
       { label: t("inventory"), value: menuItemsCount, caption: t("inventory_items") },
       { label: t("promotions"), value: 0, caption: t("active_promotions") },
     ];
-  }, [orders, restaurants, language]);
+  }, [orders, restaurants, t]);
 
   const pendingApplicationsCount = useMemo(
     () => applications.filter((application) => application.status === "PENDING").length,
@@ -925,6 +1288,31 @@ export default function App() {
   }, [selectedRestaurantId]);
 
   useEffect(() => {
+    selectedRestaurantIdRef.current = selectedRestaurantId;
+  }, [selectedRestaurantId]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    localStorage.setItem("admin_theme", theme);
+  }, [theme]);
+
+  useEffect(() => {
+    setCustomerPage(1);
+  }, [customerQuery, customerStatusFilter, customerPageSize]);
+
+  useEffect(() => {
+    setApplicationPage(1);
+  }, [applicationQuery, applicationStatusFilter, applicationTypeFilter, applicationCityFilter, applicationPageSize]);
+
+  useEffect(() => {
+    setCourierPage(1);
+  }, [courierQuery, courierStatusFilter, courierZoneFilter, courierPageSize]);
+
+  useEffect(() => {
+    setCategoryPage(1);
+  }, [categoryQuery, categoryStatusFilter, categoryPageSize]);
+
+  useEffect(() => {
     function handleInvalidAuth(event) {
       setToken("");
       setUser(null);
@@ -960,7 +1348,7 @@ export default function App() {
     }
 
     loadAdminData();
-  }, [token]);
+  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!token) {
@@ -989,7 +1377,7 @@ export default function App() {
       window.removeEventListener("focus", handleWindowFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [token]);
+  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!token) {
@@ -1043,7 +1431,7 @@ export default function App() {
       realtimeSocketRef.current?.close();
       realtimeSocketRef.current = null;
     };
-  }, [token, activeView]);
+  }, [token, activeView]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (activeView === "orders") {
@@ -1131,8 +1519,17 @@ export default function App() {
         hasHydratedLiveFeedRef.current = true;
       }
 
-      if (restaurantData[0] && !selectedRestaurantId) {
-        setSelectedRestaurantId(restaurantData[0].id);
+      const nextSelectedRestaurantId = selectedRestaurantIdRef.current;
+      if (restaurantData.length) {
+        const hasSelectedRestaurant = nextSelectedRestaurantId
+          ? restaurantData.some((restaurant) => restaurant.id === nextSelectedRestaurantId)
+          : false;
+
+        if (!hasSelectedRestaurant) {
+          setSelectedRestaurantId(restaurantData[0].id);
+        }
+      } else if (nextSelectedRestaurantId) {
+        setSelectedRestaurantId("");
       }
       if (!silent) {
         setErrorMessage("");
@@ -2093,16 +2490,16 @@ export default function App() {
 
         <nav className="side-nav">
           {[
-            { id: "overview", label: t("overview") },
-            { id: "restaurants", label: t("restaurants") },
-            { id: "orders", label: t("orders") },
-            { id: "customers", label: t("customers_nav") },
-            { id: "couriers", label: t("couriers_nav") },
-            { id: "applications", label: t("applications_nav") },
-            { id: "categories", label: t("categories_nav") },
-            { id: "promotions", label: t("promotions_nav") },
-            { id: "reports", label: t("reports_nav") },
-            { id: "create", label: t("new_restaurant") },
+            { id: "overview", label: t("overview"), icon: LayoutDashboard },
+            { id: "restaurants", label: t("restaurants"), icon: Store },
+            { id: "orders", label: t("orders"), icon: ShoppingBag },
+            { id: "customers", label: t("customers_nav"), icon: Users },
+            { id: "couriers", label: t("couriers_nav"), icon: Bike },
+            { id: "applications", label: t("applications_nav"), icon: Inbox },
+            { id: "categories", label: t("categories_nav"), icon: Tags },
+            { id: "promotions", label: t("promotions_nav"), icon: Sparkles },
+            { id: "reports", label: t("reports_nav"), icon: BarChart2 },
+            { id: "create", label: t("new_restaurant"), icon: Plus },
           ].map((item) => (
             <button
               key={item.id}
@@ -2116,6 +2513,9 @@ export default function App() {
                 setActiveView(item.id);
               }}
             >
+              <span className="nav-icon">
+                <item.icon size={16} />
+              </span>
               <span>{item.label}</span>
               {item.id === "orders" && liveInbox.orders ? <span className="nav-badge">{liveInbox.orders}</span> : null}
               {item.id === "applications" && liveInbox.applications ? (
@@ -2129,11 +2529,23 @@ export default function App() {
           <div className="inline-actions">
             <button className="ghost small" onClick={() => setLanguage("fr")}>{t("french")}</button>
             <button className="ghost small" onClick={() => setLanguage("ar")}>{t("arabic")}</button>
+            <button
+              className="ghost small"
+              onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
+              aria-label="Toggle theme"
+            >
+              {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
           </div>
           <span className="chip chip-dark">{user?.role}</span>
           <h3>{user?.name}</h3>
           <p>{user?.email}</p>
-          <button className="ghost full" onClick={handleLogout}>{t("logout")}</button>
+          <button className="ghost full" onClick={handleLogout}>
+            <span className="inline-flex items-center gap-2">
+              <Power size={14} />
+              {t("logout")}
+            </span>
+          </button>
         </div>
       </aside>
 
@@ -2169,11 +2581,16 @@ export default function App() {
               <p>{stat.label}</p>
               <strong>{stat.value}</strong>
               <span>{stat.caption}</span>
+              {stat.sparkline ? (
+                <svg className="sparkline" viewBox="0 0 120 32" aria-hidden="true">
+                  <path d={buildSparkline(stat.sparkline, 120, 32)} />
+                </svg>
+              ) : null}
             </article>
           ))}
         </section>
 
-        <section className="content-grid">
+        <section className={`content-grid ${isWideTableView ? "wide-grid" : ""}`}>
           <div className="main-column">
             {(activeView === "overview" || activeView === "restaurants") && (
               <article className="panel large-panel">
@@ -2182,12 +2599,42 @@ export default function App() {
                     <h3>Catalogue restaurants</h3>
                     <p>{t("restaurant_catalog_subtitle")}</p>
                   </div>
-                  <input
-                    className="search-input"
-                    value={restaurantSearch}
-                    onChange={(event) => setRestaurantSearch(event.target.value)}
-                    placeholder={t("search_restaurant")}
-                  />
+                  <div className="table-toolbar">
+                    <input
+                      className="search-input"
+                      value={restaurantSearch}
+                      onChange={(event) => setRestaurantSearch(event.target.value)}
+                      placeholder={t("search_restaurant")}
+                    />
+                    <select
+                      className="inline-select"
+                      value={restaurantStatusFilter}
+                      onChange={(event) => setRestaurantStatusFilter(event.target.value)}
+                    >
+                      <option value="ALL">Tous</option>
+                      <option value="ACTIVE">{t("active")}</option>
+                      <option value="INACTIVE">{t("inactive")}</option>
+                      <option value="VALIDATED">VALIDATED</option>
+                      <option value="PENDING">PENDING</option>
+                      <option value="REJECTED">REJECTED</option>
+                    </select>
+                    <select
+                      className="inline-select"
+                      value={`${restaurantSort.key}:${restaurantSort.dir}`}
+                      onChange={(event) => {
+                        const [key, dir] = event.target.value.split(":");
+                        setRestaurantSort({ key, dir });
+                      }}
+                    >
+                      <option value="name:asc">Nom A-Z</option>
+                      <option value="name:desc">Nom Z-A</option>
+                      <option value="category:asc">Categorie A-Z</option>
+                      <option value="category:desc">Categorie Z-A</option>
+                      <option value="reviewCount:desc">Avis</option>
+                      <option value="rating:desc">Note</option>
+                    </select>
+                    <span className="table-summary">{filteredRestaurants.length} restaurants</span>
+                  </div>
                 </div>
 
                 <div className="restaurant-board">
@@ -2209,6 +2656,9 @@ export default function App() {
                         <div className="restaurant-tile-meta">
                           <span>{restaurant.deliveryTime}</span>
                           <span>{restaurant.menu.length} {t("dishes")}</span>
+                          <span className={`status-pill ${restaurant.isActive ? "success" : "neutral"}`}>
+                            {restaurant.isActive ? t("active") : t("inactive")}
+                          </span>
                         </div>
                       </button>
                     ))}
@@ -2579,28 +3029,252 @@ export default function App() {
                     <p>{t("customers")}</p>
                   </div>
                 </div>
-                <div className="orders-grid">
-                  {customers.map((customer) => (
-                    <div key={customer.id} className="order-card">
-                      <div className="order-head">
-                        <div>
-                          <strong>{customer.name}</strong>
-                          <p>{customer.email}</p>
-                        </div>
-                        <span className={`status-pill ${customer.isActive ? "success" : "neutral"}`}>
-                          {customer.isActive ? t("active") : t("inactive")}
-                        </span>
-                      </div>
-                      <div className="order-metrics">
-                        <span>{customer.ordersCount} cmd</span>
-                        <span>{customer.loyaltyPoints} pts</span>
-                        <span>{customer.favoritesCount} fav</span>
-                      </div>
-                      <button className="ghost small" onClick={() => handleCustomerToggle(customer)}>
-                        {customer.isActive ? t("inactive") : t("active")}
-                      </button>
-                    </div>
-                  ))}
+                <div className="table-toolbar">
+                  <input
+                    className="search-input"
+                    value={customerQuery}
+                    onChange={(event) => setCustomerQuery(event.target.value)}
+                    placeholder="Rechercher un client..."
+                  />
+                  <select
+                    className="inline-select"
+                    value={customerStatusFilter}
+                    onChange={(event) => setCustomerStatusFilter(event.target.value)}
+                  >
+                    <option value="ALL">Tous</option>
+                    <option value="ACTIVE">{t("active")}</option>
+                    <option value="INACTIVE">{t("inactive")}</option>
+                  </select>
+                  <select
+                    className="inline-select"
+                    value={customerPageSize}
+                    onChange={(event) => setCustomerPageSize(Number(event.target.value))}
+                  >
+                    {TABLE_PAGE_SIZES.map((size) => (
+                      <option key={size} value={size}>
+                        {size} / page
+                      </option>
+                    ))}
+                  </select>
+                  <label className="table-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={tableComfort}
+                      onChange={(event) => setTableComfort(event.target.checked)}
+                    />
+                    <span>Vue confort</span>
+                  </label>
+                  <label className="table-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={actionCompact}
+                      onChange={(event) => setActionCompact(event.target.checked)}
+                    />
+                    <span>Actions compactes</span>
+                  </label>
+                  <button
+                    className="ghost small"
+                    onClick={() =>
+                    exportCsv("clients.csv", getCsvColumns(CSV_COLUMN_OPTIONS.customers, customerCsvColumns), sortedCustomers)
+                  }
+                >
+                    <span className="inline-flex items-center gap-2">
+                      <Download size={14} />
+                      Export CSV
+                    </span>
+                </button>
+                  <div className="table-action-stack">
+                    {CSV_COLUMN_OPTIONS.customers.map((column) => (
+                      <label key={column.key} className="table-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={customerCsvColumns[column.key] ?? true}
+                          onChange={(event) =>
+                            setCustomerCsvColumns((current) => ({
+                              ...current,
+                              [column.key]: event.target.checked,
+                            }))
+                          }
+                        />
+                        <span>{column.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <span className="table-summary">
+                    {sortedCustomers.length} resultat(s)
+                  </span>
+                </div>
+                <div
+                  className={`data-table-wrap ${customersScrolled ? "is-scrolled" : ""}`}
+                  onScroll={(event) => setCustomersScrolled(event.currentTarget.scrollTop > 4)}
+                >
+                  <table className={`data-table ${tableComfort ? "comfort" : ""}`}>
+                    <thead>
+                      <tr>
+                        <th>
+                          <span
+                            className="table-sort"
+                            onClick={(event) => {
+                              const next = toggleSortByColumn(
+                                customerSort,
+                                customerSecondarySort,
+                                "name",
+                                event.shiftKey
+                              );
+                              setCustomerSort(next.primary);
+                              setCustomerSecondarySort(next.secondary);
+                            }}
+                          >
+                            {t("name")}
+                            {customerSort.key === "name" ? (
+                              <span className="sort-indicator">{customerSort.dir === "asc" ? "▲" : "▼"}</span>
+                            ) : null}
+                          </span>
+                        </th>
+                        <th>
+                          <span
+                            className="table-sort"
+                            onClick={(event) => {
+                              const next = toggleSortByColumn(
+                                customerSort,
+                                customerSecondarySort,
+                                "email",
+                                event.shiftKey
+                              );
+                              setCustomerSort(next.primary);
+                              setCustomerSecondarySort(next.secondary);
+                            }}
+                          >
+                            {t("email")}
+                            {customerSort.key === "email" ? (
+                              <span className="sort-indicator">{customerSort.dir === "asc" ? "▲" : "▼"}</span>
+                            ) : null}
+                          </span>
+                        </th>
+                        <th className="table-compact">
+                          <span
+                            className="table-sort"
+                            onClick={(event) => {
+                              const next = toggleSortByColumn(
+                                customerSort,
+                                customerSecondarySort,
+                                "ordersCount",
+                                event.shiftKey
+                              );
+                              setCustomerSort(next.primary);
+                              setCustomerSecondarySort(next.secondary);
+                            }}
+                          >
+                            {t("orders")}
+                            {customerSort.key === "ordersCount" ? (
+                              <span className="sort-indicator">{customerSort.dir === "asc" ? "▲" : "▼"}</span>
+                            ) : null}
+                          </span>
+                        </th>
+                        <th className="table-compact">
+                          <span
+                            className="table-sort"
+                            onClick={(event) => {
+                              const next = toggleSortByColumn(
+                                customerSort,
+                                customerSecondarySort,
+                                "loyaltyPoints",
+                                event.shiftKey
+                              );
+                              setCustomerSort(next.primary);
+                              setCustomerSecondarySort(next.secondary);
+                            }}
+                          >
+                            Points
+                            {customerSort.key === "loyaltyPoints" ? (
+                              <span className="sort-indicator">{customerSort.dir === "asc" ? "▲" : "▼"}</span>
+                            ) : null}
+                          </span>
+                        </th>
+                        <th className="table-compact">
+                          <span
+                            className="table-sort"
+                            onClick={(event) => {
+                              const next = toggleSortByColumn(
+                                customerSort,
+                                customerSecondarySort,
+                                "favoritesCount",
+                                event.shiftKey
+                              );
+                              setCustomerSort(next.primary);
+                              setCustomerSecondarySort(next.secondary);
+                            }}
+                          >
+                            Favoris
+                            {customerSort.key === "favoritesCount" ? (
+                              <span className="sort-indicator">{customerSort.dir === "asc" ? "▲" : "▼"}</span>
+                            ) : null}
+                          </span>
+                        </th>
+                        <th className="table-compact">{t("active")}</th>
+                        <th className="table-compact">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pagedCustomers.length ? (
+                        pagedCustomers.map((customer) => (
+                          <tr key={customer.id}>
+                            <td>
+                              <div className="table-headline">
+                                <span className="avatar">{String(customer.name || "?").charAt(0).toUpperCase()}</span>
+                                <div>
+                                  <div className="table-strong">{customer.name}</div>
+                                  <div className="table-subtext">{customer.email}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="table-muted table-compact">{customer.email}</td>
+                            <td className="table-compact">{customer.ordersCount}</td>
+                            <td className="table-compact">{customer.loyaltyPoints}</td>
+                            <td className="table-compact">{customer.favoritesCount}</td>
+                            <td className="table-compact">
+                              <span className={`status-pill ${customer.isActive ? "success" : "neutral"}`}>
+                                {customer.isActive ? t("active") : t("inactive")}
+                              </span>
+                            </td>
+                            <td className="table-compact">
+                              <div className={`table-action-stack ${actionCompact ? "compact" : ""}`}>
+                                <button className="ghost small" onClick={() => handleCustomerToggle(customer)}>
+                                  <span className="inline-flex items-center gap-1">
+                                    <Edit3 size={12} />
+                                    {customer.isActive ? t("inactive") : t("active")}
+                                  </span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={7} className="table-muted">Aucun client</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="table-pagination">
+                  <span className="table-summary">
+                    Page {customerPageSafe} / {customerPages}
+                  </span>
+                  <button
+                    className="ghost small"
+                    disabled={customerPageSafe <= 1}
+                    onClick={() => setCustomerPage((page) => Math.max(1, page - 1))}
+                  >
+                    Precedent
+                  </button>
+                  <button
+                    className="ghost small"
+                    disabled={customerPageSafe >= customerPages}
+                    onClick={() => setCustomerPage((page) => Math.min(customerPages, page + 1))}
+                  >
+                    Suivant
+                  </button>
                 </div>
               </article>
             )}
@@ -2617,87 +3291,282 @@ export default function App() {
                     <span className="alert-badge pulse soft">{liveInbox.applications} nouvelle(s)</span>
                   ) : null}
                 </div>
-                <div className="orders-grid">
-                  {applications.length ? (
-                    applications.map((application) => (
-                      <div key={application.id} className="order-card">
-                        <div className="order-head">
-                          <div>
-                            <strong>{application.applicantName}</strong>
-                            <p>{application.type === "RESTAURANT" ? t("restaurants") : t("couriers_nav")}</p>
-                          </div>
-                          <span className={`status-pill ${
-                            application.status === "ACCEPTED"
-                              ? "success"
-                              : application.status === "REJECTED"
-                              ? "neutral"
-                              : "warning"
-                          }`}>
-                            {application.status === "ACCEPTED"
-                              ? t("accepted")
-                              : application.status === "REJECTED"
-                              ? t("rejected")
-                              : t("pending")}
+                <div className="table-toolbar">
+                  <input
+                    className="search-input"
+                    value={applicationQuery}
+                    onChange={(event) => setApplicationQuery(event.target.value)}
+                    placeholder="Rechercher une demande..."
+                  />
+                  <select
+                    className="inline-select"
+                    value={applicationStatusFilter}
+                    onChange={(event) => setApplicationStatusFilter(event.target.value)}
+                  >
+                    <option value="ALL">Tous</option>
+                    <option value="PENDING">{t("pending")}</option>
+                    <option value="ACCEPTED">{t("accepted")}</option>
+                    <option value="REJECTED">{t("rejected")}</option>
+                  </select>
+                  <select
+                    className="inline-select"
+                    value={applicationTypeFilter}
+                    onChange={(event) => setApplicationTypeFilter(event.target.value)}
+                  >
+                    <option value="ALL">Tous types</option>
+                    <option value="RESTAURANT">{t("restaurants")}</option>
+                    <option value="COURIER">{t("couriers_nav")}</option>
+                  </select>
+                  <select
+                    className="inline-select"
+                    value={applicationCityFilter}
+                    onChange={(event) => setApplicationCityFilter(event.target.value)}
+                  >
+                    <option value="ALL">Toutes villes</option>
+                    {applicationCities.map((city) => (
+                      <option key={city} value={city}>
+                        {city}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    className="inline-select"
+                    value={applicationPageSize}
+                    onChange={(event) => setApplicationPageSize(Number(event.target.value))}
+                  >
+                    {TABLE_PAGE_SIZES.map((size) => (
+                      <option key={size} value={size}>
+                        {size} / page
+                      </option>
+                    ))}
+                  </select>
+                  <label className="table-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={tableComfort}
+                      onChange={(event) => setTableComfort(event.target.checked)}
+                    />
+                    <span>Vue confort</span>
+                  </label>
+                  <label className="table-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={actionCompact}
+                      onChange={(event) => setActionCompact(event.target.checked)}
+                    />
+                    <span>Actions compactes</span>
+                  </label>
+                  <button
+                    className="ghost small"
+                    onClick={() =>
+                    exportCsv("demandes.csv", getCsvColumns(CSV_COLUMN_OPTIONS.applications, applicationCsvColumns), sortedApplications)
+                  }
+                >
+                    <span className="inline-flex items-center gap-2">
+                      <Download size={14} />
+                      Export CSV
+                    </span>
+                </button>
+                  <div className="table-action-stack">
+                    {CSV_COLUMN_OPTIONS.applications.map((column) => (
+                      <label key={column.key} className="table-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={applicationCsvColumns[column.key] ?? true}
+                          onChange={(event) =>
+                            setApplicationCsvColumns((current) => ({
+                              ...current,
+                              [column.key]: event.target.checked,
+                            }))
+                          }
+                        />
+                        <span>{column.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <span className="table-summary">
+                    {sortedApplications.length} resultat(s)
+                  </span>
+                </div>
+                <div
+                  className={`data-table-wrap ${applicationsScrolled ? "is-scrolled" : ""}`}
+                  onScroll={(event) => setApplicationsScrolled(event.currentTarget.scrollTop > 4)}
+                >
+                  <table className={`data-table ${tableComfort ? "comfort" : ""}`}>
+                    <thead>
+                      <tr>
+                        <th>
+                          <span
+                            className="table-sort"
+                            onClick={(event) => {
+                              const next = toggleSortByColumn(
+                                applicationSort,
+                                applicationSecondarySort,
+                                "applicantName",
+                                event.shiftKey
+                              );
+                              setApplicationSort(next.primary);
+                              setApplicationSecondarySort(next.secondary);
+                            }}
+                          >
+                            {t("name")}
+                            {applicationSort.key === "applicantName" ? (
+                              <span className="sort-indicator">{applicationSort.dir === "asc" ? "▲" : "▼"}</span>
+                            ) : null}
                           </span>
-                        </div>
-                        <div className="order-metrics">
-                          <span>{formatOrderCreatedAt(application.createdAt || application.updatedAt)}</span>
-                          <span>{application.email}</span>
-                          <span>{application.phone}</span>
-                          <span>{application.city}</span>
-                          <span>{application.businessName || application.vehicle || t("none")}</span>
-                        </div>
-                        <div className="application-details">
-                          {application.restaurantCategory ? <p>{application.restaurantCategory}</p> : null}
-                          {application.address ? <p>{application.address}</p> : null}
-                          {application.zone ? <p>{application.zone}</p> : null}
-                          {application.type === "RESTAURANT" ? <p><strong>Plan:</strong> {formatBillingPlan(application)}</p> : null}
-                          {application.generatedApiToken ? <p><strong>Token API:</strong> {application.generatedApiToken}</p> : null}
-                          {application.qrCodeUrl ? <p><strong>URL QR:</strong> {application.qrCodeUrl}</p> : null}
-                          {application.notes ? <p>{application.notes}</p> : null}
-                          {application.linkedEntityLabel ? (
-                            <p>
-                              <strong>{t("linked_entity")}:</strong> {application.linkedEntityLabel}
-                            </p>
-                          ) : null}
-                          {application.linkedEntityType === "RESTAURANT" ? (
-                            <p>
-                              <strong>{t("draft_restaurant")}:</strong> {application.linkedEntityId ? "Oui" : "Non"}
-                            </p>
-                          ) : null}
-                        </div>
-                        <div className="button-row">
-                          <button className="ghost small" onClick={() => handleApplicationStatus(application.id, "PENDING")}>
-                            {t("pending")}
-                          </button>
-                          <button className="ghost small" onClick={() => handleApplicationStatus(application.id, "ACCEPTED")}>
-                            {t("accepted")}
-                          </button>
-                          <button className="ghost small" onClick={() => handleApplicationStatus(application.id, "REJECTED")}>
-                            {t("rejected")}
-                          </button>
-                          <a className="ghost small action-link" href={`mailto:${application.email}?subject=FoodDelyvry`}>
-                            {t("contact")}
-                          </a>
-                          {application.linkedEntityType === "RESTAURANT" ? (
-                            <button className="ghost small" onClick={() => openCreatedRestaurant(application)}>
-                              {t("open_created_restaurant")}
-                            </button>
-                          ) : null}
-                          {application.linkedEntityType === "RESTAURANT" ? (
-                            <button className="ghost small" onClick={() => handleActivateApplicationRestaurant(application.id)}>
-                              {t("activate_restaurant")}
-                            </button>
-                          ) : null}
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="empty-slot">
-                      <h3>{t("no_applications")}</h3>
-                      <p>{t("applications_subtitle")}</p>
-                    </div>
-                  )}
+                        </th>
+                        <th className="table-compact">Type</th>
+                        <th>
+                          <span
+                            className="table-sort"
+                            onClick={(event) => {
+                              const next = toggleSortByColumn(
+                                applicationSort,
+                                applicationSecondarySort,
+                                "email",
+                                event.shiftKey
+                              );
+                              setApplicationSort(next.primary);
+                              setApplicationSecondarySort(next.secondary);
+                            }}
+                          >
+                            {t("email")}
+                            {applicationSort.key === "email" ? (
+                              <span className="sort-indicator">{applicationSort.dir === "asc" ? "▲" : "▼"}</span>
+                            ) : null}
+                          </span>
+                        </th>
+                        <th className="table-compact">{t("phone")}</th>
+                        <th>
+                          <span
+                            className="table-sort"
+                            onClick={(event) => {
+                              const next = toggleSortByColumn(
+                                applicationSort,
+                                applicationSecondarySort,
+                                "city",
+                                event.shiftKey
+                              );
+                              setApplicationSort(next.primary);
+                              setApplicationSecondarySort(next.secondary);
+                            }}
+                          >
+                            Ville
+                            {applicationSort.key === "city" ? (
+                              <span className="sort-indicator">{applicationSort.dir === "asc" ? "▲" : "▼"}</span>
+                            ) : null}
+                          </span>
+                        </th>
+                        <th>Activite</th>
+                        <th className="table-compact">Statut</th>
+                        <th className="table-compact">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pagedApplications.length ? (
+                        pagedApplications.map((application) => (
+                          <tr key={application.id}>
+                            <td>
+                              <div className="table-headline">
+                                <span className="avatar">{String(application.applicantName || "?").charAt(0).toUpperCase()}</span>
+                                <div>
+                                  <div className="table-strong">{application.applicantName}</div>
+                                  <div className="table-subtext">{formatOrderCreatedAt(application.createdAt || application.updatedAt)}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="table-compact">{application.type === "RESTAURANT" ? t("restaurants") : t("couriers_nav")}</td>
+                            <td className="table-muted">{application.email}</td>
+                            <td className="table-compact">{application.phone}</td>
+                            <td>{application.city}</td>
+                            <td>{application.businessName || application.vehicle || t("none")}</td>
+                            <td className="table-compact">
+                              <span className={`status-pill ${
+                                application.status === "ACCEPTED"
+                                  ? "success"
+                                  : application.status === "REJECTED"
+                                  ? "neutral"
+                                  : "warning"
+                              }`}>
+                                {application.status === "ACCEPTED"
+                                  ? t("accepted")
+                                  : application.status === "REJECTED"
+                                  ? t("rejected")
+                                  : t("pending")}
+                              </span>
+                            </td>
+                            <td className="table-compact">
+                              <div className={`table-action-stack ${actionCompact ? "compact" : ""}`}>
+                                <button className="ghost small" onClick={() => handleApplicationStatus(application.id, "PENDING")}>
+                                  <span className="inline-flex items-center gap-1">
+                                    <Clock size={12} />
+                                    {t("pending")}
+                                  </span>
+                                </button>
+                                <button className="ghost small" onClick={() => handleApplicationStatus(application.id, "ACCEPTED")}>
+                                  <span className="inline-flex items-center gap-1">
+                                    <Check size={12} />
+                                    {t("accepted")}
+                                  </span>
+                                </button>
+                                <button className="ghost small" onClick={() => handleApplicationStatus(application.id, "REJECTED")}>
+                                  <span className="inline-flex items-center gap-1">
+                                    <X size={12} />
+                                    {t("rejected")}
+                                  </span>
+                                </button>
+                                <a className="ghost small action-link" href={`mailto:${application.email}?subject=FoodDelyvry`}>
+                                  <span className="inline-flex items-center gap-1">
+                                    <Mail size={12} />
+                                    {t("contact")}
+                                  </span>
+                                </a>
+                                {application.linkedEntityType === "RESTAURANT" ? (
+                                  <button className="ghost small" onClick={() => openCreatedRestaurant(application)}>
+                                    <span className="inline-flex items-center gap-1">
+                                      <ExternalLink size={12} />
+                                      {t("open_created_restaurant")}
+                                    </span>
+                                  </button>
+                                ) : null}
+                                {application.linkedEntityType === "RESTAURANT" ? (
+                                  <button className="ghost small" onClick={() => handleActivateApplicationRestaurant(application.id)}>
+                                    <span className="inline-flex items-center gap-1">
+                                      <Check size={12} />
+                                      {t("activate_restaurant")}
+                                    </span>
+                                  </button>
+                                ) : null}
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={8} className="table-muted">{t("no_applications")}</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="table-pagination">
+                  <span className="table-summary">
+                    Page {applicationPageSafe} / {applicationPages}
+                  </span>
+                  <button
+                    className="ghost small"
+                    disabled={applicationPageSafe <= 1}
+                    onClick={() => setApplicationPage((page) => Math.max(1, page - 1))}
+                  >
+                    Precedent
+                  </button>
+                  <button
+                    className="ghost small"
+                    disabled={applicationPageSafe >= applicationPages}
+                    onClick={() => setApplicationPage((page) => Math.min(applicationPages, page + 1))}
+                  >
+                    Suivant
+                  </button>
                 </div>
                 <div className="panel-head vertical">
                   <div>
@@ -2708,7 +3577,7 @@ export default function App() {
                 <div className="orders-grid">
                   {emailOutbox.length ? (
                     emailOutbox.slice(0, 8).map((email) => (
-                      <div key={email.id} className="order-card">
+                      <div key={email.id} className="notification-card">
                         <div className="order-head">
                           <div>
                             <strong>{email.subject}</strong>
@@ -2741,37 +3610,195 @@ export default function App() {
                   </div>
                   <button className="primary-alt" onClick={openCreateCategoryModal}>{t("create_category")}</button>
                 </div>
-                <div className="category-admin-grid">
-                  <div className="empty-slot form-placeholder">
-                    <h3>{t("create_category")}</h3>
-                    <p>Utilisez la fenetre surgissante pour ajouter ou modifier une categorie.</p>
-                    <button className="ghost" onClick={openCreateCategoryModal}>{t("create_category")}</button>
+                <div className="table-toolbar">
+                  <input
+                    className="search-input"
+                    value={categoryQuery}
+                    onChange={(event) => setCategoryQuery(event.target.value)}
+                    placeholder="Rechercher une categorie..."
+                  />
+                  <select
+                    className="inline-select"
+                    value={categoryStatusFilter}
+                    onChange={(event) => setCategoryStatusFilter(event.target.value)}
+                  >
+                    <option value="ALL">Tous</option>
+                    <option value="ACTIVE">{t("active")}</option>
+                    <option value="INACTIVE">{t("inactive")}</option>
+                  </select>
+                  <select
+                    className="inline-select"
+                    value={categoryPageSize}
+                    onChange={(event) => setCategoryPageSize(Number(event.target.value))}
+                  >
+                    {TABLE_PAGE_SIZES.map((size) => (
+                      <option key={size} value={size}>
+                        {size} / page
+                      </option>
+                    ))}
+                  </select>
+                  <label className="table-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={tableComfort}
+                      onChange={(event) => setTableComfort(event.target.checked)}
+                    />
+                    <span>Vue confort</span>
+                  </label>
+                  <label className="table-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={actionCompact}
+                      onChange={(event) => setActionCompact(event.target.checked)}
+                    />
+                    <span>Actions compactes</span>
+                  </label>
+                  <button
+                    className="ghost small"
+                    onClick={() =>
+                    exportCsv("categories.csv", getCsvColumns(CSV_COLUMN_OPTIONS.categories, categoryCsvColumns), sortedCategories)
+                  }
+                >
+                    <span className="inline-flex items-center gap-2">
+                      <Download size={14} />
+                      Export CSV
+                    </span>
+                </button>
+                  <div className="table-action-stack">
+                    {CSV_COLUMN_OPTIONS.categories.map((column) => (
+                      <label key={column.key} className="table-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={categoryCsvColumns[column.key] ?? true}
+                          onChange={(event) =>
+                            setCategoryCsvColumns((current) => ({
+                              ...current,
+                              [column.key]: event.target.checked,
+                            }))
+                          }
+                        />
+                        <span>{column.label}</span>
+                      </label>
+                    ))}
                   </div>
-
-                  <div className="category-list">
-                    {menuCategories.length ? (
-                      menuCategories.map((category) => (
-                        <div key={category.id} className="category-row-card">
-                          <div className="tableish-row">
-                            <strong>{category.name}</strong>
-                            <span className="mini-chip">#{category.sortOrder}</span>
-                          </div>
-                          <div className="button-row">
-                            <span className={`status-pill ${category.isActive ? "success" : "neutral"}`}>
-                              {category.isActive ? t("active") : t("inactive")}
-                            </span>
-                            <button className="ghost small" onClick={() => openEditCategoryModal(category)}>{t("edit")}</button>
-                            <button className="ghost small" onClick={() => handleDeleteMenuCategory(category.id)}>{t("delete")}</button>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="empty-slot">
-                        <h3>{t("no_categories")}</h3>
-                        <p>{t("create_category")}</p>
-                      </div>
-                    )}
-                  </div>
+                  <span className="table-summary">
+                    {sortedCategories.length} resultat(s)
+                  </span>
+                </div>
+                <div
+                  className={`data-table-wrap ${categoriesScrolled ? "is-scrolled" : ""}`}
+                  onScroll={(event) => setCategoriesScrolled(event.currentTarget.scrollTop > 4)}
+                >
+                  <table className={`data-table ${tableComfort ? "comfort" : ""}`}>
+                    <thead>
+                      <tr>
+                        <th>
+                          <span
+                            className="table-sort"
+                            onClick={(event) => {
+                              const next = toggleSortByColumn(
+                                categorySort,
+                                categorySecondarySort,
+                                "name",
+                                event.shiftKey
+                              );
+                              setCategorySort(next.primary);
+                              setCategorySecondarySort(next.secondary);
+                            }}
+                          >
+                            {t("category_name")}
+                            {categorySort.key === "name" ? (
+                              <span className="sort-indicator">{categorySort.dir === "asc" ? "▲" : "▼"}</span>
+                            ) : null}
+                          </span>
+                        </th>
+                        <th className="table-compact">
+                          <span
+                            className="table-sort"
+                            onClick={(event) => {
+                              const next = toggleSortByColumn(
+                                categorySort,
+                                categorySecondarySort,
+                                "sortOrder",
+                                event.shiftKey
+                              );
+                              setCategorySort(next.primary);
+                              setCategorySecondarySort(next.secondary);
+                            }}
+                          >
+                            {t("sort_order")}
+                            {categorySort.key === "sortOrder" ? (
+                              <span className="sort-indicator">{categorySort.dir === "asc" ? "▲" : "▼"}</span>
+                            ) : null}
+                          </span>
+                        </th>
+                        <th className="table-compact">{t("active")}</th>
+                        <th className="table-compact">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pagedCategories.length ? (
+                        pagedCategories.map((category) => (
+                          <tr key={category.id}>
+                            <td>
+                              <div className="table-headline">
+                                <span className="avatar">{String(category.name || "?").charAt(0).toUpperCase()}</span>
+                                <div>
+                                  <div className="table-strong">{category.name}</div>
+                                  <div className="table-subtext">#{category.sortOrder}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="table-compact">#{category.sortOrder}</td>
+                            <td className="table-compact">
+                              <span className={`status-pill ${category.isActive ? "success" : "neutral"}`}>
+                                {category.isActive ? t("active") : t("inactive")}
+                              </span>
+                            </td>
+                            <td className="table-compact">
+                              <div className={`table-action-stack ${actionCompact ? "compact" : ""}`}>
+                                <button className="ghost small" onClick={() => openEditCategoryModal(category)}>
+                                  <span className="inline-flex items-center gap-1">
+                                    <Edit3 size={12} />
+                                    {t("edit")}
+                                  </span>
+                                </button>
+                                <button className="ghost small" onClick={() => handleDeleteMenuCategory(category.id)}>
+                                  <span className="inline-flex items-center gap-1">
+                                    <X size={12} />
+                                    {t("delete")}
+                                  </span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={4} className="table-muted">{t("no_categories")}</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="table-pagination">
+                  <span className="table-summary">
+                    Page {categoryPageSafe} / {categoryPages}
+                  </span>
+                  <button
+                    className="ghost small"
+                    disabled={categoryPageSafe <= 1}
+                    onClick={() => setCategoryPage((page) => Math.max(1, page - 1))}
+                  >
+                    Precedent
+                  </button>
+                  <button
+                    className="ghost small"
+                    disabled={categoryPageSafe >= categoryPages}
+                    onClick={() => setCategoryPage((page) => Math.min(categoryPages, page + 1))}
+                  >
+                    Suivant
+                  </button>
                 </div>
               </article>
             )}
@@ -2785,31 +3812,266 @@ export default function App() {
                   </div>
                   <button className="primary-alt" onClick={openCreateCourierModal}>{t("create_courier")}</button>
                 </div>
-                <div className="orders-grid">
-                  {couriers.map((courier) => (
-                    <div key={courier.id} className="order-card">
-                      <div className="order-head">
-                        <div>
-                          <strong>{courier.name}</strong>
-                          <p>{courier.phone} • {courier.vehicle}</p>
-                        </div>
-                        <span className={`status-pill ${courier.status === "AVAILABLE" ? "success" : courier.status === "ON_DELIVERY" ? "info" : "neutral"}`}>
-                          {courier.status}
-                        </span>
-                      </div>
-                      <div className="order-metrics">
-                        <span>{courier.zoneLabel || "-"}</span>
-                        <span>{courier.activeOrders} active</span>
-                        <span>{courier.deliveredOrders} delivered</span>
-                      </div>
-                      <div className="button-row">
-                        <button className="ghost small" onClick={() => openEditCourierModal(courier)}>{t("edit")}</button>
-                        <button className="ghost small" onClick={() => handleCourierStatus(courier, "AVAILABLE")}>AVAILABLE</button>
-                        <button className="ghost small" onClick={() => handleCourierStatus(courier, "ON_DELIVERY")}>ON_DELIVERY</button>
-                        <button className="ghost small" onClick={() => handleCourierStatus(courier, "OFFLINE")}>OFFLINE</button>
-                      </div>
-                    </div>
-                  ))}
+                <div className="table-toolbar">
+                  <input
+                    className="search-input"
+                    value={courierQuery}
+                    onChange={(event) => setCourierQuery(event.target.value)}
+                    placeholder="Rechercher un livreur..."
+                  />
+                  <select
+                    className="inline-select"
+                    value={courierStatusFilter}
+                    onChange={(event) => setCourierStatusFilter(event.target.value)}
+                  >
+                    <option value="ALL">Tous</option>
+                    <option value="AVAILABLE">AVAILABLE</option>
+                    <option value="ON_DELIVERY">ON_DELIVERY</option>
+                    <option value="OFFLINE">OFFLINE</option>
+                  </select>
+                  <select
+                    className="inline-select"
+                    value={courierZoneFilter}
+                    onChange={(event) => setCourierZoneFilter(event.target.value)}
+                  >
+                    <option value="ALL">Toutes zones</option>
+                    {courierZones.map((zone) => (
+                      <option key={zone} value={zone}>
+                        {zone}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    className="inline-select"
+                    value={courierPageSize}
+                    onChange={(event) => setCourierPageSize(Number(event.target.value))}
+                  >
+                    {TABLE_PAGE_SIZES.map((size) => (
+                      <option key={size} value={size}>
+                        {size} / page
+                      </option>
+                    ))}
+                  </select>
+                  <label className="table-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={tableComfort}
+                      onChange={(event) => setTableComfort(event.target.checked)}
+                    />
+                    <span>Vue confort</span>
+                  </label>
+                  <label className="table-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={actionCompact}
+                      onChange={(event) => setActionCompact(event.target.checked)}
+                    />
+                    <span>Actions compactes</span>
+                  </label>
+                  <button
+                    className="ghost small"
+                    onClick={() =>
+                    exportCsv("livreurs.csv", getCsvColumns(CSV_COLUMN_OPTIONS.couriers, courierCsvColumns), sortedCouriers)
+                  }
+                >
+                    <span className="inline-flex items-center gap-2">
+                      <Download size={14} />
+                      Export CSV
+                    </span>
+                </button>
+                  <div className="table-action-stack">
+                    {CSV_COLUMN_OPTIONS.couriers.map((column) => (
+                      <label key={column.key} className="table-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={courierCsvColumns[column.key] ?? true}
+                          onChange={(event) =>
+                            setCourierCsvColumns((current) => ({
+                              ...current,
+                              [column.key]: event.target.checked,
+                            }))
+                          }
+                        />
+                        <span>{column.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <span className="table-summary">
+                    {sortedCouriers.length} resultat(s)
+                  </span>
+                </div>
+                <div
+                  className={`data-table-wrap ${couriersScrolled ? "is-scrolled" : ""}`}
+                  onScroll={(event) => setCouriersScrolled(event.currentTarget.scrollTop > 4)}
+                >
+                  <table className={`data-table ${tableComfort ? "comfort" : ""}`}>
+                    <thead>
+                      <tr>
+                        <th>
+                          <span
+                            className="table-sort"
+                            onClick={(event) => {
+                              const next = toggleSortByColumn(
+                                courierSort,
+                                courierSecondarySort,
+                                "name",
+                                event.shiftKey
+                              );
+                              setCourierSort(next.primary);
+                              setCourierSecondarySort(next.secondary);
+                            }}
+                          >
+                            {t("name")}
+                            {courierSort.key === "name" ? (
+                              <span className="sort-indicator">{courierSort.dir === "asc" ? "▲" : "▼"}</span>
+                            ) : null}
+                          </span>
+                        </th>
+                        <th className="table-compact">{t("phone")}</th>
+                        <th className="table-compact">
+                          <span
+                            className="table-sort"
+                            onClick={(event) => {
+                              const next = toggleSortByColumn(
+                                courierSort,
+                                courierSecondarySort,
+                                "vehicle",
+                                event.shiftKey
+                              );
+                              setCourierSort(next.primary);
+                              setCourierSecondarySort(next.secondary);
+                            }}
+                          >
+                            {t("vehicle")}
+                            {courierSort.key === "vehicle" ? (
+                              <span className="sort-indicator">{courierSort.dir === "asc" ? "▲" : "▼"}</span>
+                            ) : null}
+                          </span>
+                        </th>
+                        <th>{t("zone")}</th>
+                        <th className="table-compact">
+                          <span
+                            className="table-sort"
+                            onClick={(event) => {
+                              const next = toggleSortByColumn(
+                                courierSort,
+                                courierSecondarySort,
+                                "activeOrders",
+                                event.shiftKey
+                              );
+                              setCourierSort(next.primary);
+                              setCourierSecondarySort(next.secondary);
+                            }}
+                          >
+                            Actifs
+                            {courierSort.key === "activeOrders" ? (
+                              <span className="sort-indicator">{courierSort.dir === "asc" ? "▲" : "▼"}</span>
+                            ) : null}
+                          </span>
+                        </th>
+                        <th className="table-compact">
+                          <span
+                            className="table-sort"
+                            onClick={(event) => {
+                              const next = toggleSortByColumn(
+                                courierSort,
+                                courierSecondarySort,
+                                "deliveredOrders",
+                                event.shiftKey
+                              );
+                              setCourierSort(next.primary);
+                              setCourierSecondarySort(next.secondary);
+                            }}
+                          >
+                            Livres
+                            {courierSort.key === "deliveredOrders" ? (
+                              <span className="sort-indicator">{courierSort.dir === "asc" ? "▲" : "▼"}</span>
+                            ) : null}
+                          </span>
+                        </th>
+                        <th className="table-compact">{t("active")}</th>
+                        <th className="table-compact">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pagedCouriers.length ? (
+                        pagedCouriers.map((courier) => (
+                          <tr key={courier.id}>
+                            <td>
+                              <div className="table-headline">
+                                <span className="avatar">{String(courier.name || "?").charAt(0).toUpperCase()}</span>
+                                <div>
+                                  <div className="table-strong">{courier.name}</div>
+                                  <div className="table-subtext">{courier.phone}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="table-compact">{courier.phone}</td>
+                            <td className="table-compact">{courier.vehicle}</td>
+                            <td>{courier.zoneLabel || "-"}</td>
+                            <td className="table-compact">{courier.activeOrders}</td>
+                            <td className="table-compact">{courier.deliveredOrders}</td>
+                            <td className="table-compact">
+                              <span className={`status-pill ${courier.status === "AVAILABLE" ? "success" : courier.status === "ON_DELIVERY" ? "info" : "neutral"}`}>
+                                {courier.status}
+                              </span>
+                            </td>
+                            <td className="table-compact">
+                              <div className={`table-action-stack ${actionCompact ? "compact" : ""}`}>
+                                <button className="ghost small" onClick={() => openEditCourierModal(courier)}>
+                                  <span className="inline-flex items-center gap-1">
+                                    <Edit3 size={12} />
+                                    {t("edit")}
+                                  </span>
+                                </button>
+                                <button className="ghost small" onClick={() => handleCourierStatus(courier, "AVAILABLE")}>
+                                  <span className="inline-flex items-center gap-1">
+                                    <Check size={12} />
+                                    AVAILABLE
+                                  </span>
+                                </button>
+                                <button className="ghost small" onClick={() => handleCourierStatus(courier, "ON_DELIVERY")}>
+                                  <span className="inline-flex items-center gap-1">
+                                    <Bike size={12} />
+                                    ON_DELIVERY
+                                  </span>
+                                </button>
+                                <button className="ghost small" onClick={() => handleCourierStatus(courier, "OFFLINE")}>
+                                  <span className="inline-flex items-center gap-1">
+                                    <X size={12} />
+                                    OFFLINE
+                                  </span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={8} className="table-muted">Aucun livreur</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="table-pagination">
+                  <span className="table-summary">
+                    Page {courierPageSafe} / {courierPages}
+                  </span>
+                  <button
+                    className="ghost small"
+                    disabled={courierPageSafe <= 1}
+                    onClick={() => setCourierPage((page) => Math.max(1, page - 1))}
+                  >
+                    Precedent
+                  </button>
+                  <button
+                    className="ghost small"
+                    disabled={courierPageSafe >= courierPages}
+                    onClick={() => setCourierPage((page) => Math.min(courierPages, page + 1))}
+                  >
+                    Suivant
+                  </button>
                 </div>
               </article>
             )}
@@ -2914,34 +4176,36 @@ export default function App() {
             )}
           </div>
 
-          <aside className="side-column">
-            <article className="panel">
-              <div className="panel-head vertical">
-                <div>
-                  <h3>Resume operationnel</h3>
-                  <p>{t("summary_subtitle")}</p>
+          {!isWideTableView ? (
+            <aside className="side-column">
+              <article className="panel">
+                <div className="panel-head vertical">
+                  <div>
+                    <h3>Resume operationnel</h3>
+                    <p>{t("summary_subtitle")}</p>
+                  </div>
                 </div>
-              </div>
-              <div className="insight-list">
-                <div className="insight-row">
-                  <span>{t("active_restaurant")}</span>
-                  <strong>{selectedRestaurant?.name || t("none")}</strong>
+                <div className="insight-list">
+                  <div className="insight-row">
+                    <span>{t("active_restaurant")}</span>
+                    <strong>{selectedRestaurant?.name || t("none")}</strong>
+                  </div>
+                  <div className="insight-row">
+                    <span>{t("delivered_orders")}</span>
+                    <strong>{orders.filter((order) => order.status === "Delivered").length}</strong>
+                  </div>
+                  <div className="insight-row">
+                    <span>{t("preparing")}</span>
+                    <strong>{orders.filter((order) => order.status === "Preparing").length}</strong>
+                  </div>
+                  <div className="insight-row">
+                    <span>{t("on_the_way")}</span>
+                    <strong>{orders.filter((order) => order.status === "On the way").length}</strong>
+                  </div>
                 </div>
-                <div className="insight-row">
-                  <span>{t("delivered_orders")}</span>
-                  <strong>{orders.filter((order) => order.status === "Delivered").length}</strong>
-                </div>
-                <div className="insight-row">
-                  <span>{t("preparing")}</span>
-                  <strong>{orders.filter((order) => order.status === "Preparing").length}</strong>
-                </div>
-                <div className="insight-row">
-                  <span>{t("on_the_way")}</span>
-                  <strong>{orders.filter((order) => order.status === "On the way").length}</strong>
-                </div>
-              </div>
-            </article>
-          </aside>
+              </article>
+            </aside>
+          ) : null}
         </section>
       </section>
 

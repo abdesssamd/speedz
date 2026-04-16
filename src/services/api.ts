@@ -130,6 +130,18 @@ export const api = {
       body: JSON.stringify(input),
     });
   },
+  requestEmailCode(input: { email: string; fullName: string }) {
+    return request<{
+      challengeId: string;
+      expiresAt: string;
+      provider: string;
+      userExists: boolean;
+      demoCode?: string;
+    }>("/api/auth/request-email-code", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
   verifyPhoneCode(input: { challengeId: string; code: string }) {
     return request<{
       verified: boolean;
@@ -146,6 +158,21 @@ export const api = {
         loyalty: boolean;
       };
     }>("/api/auth/verify-code", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+  verifyEmailCode(input: { challengeId: string; code: string; email: string; fullName: string; phone: string }) {
+    return request<{
+      token: string;
+      user: UserProfile;
+      savedAddresses?: SavedAddress[];
+      notificationPreferences?: {
+        orderUpdates: boolean;
+        promotions: boolean;
+        loyalty: boolean;
+      };
+    }>("/api/auth/verify-email-code", {
       method: "POST",
       body: JSON.stringify(input),
     });

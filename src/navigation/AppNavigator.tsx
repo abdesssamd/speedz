@@ -139,9 +139,7 @@ export function AppNavigator() {
           ),
         }}
       >
-        {!isAuthenticated ? (
-          <Stack.Screen name="AuthOnboarding" component={AuthOnboardingScreen} options={{ headerShown: false }} />
-        ) : null}
+        {!isAuthenticated ? <Stack.Screen name="AuthOnboarding" component={AuthOnboardingScreen} options={{ headerShown: false }} /> : null}
         <Stack.Screen name="MainTabs" component={TabsNavigator} options={{ headerShown: false }} />
         <Stack.Screen name="Restaurant" component={RestaurantScreen} options={{ title: t("nav_restaurant") }} />
         <Stack.Screen name="Checkout" component={CheckoutScreen} options={{ title: t("nav_checkout") }} />

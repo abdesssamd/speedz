@@ -72,6 +72,8 @@ type AppContextValue = {
   setPromoCode: (code: string) => void;
   addSavedAddress: (input: { label: string; address: string; coordinates?: LocationState["coordinates"] }) => void;
   logout: () => Promise<void>;
+  requestEmailAuthCode: (input: { email: string; fullName: string }) => Promise<{ ok: boolean; code?: string; error?: string; provider?: string }>;
+  verifyEmailAuthCode: (input: { challengeId: string; code: string; email: string; fullName: string; phone: string }) => Promise<boolean>;
   beginPhoneAuth: (method: AuthMethod, phoneNumber: string) => Promise<{ ok: boolean; code?: string; error?: string }>;
   verifyPhoneAuth: (code: string) => Promise<boolean>;
   completeRegistration: (input: {
@@ -117,7 +119,7 @@ type AppContextValue = {
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
 const AUTH_TOKEN_STORAGE_KEY = "fooddelyvry_mobile_token";
-const BYPASS_MOBILE_AUTH_FOR_DEV = true;
+const BYPASS_MOBILE_AUTH_FOR_DEV = false;
 
 function createCartItemId(item: MenuItem, selectedOptions: SelectedOption[], specialInstructions?: string) {
   const signature = selectedOptions
@@ -363,7 +365,7 @@ export function AppProvider({ children }: PropsWithChildren) {
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isRTL = language === "ar";
   const t = (key: Parameters<typeof translate>[1]) => translate(language, key);
-  const isAuthenticated = BYPASS_MOBILE_AUTH_FOR_DEV || Boolean(authToken && user.onboardingCompleted && user.isPhoneVerified);
+  const isAuthenticated = BYPASS_MOBILE_AUTH_FOR_DEV || Boolean(authToken);
 
   const pushNotification = (entry: Omit<InAppNotification, "id">) => {
     if (timeoutRef.current) {
@@ -874,6 +876,93 @@ export function AppProvider({ children }: PropsWithChildren) {
     });
   };
 
+  const requestEmailAuthCode = async (input: { email: string; fullName: string }) => {
+    const normalizedEmail = input.email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      return { ok: false, error: "Email requis." };
+    }
+
+    try {
+      const payload = await api.requestEmailCode({
+        email: normalizedEmail,
+        fullName: input.fullName.trim(),
+      });
+
+      setAuthFlow({
+        selectedMethod: "SMS",
+        phoneNumber: normalizedEmail,
+        challengeId: payload.challengeId,
+        verificationCode: payload.demoCode ?? null,
+        provider: payload.provider,
+        isVerified: false,
+      });
+
+      pushNotification({
+        title: payload.provider === "smtp" ? "Email envoye" : "OTP prepare",
+        message:
+          payload.provider === "smtp"
+            ? "Votre code a ete envoye par email."
+            : payload.demoCode
+              ? `SMTP non configure. Code demo: ${payload.demoCode}`
+              : "Email prepare dans la boite locale du backend.",
+        tone: payload.provider === "smtp" ? "success" : "info",
+      });
+
+      return { ok: true, code: payload.demoCode, provider: payload.provider };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : "Envoi email impossible." };
+    }
+  };
+
+  const verifyEmailAuthCode = async (input: {
+    challengeId: string;
+    code: string;
+    email: string;
+    fullName: string;
+    phone: string;
+  }) => {
+    try {
+      const payload = await api.verifyEmailCode({
+        challengeId: input.challengeId,
+        code: input.code.trim(),
+        email: input.email.trim().toLowerCase(),
+        fullName: input.fullName.trim(),
+        phone: input.phone.trim(),
+      });
+
+      api.setAuthToken(payload.token);
+      setAuthToken(payload.token);
+      await AsyncStorage.setItem(AUTH_TOKEN_STORAGE_KEY, payload.token);
+      setUser(payload.user);
+      setSavedAddresses(payload.savedAddresses ?? []);
+      if (payload.notificationPreferences) {
+        setNotificationPreferences(payload.notificationPreferences);
+      }
+      setAuthFlow({
+        selectedMethod: "SMS",
+        phoneNumber: input.email.trim().toLowerCase(),
+        challengeId: input.challengeId,
+        verificationCode: null,
+        provider: "smtp",
+        isVerified: true,
+      });
+
+      pushNotification({
+        title: "Connexion reussie",
+        message: "Votre espace Speedz est pret et restera connecte sur cet appareil.",
+        tone: "success",
+      });
+      return true;
+    } catch (error) {
+      pushNotification({
+        title: "Code incorrect",
+        message: error instanceof Error ? error.message : "Le code OTP est invalide.",
+        tone: "error",
+      });
+      return false;
+    }
+  };
+
   const beginPhoneAuth = async (method: AuthMethod, phoneNumber: string) => {
     const normalizedPhone = phoneNumber.trim();
     if (!normalizedPhone) {
@@ -1328,6 +1417,8 @@ export function AppProvider({ children }: PropsWithChildren) {
         setPromoCode,
         addSavedAddress,
         logout,
+        requestEmailAuthCode,
+        verifyEmailAuthCode,
         beginPhoneAuth,
         verifyPhoneAuth,
         completeRegistration,
