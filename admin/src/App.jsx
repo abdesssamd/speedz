@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   Mail,
   Moon,
+  MoreVertical,
   Plus,
   Power,
   ShoppingBag,
@@ -765,6 +766,193 @@ function sameErrors(left, right) {
   }
 
   return leftKeys.every((key) => left[key] === right[key]);
+}
+
+function ApplicationActionMenu({ application, onStatusChange, onOpenRestaurant, onActivateRestaurant, translations }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [isOpen]);
+
+  return (
+    <div ref={menuRef} style={{ position: "relative", display: "inline-block" }}>
+      <button
+        className="ghost small"
+        onClick={() => setIsOpen(!isOpen)}
+        title="Actions"
+        style={{ padding: "6px 8px" }}
+      >
+        <MoreVertical size={14} />
+      </button>
+      {isOpen && (
+        <div style={{
+          position: "absolute",
+          top: "calc(100% + 4px)",
+          right: 0,
+          backgroundColor: "white",
+          border: "1px solid #e2e8f0",
+          borderRadius: "8px",
+          boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
+          zIndex: 1000,
+          minWidth: "200px",
+          overflow: "hidden"
+        }}>
+          <button
+            onClick={() => {
+              onStatusChange(application.id, "PENDING");
+              setIsOpen(false);
+            }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "8px 12px",
+              width: "100%",
+              background: "none",
+              border: "none",
+              textAlign: "left",
+              fontSize: "13px",
+              color: "#334155",
+              cursor: "pointer",
+              borderBottom: "1px solid #f1f5f9"
+            }}
+            onMouseEnter={(e) => e.target.style.backgroundColor = "#f8fafc"}
+            onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+          >
+            <Clock size={14} /> {translations("pending")}
+          </button>
+          <button
+            onClick={() => {
+              onStatusChange(application.id, "ACCEPTED");
+              setIsOpen(false);
+            }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "8px 12px",
+              width: "100%",
+              background: "none",
+              border: "none",
+              textAlign: "left",
+              fontSize: "13px",
+              color: "#334155",
+              cursor: "pointer",
+              borderBottom: "1px solid #f1f5f9"
+            }}
+            onMouseEnter={(e) => e.target.style.backgroundColor = "#f8fafc"}
+            onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+          >
+            <Check size={14} /> {translations("accepted")}
+          </button>
+          <button
+            onClick={() => {
+              onStatusChange(application.id, "REJECTED");
+              setIsOpen(false);
+            }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "8px 12px",
+              width: "100%",
+              background: "none",
+              border: "none",
+              textAlign: "left",
+              fontSize: "13px",
+              color: "#334155",
+              cursor: "pointer",
+              borderBottom: "1px solid #f1f5f9"
+            }}
+            onMouseEnter={(e) => e.target.style.backgroundColor = "#f8fafc"}
+            onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+          >
+            <X size={14} /> {translations("rejected")}
+          </button>
+          <a
+            href={`mailto:${application.email}?subject=FoodDelyvry`}
+            onClick={() => setIsOpen(false)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "8px 12px",
+              textDecoration: "none",
+              color: "#334155",
+              fontSize: "13px",
+              borderBottom: "1px solid #f1f5f9"
+            }}
+            onMouseEnter={(e) => e.target.style.backgroundColor = "#f8fafc"}
+            onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+          >
+            <Mail size={14} /> {translations("contact")}
+          </a>
+          {application.linkedEntityType === "RESTAURANT" ? (
+            <>
+              <button
+                onClick={() => {
+                  onOpenRestaurant(application);
+                  setIsOpen(false);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "8px 12px",
+                  width: "100%",
+                  background: "none",
+                  border: "none",
+                  textAlign: "left",
+                  fontSize: "13px",
+                  color: "#334155",
+                  cursor: "pointer",
+                  borderBottom: "1px solid #f1f5f9"
+                }}
+                onMouseEnter={(e) => e.target.style.backgroundColor = "#f8fafc"}
+                onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+              >
+                <ExternalLink size={14} /> {translations("open_created_restaurant")}
+              </button>
+              <button
+                onClick={() => {
+                  onActivateRestaurant(application.id);
+                  setIsOpen(false);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "8px 12px",
+                  width: "100%",
+                  background: "none",
+                  border: "none",
+                  textAlign: "left",
+                  fontSize: "13px",
+                  color: "#334155",
+                  cursor: "pointer"
+                }}
+                onMouseEnter={(e) => e.target.style.backgroundColor = "#f8fafc"}
+                onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+              >
+                <Check size={14} /> {translations("activate_restaurant")}
+              </button>
+            </>
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function App() {
@@ -3296,14 +3484,14 @@ export default function App() {
                     className="search-input"
                     value={applicationQuery}
                     onChange={(event) => setApplicationQuery(event.target.value)}
-                    placeholder="Rechercher une demande..."
+                    placeholder="Rechercher..."
                   />
                   <select
                     className="inline-select"
                     value={applicationStatusFilter}
                     onChange={(event) => setApplicationStatusFilter(event.target.value)}
                   >
-                    <option value="ALL">Tous</option>
+                    <option value="ALL">Tous statuts</option>
                     <option value="PENDING">{t("pending")}</option>
                     <option value="ACCEPTED">{t("accepted")}</option>
                     <option value="REJECTED">{t("rejected")}</option>
@@ -3340,34 +3528,26 @@ export default function App() {
                       </option>
                     ))}
                   </select>
-                  <label className="table-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={tableComfort}
-                      onChange={(event) => setTableComfort(event.target.checked)}
-                    />
-                    <span>Vue confort</span>
-                  </label>
-                  <label className="table-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={actionCompact}
-                      onChange={(event) => setActionCompact(event.target.checked)}
-                    />
-                    <span>Actions compactes</span>
-                  </label>
-                  <button
-                    className="ghost small"
-                    onClick={() =>
-                    exportCsv("demandes.csv", getCsvColumns(CSV_COLUMN_OPTIONS.applications, applicationCsvColumns), sortedApplications)
-                  }
-                >
-                    <span className="inline-flex items-center gap-2">
+                  <span style={{ marginLeft: "auto", display: "flex", gap: "8px", alignItems: "center" }}>
+                    <button
+                      className="ghost small"
+                      onClick={() =>
+                      exportCsv("demandes.csv", getCsvColumns(CSV_COLUMN_OPTIONS.applications, applicationCsvColumns), sortedApplications)
+                    }
+                    title="Exporter en CSV"
+                  >
                       <Download size={14} />
-                      Export CSV
-                    </span>
-                </button>
-                  <div className="table-action-stack">
+                    </button>
+                    <label className="table-checkbox" style={{ border: "none", background: "none", padding: "0", gap: "4px" }}>
+                      <input
+                        type="checkbox"
+                        checked={actionCompact}
+                        onChange={(event) => setActionCompact(event.target.checked)}
+                      />
+                      <span style={{ fontSize: "12px" }}>Actions compactes</span>
+                    </label>
+                  </span>
+                  <div className="table-action-stack" style={{ display: "none" }}>
                     {CSV_COLUMN_OPTIONS.applications.map((column) => (
                       <label key={column.key} className="table-checkbox">
                         <input
@@ -3496,48 +3676,13 @@ export default function App() {
                               </span>
                             </td>
                             <td className="table-compact">
-                              <div className={`table-action-stack ${actionCompact ? "compact" : ""}`}>
-                                <button className="ghost small" onClick={() => handleApplicationStatus(application.id, "PENDING")}>
-                                  <span className="inline-flex items-center gap-1">
-                                    <Clock size={12} />
-                                    {t("pending")}
-                                  </span>
-                                </button>
-                                <button className="ghost small" onClick={() => handleApplicationStatus(application.id, "ACCEPTED")}>
-                                  <span className="inline-flex items-center gap-1">
-                                    <Check size={12} />
-                                    {t("accepted")}
-                                  </span>
-                                </button>
-                                <button className="ghost small" onClick={() => handleApplicationStatus(application.id, "REJECTED")}>
-                                  <span className="inline-flex items-center gap-1">
-                                    <X size={12} />
-                                    {t("rejected")}
-                                  </span>
-                                </button>
-                                <a className="ghost small action-link" href={`mailto:${application.email}?subject=FoodDelyvry`}>
-                                  <span className="inline-flex items-center gap-1">
-                                    <Mail size={12} />
-                                    {t("contact")}
-                                  </span>
-                                </a>
-                                {application.linkedEntityType === "RESTAURANT" ? (
-                                  <button className="ghost small" onClick={() => openCreatedRestaurant(application)}>
-                                    <span className="inline-flex items-center gap-1">
-                                      <ExternalLink size={12} />
-                                      {t("open_created_restaurant")}
-                                    </span>
-                                  </button>
-                                ) : null}
-                                {application.linkedEntityType === "RESTAURANT" ? (
-                                  <button className="ghost small" onClick={() => handleActivateApplicationRestaurant(application.id)}>
-                                    <span className="inline-flex items-center gap-1">
-                                      <Check size={12} />
-                                      {t("activate_restaurant")}
-                                    </span>
-                                  </button>
-                                ) : null}
-                              </div>
+                              <ApplicationActionMenu 
+                                application={application}
+                                onStatusChange={handleApplicationStatus}
+                                onOpenRestaurant={openCreatedRestaurant}
+                                onActivateRestaurant={handleActivateApplicationRestaurant}
+                                translations={t}
+                              />
                             </td>
                           </tr>
                         ))
