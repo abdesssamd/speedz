@@ -72,7 +72,23 @@
   }
 
   .workspace {
-    @apply grid gap-4;
+    @apply grid gap-4 min-h-0;
+  }
+
+  .content-grid {
+    @apply grid gap-4 min-h-0;
+  }
+
+  .main-column {
+    @apply grid gap-4 min-h-0;
+  }
+
+  .panel-full {
+    @apply flex flex-col min-h-0 overflow-hidden;
+  }
+
+  .table-shell {
+    @apply flex flex-1 flex-col min-h-0 gap-3;
   }
 
   .hero-panel {
@@ -178,6 +194,10 @@
 
   .data-table-wrap {
     @apply rounded-xl border border-slate-200 bg-white shadow-sm overflow-auto max-h-[600px];
+  }
+
+  .data-table-wrap-full {
+    @apply flex-1 min-h-0 max-h-none;
   }
 
   .dark .data-table-wrap {
@@ -338,6 +358,14 @@
 
   .timeline-summary {
     @apply text-xs uppercase tracking-[0.18em] text-slate-400;
+  }
+
+  .notifications-panel {
+    @apply gap-3;
+  }
+
+  .notifications-list {
+    @apply max-h-[calc(100vh-340px)] overflow-auto pr-1;
   }
 
   .table-checkbox {
@@ -554,10 +582,6 @@
   }
 
   .side-column {
-    @apply grid gap-4;
-  }
-
-  .main-column {
     @apply grid gap-4;
   }
 

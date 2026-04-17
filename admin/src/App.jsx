@@ -127,6 +127,7 @@ const translations = {
     create_courier: "Ajouter un livreur",
     applications_title: "Demandes d'inscription",
     applications_subtitle: "Candidatures restaurants et livreurs envoyees depuis l'application.",
+    notifications_nav: "Notifications",
     pending: "En attente",
     accepted: "Acceptee",
     rejected: "Refusee",
@@ -276,6 +277,7 @@ const translations = {
     create_courier: "إضافة موصل",
     applications_title: "طلبات الانضمام",
     applications_subtitle: "طلبات المطاعم والموصلين المرسلة من التطبيق.",
+    notifications_nav: "الإشعارات",
     pending: "قيد الانتظار",
     accepted: "مقبولة",
     rejected: "مرفوضة",
@@ -963,6 +965,8 @@ export default function App() {
   const [selectedPromotion, setSelectedPromotion] = useState(null);
   const [restaurantImageFile, setRestaurantImageFile] = useState(null);
   const [menuImageFile, setMenuImageFile] = useState(null);
+  const queuedEmailCount = useMemo(() => emailOutbox.filter((email) => email.status === "QUEUED").length, [emailOutbox]);
+  const sentEmailCount = useMemo(() => emailOutbox.filter((email) => email.status === "SENT").length, [emailOutbox]);
   const [courierForm, setCourierForm] = useState({
     name: "",
     phone: "",
@@ -2699,6 +2703,7 @@ export default function App() {
             { id: "customers", label: t("customers_nav"), icon: Users },
             { id: "couriers", label: t("couriers_nav"), icon: Bike },
             { id: "applications", label: t("applications_nav"), icon: Inbox },
+            { id: "notifications", label: t("notifications_nav"), icon: Mail },
             { id: "categories", label: t("categories_nav"), icon: Tags },
             { id: "promotions", label: t("promotions_nav"), icon: Sparkles },
             { id: "reports", label: t("reports_nav"), icon: BarChart2 },
@@ -2723,6 +2728,9 @@ export default function App() {
               {item.id === "orders" && liveInbox.orders ? <span className="nav-badge">{liveInbox.orders}</span> : null}
               {item.id === "applications" && liveInbox.applications ? (
                 <span className="nav-badge">{liveInbox.applications}</span>
+              ) : null}
+              {item.id === "notifications" && emailOutbox.length ? (
+                <span className="nav-badge">{emailOutbox.length}</span>
               ) : null}
             </button>
           ))}
@@ -3483,7 +3491,7 @@ export default function App() {
             )}
 
             {activeView === "applications" && (
-              <article className="panel">
+              <article className="panel panel-full">
                 <div className="panel-head">
                   <div>
                     <h3>{t("applications_title")}</h3>
@@ -3583,11 +3591,12 @@ export default function App() {
                     {sortedApplications.length} resultat(s)
                   </span>
                 </div>
-                <div
-                  className={`data-table-wrap ${applicationsScrolled ? "is-scrolled" : ""}`}
-                  onScroll={(event) => setApplicationsScrolled(event.currentTarget.scrollTop > 4)}
-                >
-                  <table className={`data-table ${tableComfort ? "comfort" : ""}`}>
+                <div className="table-shell">
+                  <div
+                    className={`data-table-wrap data-table-wrap-full ${applicationsScrolled ? "is-scrolled" : ""}`}
+                    onScroll={(event) => setApplicationsScrolled(event.currentTarget.scrollTop > 4)}
+                  >
+                    <table className={`data-table ${tableComfort ? "comfort" : ""}`}>
                     <thead>
                       <tr>
                         <th>
@@ -3707,39 +3716,50 @@ export default function App() {
                         </tr>
                       )}
                     </tbody>
-                  </table>
+                    </table>
+                  </div>
+                  <div className="table-pagination">
+                    <span className="table-summary">
+                      Page {applicationPageSafe} / {applicationPages}
+                    </span>
+                    <button
+                      className="ghost small"
+                      disabled={applicationPageSafe <= 1}
+                      onClick={() => setApplicationPage((page) => Math.max(1, page - 1))}
+                    >
+                      Precedent
+                    </button>
+                    <button
+                      className="ghost small"
+                      disabled={applicationPageSafe >= applicationPages}
+                      onClick={() => setApplicationPage((page) => Math.min(applicationPages, page + 1))}
+                    >
+                      Suivant
+                    </button>
+                  </div>
                 </div>
-                <div className="table-pagination">
-                  <span className="table-summary">
-                    Page {applicationPageSafe} / {applicationPages}
-                  </span>
-                  <button
-                    className="ghost small"
-                    disabled={applicationPageSafe <= 1}
-                    onClick={() => setApplicationPage((page) => Math.max(1, page - 1))}
-                  >
-                    Precedent
-                  </button>
-                  <button
-                    className="ghost small"
-                    disabled={applicationPageSafe >= applicationPages}
-                    onClick={() => setApplicationPage((page) => Math.min(applicationPages, page + 1))}
-                  >
-                    Suivant
-                  </button>
-                </div>
-                <div className="panel-head vertical">
+              </article>
+            )}
+
+            {activeView === "notifications" && (
+              <article className="panel panel-full notifications-panel">
+                <div className="panel-head">
                   <div>
                     <h3>{t("email_notifications")}</h3>
-                    <p>Journal compact des emails envoyes et des files d'attente.</p>
+                    <p>Journal complet des emails envoyes depuis le backend.</p>
+                  </div>
+                  <div className="hero-actions">
+                    <span className="mini-chip strong">{emailOutbox.length} logs</span>
+                    <span className="status-pill warning">{queuedEmailCount} queued</span>
+                    <span className="status-pill success">{sentEmailCount} sent</span>
                   </div>
                 </div>
                 <div className="timeline-summary">
-                  {emailOutbox.length} envoi(s) recent(s)
+                  {emailOutbox.length} envoi(s) journalise(s)
                 </div>
-                <div className="email-timeline">
+                <div className="email-timeline notifications-list">
                   {emailOutbox.length ? (
-                    emailOutbox.slice(0, 8).map((email) => (
+                    emailOutbox.map((email) => (
                       <div key={email.id} className="email-timeline-item">
                         <div className={`email-timeline-icon ${getNotificationIconTone(email.status)}`}>
                           <Mail size={15} />
