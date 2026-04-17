@@ -244,6 +244,102 @@
     @apply gap-0.5 px-1 py-1;
   }
 
+  .action-menu-anchor {
+    @apply inline-flex items-center justify-end;
+  }
+
+  .action-menu-panel {
+    @apply fixed z-[9999] min-w-[238px] overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 shadow-2xl ring-1 ring-black/5;
+  }
+
+  .dark .action-menu-panel {
+    @apply border-slate-700 bg-slate-950 ring-white/10;
+  }
+
+  .action-menu-item {
+    @apply flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900;
+  }
+
+  .dark .action-menu-item {
+    @apply text-slate-300 hover:bg-slate-900 hover:text-white;
+  }
+
+  .action-menu-item svg {
+    @apply shrink-0 text-slate-400;
+  }
+
+  .dark .action-menu-item svg {
+    @apply text-slate-500;
+  }
+
+  .email-timeline {
+    @apply mt-2 grid gap-2;
+  }
+
+  .email-timeline-item {
+    @apply grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm;
+  }
+
+  .dark .email-timeline-item {
+    @apply border-slate-800 bg-slate-950/40;
+  }
+
+  .email-timeline-icon {
+    @apply mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-500;
+  }
+
+  .email-timeline-icon.sent {
+    @apply border-emerald-200 bg-emerald-50 text-emerald-600;
+  }
+
+  .email-timeline-icon.queued {
+    @apply border-slate-200 bg-slate-50 text-slate-500;
+  }
+
+  .email-timeline-main {
+    @apply min-w-0 grid gap-1;
+  }
+
+  .email-timeline-recipient {
+    @apply truncate text-sm font-semibold text-slate-900;
+  }
+
+  .dark .email-timeline-recipient {
+    @apply text-slate-100;
+  }
+
+  .email-timeline-subject {
+    @apply truncate text-sm text-slate-500;
+  }
+
+  .dark .email-timeline-subject {
+    @apply text-slate-400;
+  }
+
+  .email-timeline-meta {
+    @apply flex flex-col items-end gap-1.5 text-right;
+  }
+
+  .email-timeline-time {
+    @apply text-xs text-slate-400 whitespace-nowrap;
+  }
+
+  .email-status-badge {
+    @apply inline-flex items-center rounded-full border border-slate-200 bg-transparent px-2.5 py-1 text-[0.65rem] font-semibold tracking-[0.12em] text-slate-500;
+  }
+
+  .email-status-badge.sent {
+    @apply border-emerald-200 text-emerald-700;
+  }
+
+  .email-status-badge.queued {
+    @apply border-slate-200 text-slate-500;
+  }
+
+  .timeline-summary {
+    @apply text-xs uppercase tracking-[0.18em] text-slate-400;
+  }
+
   .table-checkbox {
     @apply inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600;
   }

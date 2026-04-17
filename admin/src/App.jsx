@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { cloneElement, isValidElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart2,
@@ -770,187 +771,147 @@ function sameErrors(left, right) {
 
 function ApplicationActionMenu({ application, onStatusChange, onOpenRestaurant, onActivateRestaurant, translations }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [menuStyle, setMenuStyle] = useState(null);
+  const buttonRef = useRef(null);
   const menuRef = useRef(null);
 
   useEffect(() => {
     function handleClickOutside(event) {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(event.target) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(event.target)
+      ) {
         setIsOpen(false);
       }
     }
 
+    function handleEscape(event) {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    }
+
+    function handleScrollOrResize() {
+      setIsOpen(false);
+    }
+
     if (isOpen) {
       document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
+      document.addEventListener("keydown", handleEscape);
+      window.addEventListener("resize", handleScrollOrResize);
+      window.addEventListener("scroll", handleScrollOrResize, true);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+        document.removeEventListener("keydown", handleEscape);
+        window.removeEventListener("resize", handleScrollOrResize);
+        window.removeEventListener("scroll", handleScrollOrResize, true);
+      };
     }
   }, [isOpen]);
 
-  return (
-    <div ref={menuRef} style={{ position: "relative", display: "inline-block" }}>
+  useEffect(() => {
+    if (!isOpen || !buttonRef.current) {
+      return;
+    }
+
+    const rect = buttonRef.current.getBoundingClientRect();
+    const estimatedHeight = application.linkedEntityType === "RESTAURANT" ? 228 : 152;
+    const top = Math.min(rect.bottom + 8, window.innerHeight - estimatedHeight - 12);
+    const right = Math.max(12, window.innerWidth - rect.right);
+
+    setMenuStyle({ top: Math.max(8, top), right });
+  }, [application.linkedEntityType, isOpen]);
+
+  const menuContent = isOpen ? (
+    <div
+      ref={menuRef}
+      className="action-menu-panel"
+      style={menuStyle ? { top: `${menuStyle.top}px`, right: `${menuStyle.right}px` } : undefined}
+      role="menu"
+      aria-label="Actions de la demande"
+    >
       <button
+        type="button"
+        className="action-menu-item"
+        onClick={() => {
+          onStatusChange(application.id, "PENDING");
+          setIsOpen(false);
+        }}
+      >
+        <Clock size={14} />
+        <span>{translations("pending")}</span>
+      </button>
+      <button
+        type="button"
+        className="action-menu-item"
+        onClick={() => {
+          onStatusChange(application.id, "ACCEPTED");
+          setIsOpen(false);
+        }}
+      >
+        <Check size={14} />
+        <span>{translations("accepted")}</span>
+      </button>
+      <button
+        type="button"
+        className="action-menu-item"
+        onClick={() => {
+          onStatusChange(application.id, "REJECTED");
+          setIsOpen(false);
+        }}
+      >
+        <X size={14} />
+        <span>{translations("rejected")}</span>
+      </button>
+      <a className="action-menu-item" href={`mailto:${application.email}?subject=FoodDelyvry`} onClick={() => setIsOpen(false)}>
+        <Mail size={14} />
+        <span>{translations("contact")}</span>
+      </a>
+      {application.linkedEntityType === "RESTAURANT" ? (
+        <button
+          type="button"
+          className="action-menu-item"
+          onClick={() => {
+            onOpenRestaurant(application);
+            setIsOpen(false);
+          }}
+        >
+          <ExternalLink size={14} />
+          <span>{translations("open_created_restaurant")}</span>
+        </button>
+      ) : null}
+      {application.linkedEntityType === "RESTAURANT" ? (
+        <button
+          type="button"
+          className="action-menu-item"
+          onClick={() => {
+            onActivateRestaurant(application.id);
+            setIsOpen(false);
+          }}
+        >
+          <Check size={14} />
+          <span>{translations("activate_restaurant")}</span>
+        </button>
+      ) : null}
+    </div>
+  ) : null;
+
+  return (
+    <div className="action-menu-anchor">
+      <button
+        ref={buttonRef}
+        type="button"
         className="ghost small"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => setIsOpen((current) => !current)}
         title="Actions"
-        style={{ padding: "6px 8px" }}
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
       >
         <MoreVertical size={14} />
       </button>
-      {isOpen && (
-        <div style={{
-          position: "absolute",
-          top: "calc(100% + 4px)",
-          right: 0,
-          backgroundColor: "white",
-          border: "1px solid #e2e8f0",
-          borderRadius: "8px",
-          boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
-          zIndex: 1000,
-          minWidth: "200px",
-          overflow: "hidden"
-        }}>
-          <button
-            onClick={() => {
-              onStatusChange(application.id, "PENDING");
-              setIsOpen(false);
-            }}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              padding: "8px 12px",
-              width: "100%",
-              background: "none",
-              border: "none",
-              textAlign: "left",
-              fontSize: "13px",
-              color: "#334155",
-              cursor: "pointer",
-              borderBottom: "1px solid #f1f5f9"
-            }}
-            onMouseEnter={(e) => e.target.style.backgroundColor = "#f8fafc"}
-            onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
-          >
-            <Clock size={14} /> {translations("pending")}
-          </button>
-          <button
-            onClick={() => {
-              onStatusChange(application.id, "ACCEPTED");
-              setIsOpen(false);
-            }}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              padding: "8px 12px",
-              width: "100%",
-              background: "none",
-              border: "none",
-              textAlign: "left",
-              fontSize: "13px",
-              color: "#334155",
-              cursor: "pointer",
-              borderBottom: "1px solid #f1f5f9"
-            }}
-            onMouseEnter={(e) => e.target.style.backgroundColor = "#f8fafc"}
-            onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
-          >
-            <Check size={14} /> {translations("accepted")}
-          </button>
-          <button
-            onClick={() => {
-              onStatusChange(application.id, "REJECTED");
-              setIsOpen(false);
-            }}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              padding: "8px 12px",
-              width: "100%",
-              background: "none",
-              border: "none",
-              textAlign: "left",
-              fontSize: "13px",
-              color: "#334155",
-              cursor: "pointer",
-              borderBottom: "1px solid #f1f5f9"
-            }}
-            onMouseEnter={(e) => e.target.style.backgroundColor = "#f8fafc"}
-            onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
-          >
-            <X size={14} /> {translations("rejected")}
-          </button>
-          <a
-            href={`mailto:${application.email}?subject=FoodDelyvry`}
-            onClick={() => setIsOpen(false)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              padding: "8px 12px",
-              textDecoration: "none",
-              color: "#334155",
-              fontSize: "13px",
-              borderBottom: "1px solid #f1f5f9"
-            }}
-            onMouseEnter={(e) => e.target.style.backgroundColor = "#f8fafc"}
-            onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
-          >
-            <Mail size={14} /> {translations("contact")}
-          </a>
-          {application.linkedEntityType === "RESTAURANT" ? (
-            <>
-              <button
-                onClick={() => {
-                  onOpenRestaurant(application);
-                  setIsOpen(false);
-                }}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  padding: "8px 12px",
-                  width: "100%",
-                  background: "none",
-                  border: "none",
-                  textAlign: "left",
-                  fontSize: "13px",
-                  color: "#334155",
-                  cursor: "pointer",
-                  borderBottom: "1px solid #f1f5f9"
-                }}
-                onMouseEnter={(e) => e.target.style.backgroundColor = "#f8fafc"}
-                onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
-              >
-                <ExternalLink size={14} /> {translations("open_created_restaurant")}
-              </button>
-              <button
-                onClick={() => {
-                  onActivateRestaurant(application.id);
-                  setIsOpen(false);
-                }}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  padding: "8px 12px",
-                  width: "100%",
-                  background: "none",
-                  border: "none",
-                  textAlign: "left",
-                  fontSize: "13px",
-                  color: "#334155",
-                  cursor: "pointer"
-                }}
-                onMouseEnter={(e) => e.target.style.backgroundColor = "#f8fafc"}
-                onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
-              >
-                <Check size={14} /> {translations("activate_restaurant")}
-              </button>
-            </>
-          ) : null}
-        </div>
-      )}
+      {isOpen && menuStyle && typeof document !== "undefined" ? createPortal(menuContent, document.body) : null}
     </div>
   );
 }
@@ -1353,6 +1314,60 @@ export default function App() {
       hour: "2-digit",
       minute: "2-digit",
     });
+  }
+
+  function formatRelativeTime(value) {
+    if (!value) {
+      return "";
+    }
+
+    const date = new Date(value);
+    const diffMinutes = Math.round((Date.now() - date.getTime()) / 60000);
+    if (Number.isNaN(diffMinutes)) {
+      return "";
+    }
+
+    if (diffMinutes < 1) {
+      return language === "ar" ? "الآن" : "A l'instant";
+    }
+    if (diffMinutes < 60) {
+      return language === "ar" ? `منذ ${diffMinutes} د` : `Il y a ${diffMinutes} min`;
+    }
+
+    const diffHours = Math.round(diffMinutes / 60);
+    if (diffHours < 24) {
+      return language === "ar" ? `منذ ${diffHours} س` : `Il y a ${diffHours} h`;
+    }
+
+    return date.toLocaleString(language === "ar" ? "ar-DZ" : "fr-FR", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  function formatNotificationTimestamp(value) {
+    const relative = formatRelativeTime(value);
+    if (relative) {
+      return relative;
+    }
+
+    return formatOrderCreatedAt(value);
+  }
+
+  function getNotificationPreview(email) {
+    const subject = String(email?.subject || "").replace(/^FoodDelyvry\s*-\s*/i, "").trim();
+    if (subject) {
+      return subject.length > 72 ? `${subject.slice(0, 72).trim()}…` : subject;
+    }
+
+    const body = String(email?.text || "").replace(/\s+/g, " ").trim();
+    return body.length > 72 ? `${body.slice(0, 72).trim()}…` : body;
+  }
+
+  function getNotificationIconTone(status) {
+    return status === "SENT" ? "sent" : "queued";
   }
 
   function resetCourierForm() {
@@ -3716,23 +3731,26 @@ export default function App() {
                 <div className="panel-head vertical">
                   <div>
                     <h3>{t("email_notifications")}</h3>
-                    <p>{t("applications_subtitle")}</p>
+                    <p>Journal compact des emails envoyes et des files d'attente.</p>
                   </div>
                 </div>
-                <div className="orders-grid">
+                <div className="timeline-summary">
+                  {emailOutbox.length} envoi(s) recent(s)
+                </div>
+                <div className="email-timeline">
                   {emailOutbox.length ? (
                     emailOutbox.slice(0, 8).map((email) => (
-                      <div key={email.id} className="notification-card">
-                        <div className="order-head">
-                          <div>
-                            <strong>{email.subject}</strong>
-                            <p>{email.to}</p>
-                          </div>
-                          <span className="status-pill info">{email.status}</span>
+                      <div key={email.id} className="email-timeline-item">
+                        <div className={`email-timeline-icon ${getNotificationIconTone(email.status)}`}>
+                          <Mail size={15} />
                         </div>
-                        <div className="application-details">
-                          <p>{email.text}</p>
-                          <p>{email.createdAt}</p>
+                        <div className="email-timeline-main">
+                          <div className="email-timeline-recipient">{email.to}</div>
+                          <div className="email-timeline-subject">{getNotificationPreview(email)}</div>
+                        </div>
+                        <div className="email-timeline-meta">
+                          <span className="email-timeline-time">{formatNotificationTimestamp(email.sentAt || email.createdAt)}</span>
+                          <span className={`email-status-badge ${getNotificationIconTone(email.status)}`}>{email.status}</span>
                         </div>
                       </div>
                     ))
