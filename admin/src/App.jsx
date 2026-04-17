@@ -29,9 +29,9 @@ const WS_URL = API_URL.replace(/^http/i, "ws");
 const brandLogoUrl = "/logo.png";
 const translations = {
   fr: {
-    dashboard_admin: "Dashboard Admin",
-    login_title: "FoodDelyvry Control Room",
-    login_subtitle: "Connexion JWT vers le backend Node.js, PostgreSQL et Prisma.",
+    dashboard_admin: "",
+    login_title: "SpeedZ",
+    login_subtitle: "",
     email: "Email",
     password: "Mot de passe",
     login: "Se connecter",
@@ -178,9 +178,9 @@ const translations = {
     confirmed: "Confirmee",
   },
   ar: {
-    dashboard_admin: "لوحة الإدارة",
-    login_title: "غرفة تحكم FoodDelyvry",
-    login_subtitle: "اتصال JWT مع Backend Node.js و PostgreSQL و Prisma.",
+    dashboard_admin: "",
+    login_title: "SpeedZ",
+    login_subtitle: "",
     email: "البريد الإلكتروني",
     password: "كلمة المرور",
     login: "تسجيل الدخول",
@@ -2441,10 +2441,10 @@ export default function App() {
             <button className="ghost small" onClick={() => setLanguage("fr")}>{t("french")}</button>
             <button className="ghost small" onClick={() => setLanguage("ar")}>{t("arabic")}</button>
           </div>
-          <img className="brand-logo auth-brand-logo" src={brandLogoUrl} alt="FoodDelyvry" />
-          <p className="eyebrow">{t("dashboard_admin")}</p>
+          <img className="brand-logo auth-brand-logo" src={brandLogoUrl} alt="SpeedZ" />
+          {t("dashboard_admin") ? <p className="eyebrow">{t("dashboard_admin")}</p> : null}
           <h1>{t("login_title")}</h1>
-          <p className="muted">{t("login_subtitle")}</p>
+          {t("login_subtitle") ? <p className="muted">{t("login_subtitle")}</p> : null}
           <form onSubmit={handleLogin} className="stack form-layout">
             <FormField label={t("email")} hint="Exemple: admin@fooddelyvry.app" error={loginErrors.email}>
               <input
