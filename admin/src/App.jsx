@@ -3010,11 +3010,12 @@ export default function App() {
                             <h4>Menu actuel</h4>
                             <div className="inline-actions">
                               <span>{selectedRestaurant.menu.length} {t("dishes")}</span>
-                              <button className="ghost small" onClick={() => {
+                              <button type="button" className="ghost small" onClick={() => {
                                 setRestaurantEditErrors({});
                                 setShowEditModal(true);
                               }}>Modifier</button>
                               <button
+                                type="button"
                                 className="ghost small selected"
                                 onClick={() => {
                                   setSelectedMenuItem(null);
@@ -3042,12 +3043,13 @@ export default function App() {
                               </div>
                               <div className="menu-actions">
                                 <span>{formatMoney(item.price)}</span>
-                                <button className="ghost small" onClick={() => handleMenuStock(item.id, Math.max(0, item.stock - 1))}>-1</button>
-                                <button className="ghost small" onClick={() => handleMenuStock(item.id, item.stock + 1)}>+1</button>
-                                <button className="ghost small" onClick={() => handleMenuAvailability(item.id, !item.isAvailable)}>
+                                <button type="button" className="ghost small" onClick={() => handleMenuStock(item.id, Math.max(0, item.stock - 1))}>-1</button>
+                                <button type="button" className="ghost small" onClick={() => handleMenuStock(item.id, item.stock + 1)}>+1</button>
+                                <button type="button" className="ghost small" onClick={() => handleMenuAvailability(item.id, !item.isAvailable)}>
                                   {item.isAvailable ? t("unavailable") : t("available")}
                                 </button>
                                 <button
+                                  type="button"
                                   className="ghost small"
                                   onClick={() => {
                                     setSelectedMenuItem({
@@ -3064,7 +3066,7 @@ export default function App() {
                                 >
                                   {t("edit")}
                                 </button>
-                                <button className="ghost small" onClick={() => handleDeleteMenuItem(item.id)}>{t("delete_dish")}</button>
+                                <button type="button" className="ghost small" onClick={() => handleDeleteMenuItem(item.id)}>{t("delete_dish")}</button>
                               </div>
                             </div>
                           ))}
