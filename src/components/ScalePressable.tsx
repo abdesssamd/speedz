@@ -9,18 +9,26 @@ type ScalePressableProps = PropsWithChildren<
 
 export function ScalePressable({ children, containerStyle, ...props }: ScalePressableProps) {
   const scale = useRef(new Animated.Value(1)).current;
+  const opacity = useRef(new Animated.Value(1)).current;
 
   const animateTo = (value: number) => {
-    Animated.spring(scale, {
-      toValue: value,
-      speed: 35,
-      bounciness: 4,
-      useNativeDriver: true,
-    }).start();
+    Animated.parallel([
+      Animated.spring(scale, {
+        toValue: value,
+        speed: 35,
+        bounciness: 4,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacity, {
+        toValue: value < 1 ? 0.7 : 1,
+        duration: 120,
+        useNativeDriver: true,
+      }),
+    ]).start();
   };
 
   return (
-    <Animated.View style={[containerStyle, { transform: [{ scale }] }]}>
+    <Animated.View style={[containerStyle, { opacity, transform: [{ scale }] }]}>
       <Pressable
         {...props}
         onPressIn={(event) => {

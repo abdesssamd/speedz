@@ -11,7 +11,7 @@ import { translatePayment } from "../i18n/mobile";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { formatCurrency } from "../services/format";
 
-type ConfirmRoute = RouteProp<RootStackParamList, "ConfirmOrder">;
+type ConfirmRoute = RouteProp<RootStackParamList,"ConfirmOrder">;
 
 export function ConfirmOrderScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -22,155 +22,99 @@ export function ConfirmOrderScreen() {
 
   const onPay = async () => {
     const result = await placeOrder(draft);
-    if (!result.order) {
-      Alert.alert(t("impossible_order"), result.error ?? t("check_cart"));
-      return;
-    }
-
-    Alert.alert(
-      t("order_confirmed"),
-      `${result.order.id} ${t("order_created")} ${result.order.pointsEarned} ${t("points")}`,
-      [{ text: t("see_orders"), onPress: () => navigation.navigate("MainTabs") }]
-    );
+    if (!result.order) { Alert.alert(t("impossible_order"),result.error??t("check_cart")); return; }
+    Alert.alert(t("order_confirmed"),`${result.order.id} ${t("order_created")} ${result.order.pointsEarned} ${t("points")}`,[{text:t("see_orders"),onPress:()=>navigation.navigate("MainTabs")}]);
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.content}>
-        <LinearGradient colors={["#111827", "#1F2937", "#EA580C"]} style={styles.heroCard}>
-          <Text style={[styles.title, { textAlign: isRTL ? "right" : "left" }]}>{t("final_confirmation")}</Text>
-          <Text style={[styles.subtitle, { textAlign: isRTL ? "right" : "left" }]}>{t("final_confirmation_msg")}</Text>
+    <SafeAreaView style={s.safe}>
+      <View style={s.content}>
+        <LinearGradient colors={["#0A0A0F","#1a1207","#92400E"]} style={s.hero}>
+          <Text style={s.heroEyebrow}>Dernière étape</Text>
+          <Text style={[s.heroTitle,{textAlign:isRTL?"right":"left"}]}>{t("final_confirmation")}</Text>
+          <Text style={[s.heroSub,{textAlign:isRTL?"right":"left"}]}>{t("final_confirmation_msg")}</Text>
         </LinearGradient>
 
-        <AnimatedCard style={styles.card}>
-          <Text style={styles.cardTitle}>{cartRestaurant?.name}</Text>
-          <View style={styles.infoRow}>
-            <Ionicons name="location-outline" size={16} color="#EA580C" />
-            <Text style={styles.cardMeta}>{draft.address}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Ionicons name="cash-outline" size={16} color="#EA580C" />
-            <Text style={styles.cardMeta}>{translatePayment(isRTL ? "ar" : "fr", draft.paymentMethod)}</Text>
-          </View>
-          {draft.notes ? (
-            <View style={styles.infoRow}>
-              <Ionicons name="create-outline" size={16} color="#EA580C" />
-              <Text style={styles.cardMeta}>{draft.notes}</Text>
+        <AnimatedCard style={s.card}>
+          <Text style={s.cardTitle}>{cartRestaurant?.name}</Text>
+          {[
+            {icon:"location-outline" as const,val:draft.address},
+            {icon:"cash-outline" as const,val:translatePayment(isRTL?"ar":"fr",draft.paymentMethod)},
+            ...(draft.notes?[{icon:"create-outline" as const,val:draft.notes}]:[]),
+          ].map((row,i)=>(
+            <View key={i} style={s.infoRow}>
+              <View style={s.infoIconWrap}><Ionicons name={row.icon} size={14} color="#F59E0B"/></View>
+              <Text style={s.infoText}>{row.val}</Text>
             </View>
-          ) : null}
+          ))}
         </AnimatedCard>
 
         <FlatList
-          data={cart}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContent}
-          renderItem={({ item }) => (
-            <View style={styles.lineItem}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.lineTitle}>
-                  {item.quantity} x {item.name}
-                </Text>
-                <Text style={styles.lineMeta}>
-                  {item.selectedOptions.length ? item.selectedOptions.map((option) => option.choiceName).join(", ") : t("no_option")}
-                </Text>
+          data={cart} keyExtractor={(item)=>item.id} showsVerticalScrollIndicator={false}
+          contentContainerStyle={s.listContent}
+          renderItem={({item})=>(
+            <View style={s.lineItem}>
+              <View style={s.lineLeft}>
+                <Text style={s.lineQtyBadge}>{item.quantity}×</Text>
+                <View style={{flex:1}}>
+                  <Text style={s.lineTitle}>{item.name}</Text>
+                  <Text style={s.lineMeta}>{item.selectedOptions.length?item.selectedOptions.map(o=>o.choiceName).join(", "):t("no_option")}</Text>
+                </View>
               </View>
-              <Text style={styles.linePrice}>
-                {formatCurrency(
-                  (item.basePrice + item.selectedOptions.reduce((sum, option) => sum + option.priceDelta, 0)) * item.quantity
-                )}
-              </Text>
+              <Text style={s.linePrice}>{formatCurrency((item.basePrice+item.selectedOptions.reduce((sum,o)=>sum+o.priceDelta,0))*item.quantity)}</Text>
             </View>
           )}
           ListFooterComponent={
-            <AnimatedCard style={styles.summaryCard}>
-              <View style={styles.row}>
-                <Text style={styles.summaryLabel}>{t("subtotal")}</Text>
-                <Text style={styles.summaryValue}>{formatCurrency(summary.subtotal)}</Text>
-              </View>
-              <View style={styles.row}>
-                <Text style={styles.summaryLabel}>{t("delivery")}</Text>
-                <Text style={styles.summaryValue}>{formatCurrency(summary.deliveryFee)}</Text>
-              </View>
-              <View style={styles.row}>
-                <Text style={styles.summaryLabel}>{t("service_fee")}</Text>
-                <Text style={styles.summaryValue}>{formatCurrency(summary.serviceFee)}</Text>
-              </View>
-              {summary.discountAmount ? (
-                <View style={styles.row}>
-                  <Text style={styles.summaryLabel}>{t("discount")} {promoCode ? `(${promoCode})` : ""}</Text>
-                  <Text style={styles.discountValue}>- {formatCurrency(summary.discountAmount)}</Text>
-                </View>
-              ) : null}
-              <View style={styles.divider} />
-              <View style={styles.row}>
-                <Text style={styles.totalLabel}>{t("total")}</Text>
-                <Text style={styles.totalValue}>{formatCurrency(summary.total)}</Text>
-              </View>
+            <AnimatedCard style={s.summaryCard}>
+              {[{l:t("subtotal"),v:formatCurrency(summary.subtotal)},{l:t("delivery"),v:formatCurrency(summary.deliveryFee)},{l:t("service_fee"),v:formatCurrency(summary.serviceFee)}].map(r=>(
+                <View key={r.l} style={s.summaryRow}><Text style={s.summaryLbl}>{r.l}</Text><Text style={s.summaryVal}>{r.v}</Text></View>
+              ))}
+              {summary.discountAmount?(<View style={s.summaryRow}><Text style={s.summaryLbl}>{t("discount")} {promoCode?`(${promoCode})`:""}</Text><Text style={s.discountVal}>- {formatCurrency(summary.discountAmount)}</Text></View>):null}
+              <View style={s.divider}/>
+              <View style={s.summaryRow}><Text style={s.totalLbl}>{t("total")}</Text><Text style={s.totalVal}>{formatCurrency(summary.total)}</Text></View>
             </AnimatedCard>
           }
         />
 
-        <ScalePressable containerStyle={styles.primaryButton} onPress={onPay}>
-          <Text style={styles.primaryText}>{t("payment")} & {t("order_confirmed")}</Text>
-          <Ionicons name="checkmark-circle-outline" size={18} color="#FFFFFF" />
+        <ScalePressable containerStyle={s.payBtn} onPress={onPay}>
+          <LinearGradient colors={["#D97706","#F59E0B"]} start={{x:0,y:0}} end={{x:1,y:0}} style={s.payGradient}>
+            <Ionicons name="checkmark-circle" size={18} color="#0A0A0F"/>
+            <Text style={s.payText}>{t("payment")} & {t("order_confirmed")}</Text>
+          </LinearGradient>
         </ScalePressable>
       </View>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#F6F3EE" },
-  content: { flex: 1, paddingHorizontal: 14, paddingTop: 12, gap: 14 },
-  heroCard: { borderRadius: 28, padding: 18, gap: 10 },
-  title: { color: "#FFFFFF", fontSize: 30, fontWeight: "900" },
-  subtitle: { color: "#E5E7EB", lineHeight: 20, fontWeight: "600" },
-  card: {
-    backgroundColor: "#FFFCF8",
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "#EEE4D8",
-    padding: 16,
-    gap: 10,
-  },
-  cardTitle: { color: "#111827", fontWeight: "900", fontSize: 19 },
-  infoRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
-  cardMeta: { flex: 1, color: "#64748B", lineHeight: 20, fontWeight: "600" },
-  listContent: { gap: 10, paddingBottom: 110 },
-  lineItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 12,
-    backgroundColor: "#FFFCF8",
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#EEE4D8",
-    padding: 14,
-  },
-  lineTitle: { color: "#111827", fontWeight: "900" },
-  lineMeta: { color: "#64748B", marginTop: 4, lineHeight: 18 },
-  linePrice: { color: "#111827", fontWeight: "900" },
-  summaryCard: { backgroundColor: "#111827", borderRadius: 26, padding: 18, gap: 10, marginTop: 4 },
-  row: { flexDirection: "row", justifyContent: "space-between", gap: 12 },
-  summaryLabel: { color: "#CBD5E1", fontWeight: "600" },
-  summaryValue: { color: "#FFF9F1", fontWeight: "800" },
-  discountValue: { color: "#86EFAC", fontWeight: "900" },
-  divider: { height: 1, backgroundColor: "#374151", marginVertical: 4 },
-  totalLabel: { color: "#FFFFFF", fontWeight: "900", fontSize: 18 },
-  totalValue: { color: "#FDBA74", fontWeight: "900", fontSize: 22 },
-  primaryButton: {
-    position: "absolute",
-    left: 14,
-    right: 14,
-    bottom: 14,
-    backgroundColor: "#EA580C",
-    borderRadius: 22,
-    paddingVertical: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 10,
-  },
-  primaryText: { color: "#FFFFFF", fontWeight: "900", fontSize: 16 },
+const s = StyleSheet.create({
+  safe:{flex:1,backgroundColor:"#0A0A0F"},
+  content:{flex:1,paddingHorizontal:14,paddingTop:12,gap:14},
+  hero:{borderRadius:26,padding:18,gap:8,borderWidth:1,borderColor:"#2A2A3A"},
+  heroEyebrow:{color:"#F59E0B",fontSize:10,fontWeight:"900",textTransform:"uppercase",letterSpacing:1.5},
+  heroTitle:{color:"#F5F0E8",fontSize:26,fontWeight:"900"},
+  heroSub:{color:"#9B9BB0",fontWeight:"600",lineHeight:20,fontSize:13},
+  card:{backgroundColor:"#12121A",borderRadius:22,borderWidth:1,borderColor:"#2A2A3A",padding:16,gap:12},
+  cardTitle:{color:"#F5F0E8",fontWeight:"900",fontSize:18},
+  infoRow:{flexDirection:"row",alignItems:"center",gap:10},
+  infoIconWrap:{width:28,height:28,borderRadius:14,backgroundColor:"rgba(245,158,11,0.1)",alignItems:"center",justifyContent:"center"},
+  infoText:{flex:1,color:"#9B9BB0",lineHeight:20,fontWeight:"600",fontSize:13},
+  listContent:{gap:10,paddingBottom:110},
+  lineItem:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",gap:12,backgroundColor:"#12121A",borderRadius:18,borderWidth:1,borderColor:"#2A2A3A",padding:14},
+  lineLeft:{flex:1,flexDirection:"row",alignItems:"flex-start",gap:10},
+  lineQtyBadge:{color:"#F59E0B",fontWeight:"900",fontSize:14,minWidth:22},
+  lineTitle:{color:"#F5F0E8",fontWeight:"800",fontSize:14},
+  lineMeta:{color:"#9B9BB0",marginTop:3,lineHeight:17,fontSize:12},
+  linePrice:{color:"#F5F0E8",fontWeight:"900"},
+  summaryCard:{backgroundColor:"#12121A",borderRadius:22,padding:18,gap:10,borderWidth:1,borderColor:"#2A2A3A"},
+  summaryRow:{flexDirection:"row",justifyContent:"space-between"},
+  summaryLbl:{color:"#9B9BB0",fontWeight:"600",fontSize:13},
+  summaryVal:{color:"#F5F0E8",fontWeight:"800",fontSize:13},
+  discountVal:{color:"#34D399",fontWeight:"900"},
+  divider:{height:1,backgroundColor:"#1E1E2C",marginVertical:4},
+  totalLbl:{color:"#F5F0E8",fontWeight:"900",fontSize:18},
+  totalVal:{color:"#F59E0B",fontWeight:"900",fontSize:22},
+  payBtn:{position:"absolute",left:14,right:14,bottom:14,borderRadius:20,overflow:"hidden"},
+  payGradient:{flexDirection:"row",alignItems:"center",justifyContent:"center",gap:10,paddingVertical:16},
+  payText:{color:"#0A0A0F",fontWeight:"900",fontSize:16},
 });

@@ -24,6 +24,13 @@ export function RestaurantCard({
 }: RestaurantCardProps) {
   const { isRTL } = useApp();
   const delivery = getDeliveryQuote(userCoordinates, restaurant.coordinates);
+  const parsedMinutes = restaurant.deliveryTime.match(/\d+/g)?.map((value) => Number(value)) ?? [];
+  const deliveryLabel =
+    parsedMinutes.length && parsedMinutes.every((value) => Number.isFinite(value) && value < 180)
+      ? parsedMinutes.length >= 2
+        ? `${parsedMinutes[0]}-${parsedMinutes[1]} min`
+        : `${parsedMinutes[0]} min`
+      : "Bientot disponible";
 
   return (
     <ScalePressable containerStyle={styles.card} onPress={onPress}>
@@ -35,22 +42,23 @@ export function RestaurantCard({
       </View>
 
       <View style={styles.body}>
-        <View style={styles.row}>
-          <Text style={[styles.name, { textAlign: isRTL ? "right" : "left" }]}>{restaurant.name}</Text>
-          <Text style={styles.rating}>★ {restaurant.rating}</Text>
-        </View>
+        <Text style={[styles.name, { textAlign: isRTL ? "right" : "left" }]}>{restaurant.name}</Text>
         <Text style={[styles.description, { textAlign: isRTL ? "right" : "left" }]}>{restaurant.shortDescription}</Text>
         <View style={styles.metaRow}>
-          <Text style={styles.meta}>{delivery.estimatedLabel}</Text>
-          <Text style={styles.meta}>{delivery.distanceKm} km</Text>
-          <Text style={styles.meta}>{formatCurrency(delivery.fee)}</Text>
-        </View>
-        <View style={styles.tagsRow}>
-          {restaurant.tags.slice(0, 2).map((tag) => (
-            <View key={tag} style={styles.tag}>
-              <Text style={styles.tagText}>{tag}</Text>
-            </View>
-          ))}
+          <View style={styles.metaItem}>
+            <Ionicons name="star" size={14} color="#FF8C00" />
+            <Text style={styles.meta}>{restaurant.rating.toFixed(1)}</Text>
+          </View>
+          <Text style={styles.dot}>•</Text>
+          <View style={styles.metaItem}>
+            <Ionicons name="time-outline" size={14} color="#64748B" />
+            <Text style={styles.meta}>{deliveryLabel}</Text>
+          </View>
+          <Text style={styles.dot}>•</Text>
+          <View style={styles.metaItem}>
+            <Ionicons name="bicycle-outline" size={14} color="#64748B" />
+            <Text style={styles.meta}>{formatCurrency(delivery.fee)}</Text>
+          </View>
         </View>
       </View>
     </ScalePressable>
@@ -60,7 +68,7 @@ export function RestaurantCard({
 const styles = StyleSheet.create({
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 24,
+    borderRadius: 20,
     overflow: "hidden",
     borderWidth: 1,
     borderColor: "#ECE7E1",
@@ -78,9 +86,9 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 14,
     right: 14,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 16,
     backgroundColor: "#FFF7ED",
     alignItems: "center",
     justifyContent: "center",
@@ -89,23 +97,10 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 10,
   },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  name: { flex: 1, color: "#111827", fontSize: 18, fontWeight: "800" },
-  rating: { color: "#92400E", fontWeight: "800" },
-  description: { color: "#64748B", lineHeight: 20 },
-  metaRow: { flexDirection: "row", gap: 12, flexWrap: "wrap" },
+  name: { flex: 1, color: "#111827", fontSize: 18, fontWeight: "900" },
+  description: { color: "#64748B", lineHeight: 20, fontWeight: "500" },
+  metaRow: { flexDirection: "row", gap: 8, flexWrap: "wrap", alignItems: "center" },
+  metaItem: { flexDirection: "row", alignItems: "center", gap: 5 },
   meta: { color: "#334155", fontWeight: "700" },
-  tagsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  tag: {
-    backgroundColor: "#F7F2EB",
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  tagText: { color: "#6B4423", fontSize: 12, fontWeight: "700" },
+  dot: { color: "#94A3B8", fontWeight: "900" },
 });

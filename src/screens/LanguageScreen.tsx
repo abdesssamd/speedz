@@ -3,42 +3,58 @@ import { SafeAreaView, StyleSheet, Text, View } from "react-native";
 import { AnimatedCard } from "../components/AnimatedCard";
 import { ScalePressable } from "../components/ScalePressable";
 import { useApp } from "../context/AppContext";
+import { Ionicons } from "@expo/vector-icons";
 
 export function LanguageScreen() {
   const { language, setLanguage, t, isRTL } = useApp();
 
+  const options = [
+    { id: "fr", label: t("french"), sublabel: "Français", flag: "🇫🇷" },
+    { id: "ar", label: t("arabic"), sublabel: "العربية", flag: "🇩🇿" },
+  ] as const;
+
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.content}>
-        <Text style={[styles.title, { textAlign: isRTL ? "right" : "left" }]}>{t("language")}</Text>
-        <Text style={[styles.subtitle, { textAlign: isRTL ? "right" : "left" }]}>{t("language_subtitle")}</Text>
-        <AnimatedCard style={styles.card}>
-          <ScalePressable
-            containerStyle={[styles.languageButton, language === "fr" && styles.languageButtonActive]}
-            onPress={() => setLanguage("fr")}
-          >
-            <Text style={[styles.languageText, language === "fr" && styles.languageTextActive]}>{t("french")}</Text>
-          </ScalePressable>
-          <ScalePressable
-            containerStyle={[styles.languageButton, language === "ar" && styles.languageButtonActive]}
-            onPress={() => setLanguage("ar")}
-          >
-            <Text style={[styles.languageText, language === "ar" && styles.languageTextActive]}>{t("arabic")}</Text>
-          </ScalePressable>
+    <SafeAreaView style={s.safe}>
+      <View style={s.content}>
+        <Text style={s.eyebrow}>Préférences</Text>
+        <Text style={[s.title,{textAlign:isRTL?"right":"left"}]}>{t("language")}</Text>
+        <Text style={[s.subtitle,{textAlign:isRTL?"right":"left"}]}>{t("language_subtitle")}</Text>
+
+        <AnimatedCard style={s.card}>
+          {options.map((opt)=>{
+            const active = language===opt.id;
+            return (
+              <ScalePressable key={opt.id} containerStyle={[s.langRow,active&&s.langRowActive]} onPress={()=>setLanguage(opt.id)}>
+                <Text style={s.langFlag}>{opt.flag}</Text>
+                <View style={{flex:1}}>
+                  <Text style={[s.langLabel,active&&s.langLabelActive]}>{opt.label}</Text>
+                  <Text style={s.langSublabel}>{opt.sublabel}</Text>
+                </View>
+                <View style={[s.checkCircle,active&&s.checkCircleActive]}>
+                  {active?<Ionicons name="checkmark" size={14} color="#0A0A0F"/>:null}
+                </View>
+              </ScalePressable>
+            );
+          })}
         </AnimatedCard>
       </View>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#FFF9F1" },
-  content: { padding: 18, gap: 14 },
-  title: { color: "#111827", fontSize: 28, fontWeight: "800" },
-  subtitle: { color: "#64748B", lineHeight: 20 },
-  card: { backgroundColor: "#FFFFFF", borderRadius: 24, borderWidth: 1, borderColor: "#ECE7E1", padding: 18, gap: 12 },
-  languageButton: { backgroundColor: "#F3EDE5", borderRadius: 18, paddingVertical: 16, alignItems: "center" },
-  languageButtonActive: { backgroundColor: "#111827" },
-  languageText: { color: "#4B5563", fontWeight: "800", fontSize: 16 },
-  languageTextActive: { color: "#FFFFFF" },
+const s = StyleSheet.create({
+  safe:{flex:1,backgroundColor:"#0A0A0F"},
+  content:{padding:18,gap:18},
+  eyebrow:{color:"#F59E0B",fontSize:10,fontWeight:"900",textTransform:"uppercase",letterSpacing:1.5},
+  title:{color:"#F5F0E8",fontSize:28,fontWeight:"900"},
+  subtitle:{color:"#9B9BB0",lineHeight:20,fontSize:13},
+  card:{backgroundColor:"#12121A",borderRadius:24,borderWidth:1,borderColor:"#2A2A3A",overflow:"hidden"},
+  langRow:{flexDirection:"row",alignItems:"center",gap:14,padding:18,borderBottomWidth:1,borderBottomColor:"#1E1E2C"},
+  langRowActive:{backgroundColor:"rgba(245,158,11,0.05)"},
+  langFlag:{fontSize:28},
+  langLabel:{color:"#9B9BB0",fontWeight:"700",fontSize:16},
+  langLabelActive:{color:"#F5F0E8"},
+  langSublabel:{color:"#5C5C70",fontSize:12,marginTop:2},
+  checkCircle:{width:26,height:26,borderRadius:13,borderWidth:1,borderColor:"#2A2A3A",alignItems:"center",justifyContent:"center"},
+  checkCircleActive:{backgroundColor:"#F59E0B",borderColor:"#F59E0B"},
 });

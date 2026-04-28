@@ -272,6 +272,33 @@ function mergeUserProfile(current: UserProfile, incoming: UserProfile) {
   };
 }
 
+function getPreferredAddress(savedAddresses: SavedAddress[], userDefaultAddress?: string) {
+  const savedDefault = savedAddresses.find((entry) => entry.isDefault)?.address?.trim();
+  if (savedDefault) {
+    return savedDefault;
+  }
+
+  const firstSavedAddress = savedAddresses[0]?.address?.trim();
+  if (firstSavedAddress) {
+    return firstSavedAddress;
+  }
+
+  const normalizedUserAddress = userDefaultAddress?.trim();
+  if (normalizedUserAddress) {
+    return normalizedUserAddress;
+  }
+
+  return "";
+}
+
+function createFallbackLocationWithLabel(label?: string): LocationState {
+  const normalizedLabel = label?.trim();
+  return {
+    ...fallbackUserLocation,
+    label: normalizedLabel || fallbackUserLocation.label,
+  };
+}
+
 type RealtimeEnvelope = {
   type: string;
   payload?: {
@@ -384,25 +411,48 @@ export function AppProvider({ children }: PropsWithChildren) {
   };
 
   const requestLocation = async () => {
+    const preferredAddress = getPreferredAddress(savedAddresses, user.defaultAddress);
+
     try {
-      const permission = await Location.requestForegroundPermissionsAsync();
+      const existingPermission = await Location.getForegroundPermissionsAsync();
+      const permission =
+        existingPermission.status === "undetermined"
+          ? await Location.requestForegroundPermissionsAsync()
+          : existingPermission;
+
       if (permission.status !== "granted") {
-        setCurrentLocation(fallbackUserLocation);
+        setCurrentLocation(createFallbackLocationWithLabel(preferredAddress));
         pushNotification({
           title: t("location_unavailable"),
-          message: fallbackUserLocation.errorMessage ?? "Adresse de demonstration utilisee.",
+          message:
+            preferredAddress
+              ? `GPS indisponible. Adresse de secours utilisee: ${preferredAddress}`
+              : fallbackUserLocation.errorMessage ?? "Adresse de demonstration utilisee.",
           tone: "error",
         });
         return;
       }
 
-      const position = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
+      if (Location.enableNetworkProviderAsync) {
+        await Location.enableNetworkProviderAsync().catch(() => undefined);
+      }
 
-      const reverseLookup = await Location.reverseGeocodeAsync(position.coords);
-      const place = reverseLookup[0];
-      const label = [place?.name, place?.street, place?.city].filter(Boolean).join(", ") || "Position actuelle";
+      const position =
+        (await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        }).catch(() => null)) ??
+        (await Location.getLastKnownPositionAsync());
+
+      if (!position) {
+        throw new Error("NO_POSITION");
+      }
+
+      const label = await Location.reverseGeocodeAsync(position.coords)
+        .then((reverseLookup) => {
+          const place = reverseLookup[0];
+          return [place?.name, place?.street, place?.city].filter(Boolean).join(", ");
+        })
+        .catch(() => "");
 
       setCurrentLocation({
         granted: true,
@@ -410,14 +460,17 @@ export function AppProvider({ children }: PropsWithChildren) {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
         },
-        label,
+        label: label || preferredAddress || "Position actuelle",
         source: "device",
       });
     } catch {
-      setCurrentLocation(fallbackUserLocation);
+      setCurrentLocation(createFallbackLocationWithLabel(preferredAddress));
       pushNotification({
         title: t("gps_error"),
-        message: fallbackUserLocation.errorMessage ?? "Impossible de recuperer la localisation.",
+        message:
+          preferredAddress
+            ? `Impossible de recuperer le GPS. Adresse de secours utilisee: ${preferredAddress}`
+            : fallbackUserLocation.errorMessage ?? "Impossible de recuperer la localisation.",
         tone: "error",
       });
     }
@@ -491,7 +544,7 @@ export function AppProvider({ children }: PropsWithChildren) {
   }, []);
 
   useEffect(() => {
-    if (!authReady || (!authToken && !BYPASS_MOBILE_AUTH_FOR_DEV)) {
+    if (!authReady) {
       return;
     }
 
@@ -532,6 +585,22 @@ export function AppProvider({ children }: PropsWithChildren) {
       cancelled = true;
     };
   }, [authReady, authToken, refreshRemoteData]);
+
+  useEffect(() => {
+    const preferredAddress = getPreferredAddress(savedAddresses, user.defaultAddress);
+    if (!preferredAddress) {
+      return;
+    }
+
+    setCurrentLocation((current) =>
+      current.source === "fallback" && current.label !== preferredAddress
+        ? {
+            ...current,
+            label: preferredAddress,
+          }
+        : current
+    );
+  }, [savedAddresses, user.defaultAddress]);
 
   useEffect(() => {
     if (!authReady) {
@@ -1156,7 +1225,11 @@ export function AppProvider({ children }: PropsWithChildren) {
   };
 
   const createCheckoutDraft = (input: Partial<CheckoutDraft>) => ({
-    address: input.address?.trim() || user.defaultAddress,
+    address:
+      input.address?.trim() ||
+      getPreferredAddress(savedAddresses, user.defaultAddress) ||
+      currentLocation.label ||
+      fallbackUserLocation.label,
     paymentMethod: "Cash" as PaymentMethod,
     notes: input.notes ?? "",
   });
@@ -1166,7 +1239,9 @@ export function AppProvider({ children }: PropsWithChildren) {
       return { order: null, error: "Votre panier est vide." };
     }
 
-    if (!draft.address.trim()) {
+    const normalizedDraft = createCheckoutDraft(draft);
+
+    if (!normalizedDraft.address.trim()) {
       return { order: null, error: "Veuillez renseigner une adresse de livraison." };
     }
 
@@ -1174,7 +1249,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       const payload = await api.createOrder({
         restaurantId: cartRestaurant.id,
         cart,
-        draft,
+        draft: normalizedDraft,
         userCoordinates: currentLocation.coordinates,
         promoCode: promoCode || undefined,
       });

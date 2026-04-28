@@ -3,28 +3,14 @@ import { LinearGradient } from "expo-linear-gradient";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import React, { useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+  ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable,
+  SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useApp } from "../context/AppContext";
 import { RootStackParamList } from "../navigation/AppNavigator";
 
 type Props = NativeStackScreenProps<RootStackParamList, "AuthOnboarding">;
-
-type CountryOption = {
-  code: string;
-  flag: string;
-  label: string;
-};
+type CountryOption = { code: string; flag: string; label: string };
 
 const countryOptions: CountryOption[] = [
   { code: "+213", flag: "DZ", label: "Algérie" },
@@ -41,322 +27,174 @@ export function AuthOnboardingScreen({ navigation }: Props) {
   const [otpCode, setOtpCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [focusedField, setFocusedField] = useState<"fullName" | "phoneNumber" | "email" | "otpCode" | null>(null);
+  const [focusedField, setFocusedField] = useState<"fullName"|"phoneNumber"|"email"|"otpCode"|null>(null);
   const [selectedCountry, setSelectedCountry] = useState<CountryOption>(countryOptions[0]);
   const [countryPickerVisible, setCountryPickerVisible] = useState(false);
   const [otpVisible, setOtpVisible] = useState(false);
-  const [errors, setErrors] = useState<{
-    fullName?: string;
-    phoneNumber?: string;
-    email?: string;
-    otpCode?: string;
-  }>({});
+  const [errors, setErrors] = useState<{fullName?:string;phoneNumber?:string;email?:string;otpCode?:string}>({});
 
   const otpDigits = useMemo(() => otpCode.padEnd(6, " ").slice(0, 6).split(""), [otpCode]);
 
   const validateForm = () => {
-    const nextErrors: typeof errors = {};
-
-    if (fullName.trim().length < 4 || !fullName.trim().includes(" ")) {
-      nextErrors.fullName = "Entrez votre nom et prénom.";
-    }
-
-    if (phoneNumber.replace(/\D/g, "").length < 9) {
-      nextErrors.phoneNumber = "Entrez un numéro de téléphone valide.";
-    }
-
-    if (!/^[^\s@]+@gmail\.com$/i.test(email.trim())) {
-      nextErrors.email = "Utilisez une adresse Gmail valide.";
-    }
-
-    setErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
+    const e: typeof errors = {};
+    if (fullName.trim().length < 4 || !fullName.trim().includes(" ")) e.fullName = "Entrez votre nom et prénom.";
+    if (phoneNumber.replace(/\D/g, "").length < 9) e.phoneNumber = "Entrez un numéro valide.";
+    if (!/^[^\s@]+@gmail\.com$/i.test(email.trim())) e.email = "Utilisez une adresse Gmail valide.";
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
   const handleNext = async () => {
-    if (!validateForm()) {
-      return;
-    }
-
+    if (!validateForm()) return;
     setIsSubmitting(true);
-    const result = await requestEmailAuthCode({
-      email,
-      fullName,
-    });
+    const result = await requestEmailAuthCode({ email, fullName });
     setIsSubmitting(false);
-
-    if (!result.ok) {
-      setErrors((current) => ({ ...current, email: result.error || "Envoi email impossible." }));
-      return;
-    }
-
-    setErrors((current) => ({ ...current, otpCode: undefined }));
+    if (!result.ok) { setErrors((c) => ({ ...c, email: result.error || "Envoi impossible." })); return; }
+    setErrors((c) => ({ ...c, otpCode: undefined }));
     setOtpCode("");
     setOtpVisible(true);
   };
 
   const handleOtpSubmit = async () => {
-    if (otpCode.length !== 6) {
-      setErrors((current) => ({ ...current, otpCode: "Entrez le code OTP à 6 chiffres." }));
-      return;
-    }
-
-    if (!authFlow.challengeId) {
-      setErrors((current) => ({ ...current, otpCode: "Aucune demande OTP active. Recommencez." }));
-      return;
-    }
-
+    if (otpCode.length !== 6) { setErrors((c) => ({ ...c, otpCode: "Code OTP à 6 chiffres requis." })); return; }
+    if (!authFlow.challengeId) { setErrors((c) => ({ ...c, otpCode: "Aucune demande active. Recommencez." })); return; }
     setIsVerifying(true);
     const ok = await verifyEmailAuthCode({
-      challengeId: authFlow.challengeId,
-      code: otpCode,
-      email,
-      fullName,
+      challengeId: authFlow.challengeId, code: otpCode, email, fullName,
       phone: `${selectedCountry.code}${phoneNumber.replace(/\D/g, "")}`,
     });
     setIsVerifying(false);
-
-    if (ok) {
-      setOtpVisible(false);
-      navigation.replace("MainTabs");
-    }
+    if (ok) { setOtpVisible(false); navigation.replace("MainTabs"); }
   };
 
-  const renderInput = ({
-    icon,
-    label,
-    placeholder,
-    value,
-    onChangeText,
-    keyboardType,
-    autoCapitalize,
-    error,
-    leftAccessory,
-    fieldName,
-  }: {
-    icon: keyof typeof Ionicons.glyphMap;
-    label: string;
-    placeholder: string;
-    value: string;
-    onChangeText: (value: string) => void;
-    keyboardType?: "default" | "email-address" | "phone-pad";
-    autoCapitalize?: "none" | "words";
-    error?: string;
-    leftAccessory?: React.ReactNode;
-    fieldName: "fullName" | "phoneNumber" | "email";
-  }) => (
-    <View style={styles.fieldGroup}>
-      <Text style={styles.label}>{label}</Text>
-      <View
-        style={[
-          styles.inputShell,
-          focusedField === fieldName ? styles.inputShellFocused : null,
-          error ? styles.inputShellError : null,
-        ]}
-      >
-        <View style={[styles.iconWrap, focusedField === fieldName ? styles.iconWrapFocused : null]}>
-          <Ionicons name={icon} size={18} color={focusedField === fieldName ? "#F97316" : "#94A3B8"} />
-        </View>
-        {leftAccessory}
-        <TextInput
-          value={value}
-          onChangeText={onChangeText}
-          placeholder={placeholder}
-          placeholderTextColor="#9CA3AF"
-          keyboardType={keyboardType}
-          autoCapitalize={autoCapitalize}
-          autoCorrect={false}
-          onFocus={() => setFocusedField(fieldName)}
-          onBlur={() => setFocusedField((current) => (current === fieldName ? null : current))}
-          style={styles.input}
-        />
-      </View>
-      {error ? <Text style={styles.errorText}>{error}</Text> : null}
-    </View>
-  );
-
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.keyboardArea}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          <LinearGradient colors={["#111827", "#1F2937", "#EA580C"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.heroCard}>
-            <View style={styles.heroTopRow}>
-              <View style={styles.logoOrb}>
-                <Ionicons name="flash-outline" size={22} color="#111827" />
+    <SafeAreaView style={s.safe}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+
+          <LinearGradient colors={["#0A0A0F", "#1a1207", "#92400E"]} style={s.heroStrip}>
+            <View style={s.heroRow}>
+              <View style={s.logoOrb}><Ionicons name="flash" size={20} color="#F59E0B" /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.brandName}>Speedz</Text>
+                <Text style={s.brandCaption}>Express delivery · Algérie</Text>
               </View>
-              <View style={styles.brandBlock}>
-                <Text style={styles.heroBadgeText}>Speedz</Text>
-                <Text style={styles.brandCaption}>Express delivery</Text>
-              </View>
-            </View>
-            <View style={styles.heroHeadingBlock}>
-              <Text style={styles.heroEyebrow}>Livraison fluide, inscription rapide</Text>
-              <Text style={styles.heroTitle}>Inscription et connexion</Text>
-            </View>
-            <Text style={styles.heroSubtitle}>
-              Connectez-vous avec le même univers visuel que les écrans commande et dashboard, plus premium et plus cohérent.
-            </Text>
-            <View style={styles.heroStatsRow}>
-              <View style={styles.heroStatCard}>
-                <Text style={styles.heroStatValue}>22 min</Text>
-                <Text style={styles.heroStatLabel}>Moyenne</Text>
-              </View>
-              <View style={styles.heroStatCard}>
-                <Text style={styles.heroStatValue}>Live</Text>
-                <Text style={styles.heroStatLabel}>Tracking</Text>
-              </View>
-              <View style={styles.heroStatCard}>
-                <Text style={styles.heroStatValue}>DZ</Text>
-                <Text style={styles.heroStatLabel}>Zone</Text>
+              <View style={s.fastBadge}>
+                <Ionicons name="flash-outline" size={11} color="#0A0A0F" />
+                <Text style={s.fastBadgeText}>Fast</Text>
               </View>
             </View>
           </LinearGradient>
 
-          <View style={styles.formCard}>
-            {renderInput({
-              icon: "person-outline",
-              label: "Nom et prénom",
-              placeholder: "Ex: Lina Benali",
-              value: fullName,
-              onChangeText: setFullName,
-              autoCapitalize: "words",
-              error: errors.fullName,
-              fieldName: "fullName",
-            })}
+          <View style={s.titleBlock}>
+            <Text style={s.eyebrow}>Inscription rapide</Text>
+            <Text style={s.heroTitle}>Créer votre compte</Text>
+            <Text style={s.heroSub}>Quelques secondes pour commander partout.</Text>
+          </View>
 
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Numéro de téléphone</Text>
-              <View
-                style={[
-                  styles.inputShell,
-                  styles.phoneShell,
-                  focusedField === "phoneNumber" ? styles.inputShellFocused : null,
-                  errors.phoneNumber ? styles.inputShellError : null,
-                ]}
-              >
-                <View style={[styles.iconWrap, focusedField === "phoneNumber" ? styles.iconWrapFocused : null]}>
-                  <Ionicons name="call-outline" size={18} color="#F97316" />
+          <View style={s.formCard}>
+            {/* Full name */}
+            <View style={s.fieldGroup}>
+              <Text style={s.fieldLabel}>Nom et prénom</Text>
+              <View style={[s.inputShell, focusedField==="fullName"&&s.inputFocused, errors.fullName?s.inputError:null]}>
+                <View style={[s.iconWrap, focusedField==="fullName"&&s.iconFocused]}>
+                  <Ionicons name="person-outline" size={16} color={focusedField==="fullName"?"#F59E0B":"#5C5C70"} />
                 </View>
-                <Pressable style={styles.countrySelector} onPress={() => setCountryPickerVisible(true)}>
-                  <Text style={styles.countryFlag}>{selectedCountry.flag}</Text>
-                  <Text style={styles.countryCode}>{selectedCountry.code}</Text>
-                  <Ionicons name="chevron-down" size={16} color="#64748B" />
-                </Pressable>
-                <TextInput
-                  value={phoneNumber}
-                  onChangeText={(value) => setPhoneNumber(value.replace(/[^\d\s-]/g, ""))}
-                  placeholder="0555 12 34 56"
-                  placeholderTextColor="#9CA3AF"
-                  keyboardType="phone-pad"
-                  onFocus={() => setFocusedField("phoneNumber")}
-                  onBlur={() => setFocusedField((current) => (current === "phoneNumber" ? null : current))}
-                  style={styles.input}
-                />
+                <TextInput value={fullName} onChangeText={setFullName} placeholder="Ex: Lina Benali"
+                  placeholderTextColor="#3A3A50" autoCapitalize="words"
+                  onFocus={()=>setFocusedField("fullName")} onBlur={()=>setFocusedField(c=>c==="fullName"?null:c)}
+                  style={s.input} />
               </View>
-              {errors.phoneNumber ? <Text style={styles.errorText}>{errors.phoneNumber}</Text> : null}
+              {errors.fullName?<Text style={s.errorText}>{errors.fullName}</Text>:null}
             </View>
 
-            {renderInput({
-              icon: "mail-outline",
-              label: "Email Gmail",
-              placeholder: "exemple@gmail.com",
-              value: email,
-              onChangeText: setEmail,
-              keyboardType: "email-address",
-              autoCapitalize: "none",
-              error: errors.email,
-              fieldName: "email",
-            })}
+            {/* Phone */}
+            <View style={s.fieldGroup}>
+              <Text style={s.fieldLabel}>Téléphone</Text>
+              <View style={[s.inputShell, focusedField==="phoneNumber"&&s.inputFocused, errors.phoneNumber?s.inputError:null]}>
+                <View style={[s.iconWrap, focusedField==="phoneNumber"&&s.iconFocused]}>
+                  <Ionicons name="call-outline" size={16} color={focusedField==="phoneNumber"?"#F59E0B":"#5C5C70"} />
+                </View>
+                <Pressable style={s.countrySelector} onPress={()=>setCountryPickerVisible(true)}>
+                  <Text style={s.countryFlag}>{selectedCountry.flag}</Text>
+                  <Text style={s.countryCode}>{selectedCountry.code}</Text>
+                  <Ionicons name="chevron-down" size={12} color="#5C5C70" />
+                </Pressable>
+                <TextInput value={phoneNumber} onChangeText={(v)=>setPhoneNumber(v.replace(/[^\d\s-]/g,""))}
+                  placeholder="0555 12 34 56" placeholderTextColor="#3A3A50" keyboardType="phone-pad"
+                  onFocus={()=>setFocusedField("phoneNumber")} onBlur={()=>setFocusedField(c=>c==="phoneNumber"?null:c)}
+                  style={s.input} />
+              </View>
+              {errors.phoneNumber?<Text style={s.errorText}>{errors.phoneNumber}</Text>:null}
+            </View>
 
-            <Pressable
-              style={({ pressed }) => [styles.primaryButton, pressed ? styles.primaryButtonPressed : null, isSubmitting ? styles.buttonDisabled : null]}
-              onPress={() => void handleNext()}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>Suivant</Text>}
+            {/* Email */}
+            <View style={s.fieldGroup}>
+              <Text style={s.fieldLabel}>Email Gmail</Text>
+              <View style={[s.inputShell, focusedField==="email"&&s.inputFocused, errors.email?s.inputError:null]}>
+                <View style={[s.iconWrap, focusedField==="email"&&s.iconFocused]}>
+                  <Ionicons name="mail-outline" size={16} color={focusedField==="email"?"#F59E0B":"#5C5C70"} />
+                </View>
+                <TextInput value={email} onChangeText={setEmail} placeholder="exemple@gmail.com"
+                  placeholderTextColor="#3A3A50" keyboardType="email-address" autoCapitalize="none"
+                  onFocus={()=>setFocusedField("email")} onBlur={()=>setFocusedField(c=>c==="email"?null:c)}
+                  style={s.input} />
+              </View>
+              {errors.email?<Text style={s.errorText}>{errors.email}</Text>:null}
+            </View>
+
+            <Pressable style={[s.primaryBtn, isSubmitting&&s.btnDisabled]} onPress={()=>void handleNext()} disabled={isSubmitting}>
+              <LinearGradient colors={["#D97706","#F59E0B"]} start={{x:0,y:0}} end={{x:1,y:0}} style={s.btnGradient}>
+                {isSubmitting
+                  ? <ActivityIndicator color="#0A0A0F" />
+                  : <><Text style={s.btnText}>Continuer</Text><Ionicons name="arrow-forward" size={16} color="#0A0A0F" /></>}
+              </LinearGradient>
             </Pressable>
           </View>
         </ScrollView>
 
-        <Modal
-          animationType="slide"
-          transparent
-          visible={countryPickerVisible}
-          onRequestClose={() => setCountryPickerVisible(false)}
-        >
-          <Pressable style={styles.overlay} onPress={() => setCountryPickerVisible(false)}>
-            <Pressable style={styles.sheet} onPress={() => null}>
-              <Text style={styles.sheetTitle}>Choisir un pays</Text>
-              {countryOptions.map((country) => (
-                <Pressable
-                  key={`${country.flag}-${country.code}`}
-                  style={styles.countryRow}
-                  onPress={() => {
-                    setSelectedCountry(country);
-                    setCountryPickerVisible(false);
-                  }}
-                >
-                  <View>
-                    <Text style={styles.countryName}>{country.label}</Text>
-                    <Text style={styles.countryMeta}>
-                      {country.flag} {country.code}
-                    </Text>
-                  </View>
-                  {selectedCountry.code === country.code ? (
-                    <Ionicons name="checkmark-circle" size={22} color="#111827" />
-                  ) : null}
+        {/* Country Modal */}
+        <Modal animationType="slide" transparent visible={countryPickerVisible} onRequestClose={()=>setCountryPickerVisible(false)}>
+          <Pressable style={s.overlay} onPress={()=>setCountryPickerVisible(false)}>
+            <Pressable style={s.sheet} onPress={()=>null}>
+              <View style={s.sheetHandle} />
+              <Text style={s.sheetTitle}>Choisir un pays</Text>
+              {countryOptions.map((c)=>(
+                <Pressable key={c.code} style={s.countryRow} onPress={()=>{setSelectedCountry(c);setCountryPickerVisible(false);}}>
+                  <Text style={s.countryName}>{c.label}</Text>
+                  <Text style={s.countryMeta}>{c.flag} {c.code}</Text>
+                  {selectedCountry.code===c.code?<Ionicons name="checkmark-circle" size={20} color="#F59E0B"/>:<View style={{width:20}}/>}
                 </Pressable>
               ))}
             </Pressable>
           </Pressable>
         </Modal>
 
-        <Modal animationType="slide" transparent visible={otpVisible} onRequestClose={() => setOtpVisible(false)}>
-          <Pressable style={styles.overlay} onPress={() => setOtpVisible(false)}>
-            <Pressable style={styles.sheet} onPress={() => null}>
-              <Text style={styles.sheetTitle}>Code OTP</Text>
-              <Text style={styles.sheetSubtitle}>
-                Entrez le code à 6 chiffres envoyé à {email.trim() || "votre adresse Gmail"}.
-              </Text>
-
-              <View style={styles.otpRow}>
-                {otpDigits.map((digit, index) => (
-                  <View key={`${digit}-${index}`} style={styles.otpBox}>
-                    <Text style={styles.otpDigit}>{digit.trim() || ""}</Text>
+        {/* OTP Modal */}
+        <Modal animationType="slide" transparent visible={otpVisible} onRequestClose={()=>setOtpVisible(false)}>
+          <Pressable style={s.overlay} onPress={()=>setOtpVisible(false)}>
+            <Pressable style={s.sheet} onPress={()=>null}>
+              <View style={s.sheetHandle} />
+              <Text style={s.sheetTitle}>Code OTP</Text>
+              <Text style={s.sheetSub}>Envoyé à <Text style={{color:"#F59E0B"}}>{email.trim()||"votre Gmail"}</Text></Text>
+              <View style={s.otpRow}>
+                {otpDigits.map((d,i)=>(
+                  <View key={i} style={[s.otpBox, d.trim()&&s.otpBoxFilled]}>
+                    <Text style={s.otpDigit}>{d.trim()}</Text>
                   </View>
                 ))}
               </View>
-
-              <TextInput
-                value={otpCode}
-                onChangeText={(value) => {
-                  setOtpCode(value.replace(/\D/g, "").slice(0, 6));
-                  setErrors((current) => ({ ...current, otpCode: undefined }));
-                }}
-                placeholder="000000"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="number-pad"
-                maxLength={6}
-                onFocus={() => setFocusedField("otpCode")}
-                onBlur={() => setFocusedField((current) => (current === "otpCode" ? null : current))}
-                style={[
-                  styles.otpInput,
-                  focusedField === "otpCode" ? styles.inputShellFocused : null,
-                  errors.otpCode ? styles.inputShellError : null,
-                ]}
-              />
-
-              <Text style={styles.otpNote}>
-                Pour votre confort, le code a été envoyé par Email (Gratuit) plutôt que par SMS.
-              </Text>
-              {errors.otpCode ? <Text style={styles.errorText}>{errors.otpCode}</Text> : null}
-
-              <Pressable
-                style={({ pressed }) => [styles.primaryButton, pressed ? styles.primaryButtonPressed : null, isVerifying ? styles.buttonDisabled : null]}
-                onPress={() => void handleOtpSubmit()}
-                disabled={isVerifying}
-              >
-                {isVerifying ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>Valider</Text>}
+              <TextInput value={otpCode}
+                onChangeText={(v)=>{setOtpCode(v.replace(/\D/g,"").slice(0,6));setErrors(c=>({...c,otpCode:undefined}));}}
+                placeholder="000000" placeholderTextColor="#3A3A50" keyboardType="number-pad" maxLength={6}
+                style={[s.otpInput, focusedField==="otpCode"&&s.inputFocused, errors.otpCode?s.inputError:null]}
+                onFocus={()=>setFocusedField("otpCode")} onBlur={()=>setFocusedField(c=>c==="otpCode"?null:c)} />
+              {errors.otpCode?<Text style={s.errorText}>{errors.otpCode}</Text>:null}
+              <Text style={s.otpNote}>Code envoyé par Email (gratuit), pas SMS.</Text>
+              <Pressable style={[s.primaryBtn, isVerifying&&s.btnDisabled]} onPress={()=>void handleOtpSubmit()} disabled={isVerifying}>
+                <LinearGradient colors={["#D97706","#F59E0B"]} start={{x:0,y:0}} end={{x:1,y:0}} style={s.btnGradient}>
+                  {isVerifying?<ActivityIndicator color="#0A0A0F"/>:<Text style={s.btnText}>Valider</Text>}
+                </LinearGradient>
               </Pressable>
             </Pressable>
           </Pressable>
@@ -366,281 +204,49 @@ export function AuthOnboardingScreen({ navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#F6F3EE",
-  },
-  keyboardArea: {
-    flex: 1,
-  },
-  content: {
-    flexGrow: 1,
-    justifyContent: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 28,
-    gap: 18,
-  },
-  heroCard: {
-    borderRadius: 28,
-    padding: 20,
-    gap: 16,
-    overflow: "hidden",
-  },
-  heroTopRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  logoOrb: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#FED7AA",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  brandBlock: {
-    gap: 2,
-  },
-  heroBadgeText: {
-    color: "#FFFFFF",
-    fontSize: 22,
-    fontWeight: "900",
-  },
-  brandCaption: {
-    color: "#D1D5DB",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  heroHeadingBlock: {
-    gap: 8,
-  },
-  heroEyebrow: {
-    color: "#FED7AA",
-    fontSize: 11,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  heroTitle: {
-    color: "#FFFFFF",
-    fontSize: 28,
-    lineHeight: 34,
-    fontWeight: "900",
-  },
-  heroSubtitle: {
-    color: "#E5E7EB",
-    lineHeight: 21,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  heroStatsRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  heroStatCard: {
-    flex: 1,
-    backgroundColor: "rgba(255,255,255,0.12)",
-    borderRadius: 18,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    gap: 4,
-  },
-  heroStatValue: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  heroStatLabel: {
-    color: "#D1D5DB",
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  formCard: {
-    backgroundColor: "#FFFCF8",
-    borderRadius: 26,
-    padding: 18,
-    gap: 18,
-    borderWidth: 1,
-    borderColor: "#EEE4D8",
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.05,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 3,
-  },
-  fieldGroup: {
-    gap: 10,
-  },
-  label: {
-    color: "#111827",
-    fontWeight: "800",
-    fontSize: 15,
-  },
-  inputShell: {
-    flexDirection: "row",
-    alignItems: "center",
-    minHeight: 60,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#F0E7DB",
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 14,
-    gap: 12,
-  },
-  inputShellFocused: {
-    borderColor: "#EA580C",
-    backgroundColor: "#FFFFFF",
-  },
-  phoneShell: {
-    paddingRight: 10,
-  },
-  inputShellError: {
-    borderColor: "#DC2626",
-  },
-  iconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "#FFF4E8",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  iconWrapFocused: {
-    backgroundColor: "#FED7AA",
-  },
-  input: {
-    flex: 1,
-    color: "#111827",
-    fontSize: 16,
-    paddingVertical: 16,
-  },
-  countrySelector: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 14,
-    backgroundColor: "#F6EFE5",
-  },
-  countryFlag: {
-    color: "#111827",
-    fontWeight: "700",
-    fontSize: 12,
-  },
-  countryCode: {
-    color: "#111827",
-    fontWeight: "700",
-  },
-  errorText: {
-    color: "#DC2626",
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  primaryButton: {
-    minHeight: 60,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#111827",
-    marginTop: 10,
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 8,
-  },
-  primaryButtonPressed: {
-    backgroundColor: "#EA580C",
-    transform: [{ scale: 0.985 }],
-  },
-  buttonDisabled: {
-    opacity: 0.82,
-  },
-  primaryButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "800",
-  },
-  overlay: {
-    flex: 1,
-    justifyContent: "flex-end",
-    backgroundColor: "rgba(17, 24, 39, 0.35)",
-  },
-  sheet: {
-    backgroundColor: "#FFFCF8",
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 32,
-    gap: 18,
-  },
-  sheetTitle: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: "#111827",
-  },
-  sheetSubtitle: {
-    color: "#64748B",
-    lineHeight: 22,
-    fontWeight: "600",
-  },
-  countryRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0E7DB",
-  },
-  countryName: {
-    color: "#111827",
-    fontWeight: "700",
-    fontSize: 15,
-  },
-  countryMeta: {
-    color: "#64748B",
-    marginTop: 4,
-  },
-  otpRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  otpBox: {
-    flex: 1,
-    height: 56,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#F0E7DB",
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  otpDigit: {
-    color: "#111827",
-    fontSize: 22,
-    fontWeight: "800",
-  },
-  otpInput: {
-    minHeight: 56,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#F0E7DB",
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 16,
-    color: "#111827",
-    fontSize: 20,
-    letterSpacing: 6,
-    textAlign: "center",
-  },
-  otpNote: {
-    color: "#64748B",
-    lineHeight: 21,
-    fontSize: 13,
-    fontWeight: "500",
-  },
+const s = StyleSheet.create({
+  safe:{flex:1,backgroundColor:"#0A0A0F"},
+  content:{flexGrow:1,paddingHorizontal:18,paddingVertical:20,gap:20},
+  heroStrip:{borderRadius:24,padding:16,borderWidth:1,borderColor:"#2A2A3A"},
+  heroRow:{flexDirection:"row",alignItems:"center",gap:12},
+  logoOrb:{width:44,height:44,borderRadius:22,backgroundColor:"rgba(245,158,11,0.15)",alignItems:"center",justifyContent:"center",borderWidth:1,borderColor:"rgba(245,158,11,0.3)"},
+  brandName:{color:"#F5F0E8",fontSize:20,fontWeight:"900"},
+  brandCaption:{color:"#9B9BB0",fontSize:11,fontWeight:"600"},
+  fastBadge:{flexDirection:"row",alignItems:"center",gap:4,backgroundColor:"#F59E0B",borderRadius:999,paddingHorizontal:10,paddingVertical:5},
+  fastBadgeText:{color:"#0A0A0F",fontSize:11,fontWeight:"900"},
+  titleBlock:{gap:8,paddingHorizontal:2},
+  eyebrow:{color:"#F59E0B",fontSize:10,fontWeight:"900",textTransform:"uppercase",letterSpacing:1.5},
+  heroTitle:{color:"#F5F0E8",fontSize:28,fontWeight:"900",lineHeight:32},
+  heroSub:{color:"#9B9BB0",fontSize:13,lineHeight:20,fontWeight:"500"},
+  formCard:{backgroundColor:"#12121A",borderRadius:26,padding:20,gap:16,borderWidth:1,borderColor:"#2A2A3A"},
+  fieldGroup:{gap:8},
+  fieldLabel:{color:"#9B9BB0",fontWeight:"700",fontSize:11,textTransform:"uppercase",letterSpacing:0.8},
+  inputShell:{flexDirection:"row",alignItems:"center",minHeight:52,borderRadius:16,borderWidth:1,borderColor:"#2A2A3A",backgroundColor:"#16161F",paddingHorizontal:12,gap:10},
+  inputFocused:{borderColor:"#F59E0B",backgroundColor:"#1a1510"},
+  inputError:{borderColor:"#F87171"},
+  iconWrap:{width:30,height:30,borderRadius:15,backgroundColor:"#1E1E2C",alignItems:"center",justifyContent:"center"},
+  iconFocused:{backgroundColor:"rgba(245,158,11,0.15)"},
+  input:{flex:1,color:"#F5F0E8",fontSize:15,paddingVertical:10},
+  countrySelector:{flexDirection:"row",alignItems:"center",gap:5,paddingHorizontal:8,paddingVertical:6,borderRadius:10,backgroundColor:"#1E1E2C"},
+  countryFlag:{color:"#F5F0E8",fontWeight:"700",fontSize:11},
+  countryCode:{color:"#9B9BB0",fontWeight:"700",fontSize:12},
+  errorText:{color:"#F87171",fontSize:12},
+  primaryBtn:{borderRadius:18,overflow:"hidden",marginTop:4},
+  btnDisabled:{opacity:0.6},
+  btnGradient:{flexDirection:"row",alignItems:"center",justifyContent:"center",gap:8,paddingVertical:16},
+  btnText:{color:"#0A0A0F",fontSize:15,fontWeight:"900"},
+  overlay:{flex:1,justifyContent:"flex-end",backgroundColor:"rgba(0,0,0,0.75)"},
+  sheet:{backgroundColor:"#12121A",borderTopLeftRadius:28,borderTopRightRadius:28,paddingHorizontal:20,paddingTop:16,paddingBottom:32,gap:16,borderTopWidth:1,borderColor:"#2A2A3A"},
+  sheetHandle:{width:40,height:4,borderRadius:2,backgroundColor:"#2A2A3A",alignSelf:"center",marginBottom:4},
+  sheetTitle:{color:"#F5F0E8",fontSize:22,fontWeight:"900"},
+  sheetSub:{color:"#9B9BB0",fontSize:13,lineHeight:20},
+  countryRow:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",paddingVertical:14,borderBottomWidth:1,borderBottomColor:"#1E1E2C"},
+  countryName:{color:"#F5F0E8",fontWeight:"700",flex:1},
+  countryMeta:{color:"#9B9BB0",marginRight:12},
+  otpRow:{flexDirection:"row",justifyContent:"space-between",gap:8},
+  otpBox:{flex:1,height:52,borderRadius:14,borderWidth:1,borderColor:"#2A2A3A",backgroundColor:"#16161F",alignItems:"center",justifyContent:"center"},
+  otpBoxFilled:{borderColor:"#F59E0B",backgroundColor:"rgba(245,158,11,0.08)"},
+  otpDigit:{color:"#F5F0E8",fontSize:22,fontWeight:"900"},
+  otpInput:{minHeight:52,borderRadius:16,borderWidth:1,borderColor:"#2A2A3A",backgroundColor:"#16161F",paddingHorizontal:14,color:"#F5F0E8",fontSize:20,letterSpacing:8,textAlign:"center"},
+  otpNote:{color:"#5C5C70",fontSize:12,lineHeight:18},
 });
