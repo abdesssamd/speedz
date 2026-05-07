@@ -24,6 +24,8 @@ import {
   X,
 } from "lucide-react";
 import { AdminDialog } from "./components/AdminDialog";
+import OmniSearch from "./components/OmniSearch";
+import AnalyticsDashboard from "./components/AnalyticsDashboard";
 import "./index.css";
 
 const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:4100").replace(/\/$/, "");
@@ -955,6 +957,11 @@ export default function App() {
   const [expandedOrderId, setExpandedOrderId] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteRestaurantModal, setShowDeleteRestaurantModal] = useState(false);
+  const [deleteRestaurantTarget, setDeleteRestaurantTarget] = useState(null);
+  const [showDeleteMenuItemModal, setShowDeleteMenuItemModal] = useState(false);
+  const [deleteMenuItemTarget, setDeleteMenuItemTarget] = useState(null);
+  const [isDeletingRestaurant, setIsDeletingRestaurant] = useState(false);
   const [showMenuModal, setShowMenuModal] = useState(false);
   const [showCourierModal, setShowCourierModal] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
@@ -1231,25 +1238,91 @@ export default function App() {
   );
 
   const dashboardStats = useMemo(() => {
-    const delivered = orders.filter((order) => order.status === "Delivered").length;
-    const inProgress = orders.filter((order) => order.status !== "Delivered").length;
-    const revenue = orders.reduce((sum, order) => sum + Number(order.total || 0), 0);
-    const menuItemsCount = restaurants.reduce((sum, restaurant) => sum + restaurant.menu.length, 0);
-    const recentOrders = [...orders].slice(-7);
-    const orderSpark = recentOrders.length
-      ? recentOrders.map((_order, index) => index + 1)
-      : [0, 0, 0, 0];
-    const revenueSpark = recentOrders.length
-      ? recentOrders.map((order) => Number(order.total || 0))
-      : [0, 0, 0, 0];
+    const now = new Date();
+    const todayStr = now.toDateString();
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toDateString();
+
+    const todayOrders     = orders.filter((o) => new Date(o.createdAt).toDateString() === todayStr);
+    const yesterdayOrders = orders.filter((o) => new Date(o.createdAt).toDateString() === yesterdayStr);
+
+    const revenueToday     = todayOrders.reduce((s, o) => s + Number(o.total || 0), 0);
+    const revenueYesterday = yesterdayOrders.reduce((s, o) => s + Number(o.total || 0), 0);
+
+    function pctDelta(today, yesterday) {
+      if (yesterday === 0) return today > 0 ? 100 : 0;
+      return Math.round(((today - yesterday) / yesterday) * 100);
+    }
+
+    const ordersDelta  = pctDelta(todayOrders.length, yesterdayOrders.length);
+    const revenueDelta = pctDelta(revenueToday, revenueYesterday);
+
+    const activeCouriers = couriers.filter((c) => c.status === "AVAILABLE").length;
+
+    const thirtyDaysAgo = new Date(now);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const recentOrders30 = orders.filter((o) => new Date(o.createdAt) >= thirtyDaysAgo);
+    const countable = recentOrders30.filter((o) => o.status !== "Cancelled");
+    const delivered = recentOrders30.filter((o) => o.status === "Delivered");
+    const deliveryRate = countable.length > 0 ? Math.round((delivered.length / countable.length) * 100) : null;
+
+    const totalRevenue = orders.reduce((s, o) => s + Number(o.total || 0), 0);
+
+    // Sparklines: revenue des 7 derniers jours
+    const revenueSpark = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const dayStr = d.toDateString();
+      const dayRevenue = orders
+        .filter((o) => new Date(o.createdAt).toDateString() === dayStr)
+        .reduce((s, o) => s + Number(o.total || 0), 0);
+      revenueSpark.push(Math.round(dayRevenue));
+    }
+    const orderSpark = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const dayStr = d.toDateString();
+      orderSpark.push(orders.filter((o) => new Date(o.createdAt).toDateString() === dayStr).length);
+    }
+
+    const deltaLabel = (v) => v > 0 ? `+${v}% vs hier` : v < 0 ? `${v}% vs hier` : "= hier";
 
     return [
-      { label: "Restaurants", value: restaurants.length, caption: "catalogue actif", accent: "orange" },
-      { label: "Menus", value: menuItemsCount, caption: "plats publies", accent: "blue" },
-      { label: "Commandes", value: inProgress, caption: "en cours", accent: "gold", sparkline: orderSpark },
-      { label: "CA", value: formatMoney(revenue), caption: `${delivered} livrees`, accent: "green", sparkline: revenueSpark },
+      {
+        label: "Commandes aujourd'hui",
+        value: todayOrders.length,
+        caption: deltaLabel(ordersDelta),
+        accent: "orange",
+        sparkline: orderSpark,
+        deltaPositive: ordersDelta > 0,
+        deltaNegative: ordersDelta < 0,
+      },
+      {
+        label: "CA total (Da)",
+        value: formatMoney(totalRevenue),
+        caption: deltaLabel(revenueDelta),
+        accent: "blue",
+        sparkline: revenueSpark,
+        deltaPositive: revenueDelta > 0,
+        deltaNegative: revenueDelta < 0,
+      },
+      {
+        label: "Livreurs disponibles",
+        value: couriers.length > 0 ? activeCouriers : "—",
+        caption: couriers.length > 0 ? `sur ${couriers.length} livreurs` : "non chargés",
+        accent: "gold",
+      },
+      {
+        label: "Taux de livraison",
+        value: deliveryRate !== null ? `${deliveryRate}%` : "—",
+        caption: "30 derniers jours",
+        accent: "green",
+      },
     ];
-  }, [orders, restaurants]);
+  }, [orders, restaurants, couriers]);
 
   const operationsModules = useMemo(() => {
     const deliveredCount = orders.filter((order) => order.status === "Delivered").length;
@@ -2138,9 +2211,28 @@ export default function App() {
   async function handleDeleteMenuItem(itemId) {
     try {
       await apiRequest(`/api/admin/menu-items/${itemId}`, { method: "DELETE" }, token);
+      setShowDeleteMenuItemModal(false);
+      setDeleteMenuItemTarget(null);
       await loadAdminData();
     } catch (error) {
       setErrorMessage(error.message);
+    }
+  }
+
+  async function handleDeleteRestaurant(restaurantId, hard = false) {
+    try {
+      setIsDeletingRestaurant(true);
+      const url = `/api/admin/restaurants/${restaurantId}${hard ? "?hard=true" : ""}`;
+      await apiRequest(url, { method: "DELETE" }, token);
+      setShowDeleteRestaurantModal(false);
+      setDeleteRestaurantTarget(null);
+      setSelectedRestaurantId("");
+      await loadAdminData();
+      setSuccessMessage(hard ? "Restaurant supprimé définitivement." : "Restaurant désactivé et archivé.");
+    } catch (error) {
+      setErrorMessage(error.message || "Erreur lors de la suppression.");
+    } finally {
+      setIsDeletingRestaurant(false);
     }
   }
 
@@ -2791,7 +2883,9 @@ export default function App() {
             <article key={stat.label} className={`stat-card ${stat.accent}`}>
               <p>{stat.label}</p>
               <strong>{stat.value}</strong>
-              <span>{stat.caption}</span>
+              <span className={stat.deltaPositive ? "stat-delta up" : stat.deltaNegative ? "stat-delta down" : "stat-delta neutral"}>
+                {stat.caption}
+              </span>
               {stat.sparkline ? (
                 <svg className="sparkline" viewBox="0 0 120 32" aria-hidden="true">
                   <path d={buildSparkline(stat.sparkline, 120, 32)} />
@@ -3016,6 +3110,16 @@ export default function App() {
                               }}>Modifier</button>
                               <button
                                 type="button"
+                                className="ghost small danger-outline"
+                                onClick={() => {
+                                  setDeleteRestaurantTarget(selectedRestaurant);
+                                  setShowDeleteRestaurantModal(true);
+                                }}
+                              >
+                                🗑 Supprimer
+                              </button>
+                              <button
+                                type="button"
                                 className="ghost small selected"
                                 onClick={() => {
                                   setSelectedMenuItem(null);
@@ -3066,7 +3170,16 @@ export default function App() {
                                 >
                                   {t("edit")}
                                 </button>
-                                <button type="button" className="ghost small" onClick={() => handleDeleteMenuItem(item.id)}>{t("delete_dish")}</button>
+                                <button
+                                  type="button"
+                                  className="ghost small danger-outline"
+                                  onClick={() => {
+                                    setDeleteMenuItemTarget(item);
+                                    setShowDeleteMenuItemModal(true);
+                                  }}
+                                >
+                                  {t("delete_dish")}
+                                </button>
                               </div>
                             </div>
                           ))}
@@ -4321,66 +4434,82 @@ export default function App() {
               </article>
             )}
 
-            {activeView === "reports" && reports && (
+            {activeView === "reports" && (
               <article className="panel">
                 <div className="panel-head">
                   <div>
                     <h3>{t("reports_title")}</h3>
-                    <p>{t("analytics")}</p>
+                    <p className="muted">{t("analytics")}</p>
                   </div>
                 </div>
-                <div className="module-grid">
-                  <div className="module-card"><p>CA</p><strong>{formatMoney(reports.totals.revenue)}</strong><span>{reports.totals.orders} orders</span></div>
-                  <div className="module-card"><p>{t("average_basket")}</p><strong>{formatMoney(reports.totals.averageBasket)}</strong><span>{t("finance")}</span></div>
-                  <div className="module-card"><p>{t("low_stock")}</p><strong>{reports.totals.lowStockItems}</strong><span>{t("inventory")}</span></div>
-                </div>
-                <div className="chart-grid">
-                  <div className="chart-card">
-                    <h4>Top Restaurants</h4>
-                    <div className="bar-chart">
-                      {reports.topRestaurants.map((entry) => (
-                        <div key={entry.restaurantId} className="bar-row">
-                          <span>{entry.name}</span>
-                          <div className="bar-track">
-                            <div
-                              className="bar-fill"
-                              style={{ width: `${reports.topRestaurants[0]?.revenue ? (entry.revenue / reports.topRestaurants[0].revenue) * 100 : 0}%` }}
-                            />
-                          </div>
-                          <strong>{formatMoney(entry.revenue)}</strong>
-                        </div>
-                      ))}
+
+                {/* KPIs issus de l'API reports (si disponibles) */}
+                {reports && (
+                  <div className="module-grid" style={{ marginBottom: 16 }}>
+                    <div className="module-card">
+                      <p>CA total</p>
+                      <strong>{formatMoney(reports.totals.revenue)}</strong>
+                      <span>{reports.totals.orders} commandes</span>
+                    </div>
+                    <div className="module-card">
+                      <p>{t("average_basket")}</p>
+                      <strong>{formatMoney(reports.totals.averageBasket)}</strong>
+                      <span>{t("finance")}</span>
+                    </div>
+                    <div className="module-card">
+                      <p>Top restaurant</p>
+                      <strong>{reports.topRestaurants[0]?.name || "—"}</strong>
+                      <span>{formatMoney(reports.topRestaurants[0]?.revenue || 0)}</span>
                     </div>
                   </div>
-                  <div className="chart-card">
-                    <h4>Couriers</h4>
-                    <div className="bar-chart">
-                      {reports.courierPerformance.map((entry) => (
-                        <div key={entry.id} className="bar-row">
-                          <span>{entry.name}</span>
-                          <div className="bar-track">
-                            <div
-                              className="bar-fill alt"
-                              style={{ width: `${reports.courierPerformance[0]?.deliveredOrders ? (entry.deliveredOrders / Math.max(reports.courierPerformance[0].deliveredOrders, 1)) * 100 : 8}%` }}
-                            />
+                )}
+
+                {/* Graphes dynamiques calculés depuis les vraies commandes */}
+                <AnalyticsDashboard orders={orders} couriers={couriers} />
+
+                {/* Top restaurants détaillé (si disponible) */}
+                {reports && reports.topRestaurants.length > 0 && (
+                  <div className="chart-grid" style={{ marginTop: 16 }}>
+                    <div className="chart-card">
+                      <div className="panel-head" style={{ marginBottom: 10 }}>
+                        <h4 className="table-headline">Top Restaurants</h4>
+                      </div>
+                      <div className="bar-chart">
+                        {reports.topRestaurants.map((entry) => (
+                          <div key={entry.restaurantId} className="bar-row">
+                            <span className="table-muted" style={{ minWidth: 100 }}>{entry.name}</span>
+                            <div className="bar-track">
+                              <div
+                                className="bar-fill"
+                                style={{ width: `${reports.topRestaurants[0]?.revenue ? (entry.revenue / reports.topRestaurants[0].revenue) * 100 : 0}%` }}
+                              />
+                            </div>
+                            <strong className="num" style={{ minWidth: 80, textAlign: "right" }}>{formatMoney(entry.revenue)}</strong>
                           </div>
-                          <strong>{entry.deliveredOrders}</strong>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                <div className="orders-grid">
-                  {reports.topRestaurants.map((entry) => (
-                    <div key={entry.restaurantId} className="order-card">
-                      <strong>{entry.name}</strong>
-                      <div className="order-metrics">
-                        <span>{entry.orders} orders</span>
-                        <span>{formatMoney(entry.revenue)}</span>
+                        ))}
                       </div>
                     </div>
-                  ))}
-                </div>
+                    <div className="chart-card">
+                      <div className="panel-head" style={{ marginBottom: 10 }}>
+                        <h4 className="table-headline">Performance livreurs</h4>
+                      </div>
+                      <div className="bar-chart">
+                        {reports.courierPerformance.map((entry) => (
+                          <div key={entry.id} className="bar-row">
+                            <span className="table-muted" style={{ minWidth: 100 }}>{entry.name}</span>
+                            <div className="bar-track">
+                              <div
+                                className="bar-fill"
+                                style={{ width: `${reports.courierPerformance[0]?.deliveredOrders ? (entry.deliveredOrders / Math.max(reports.courierPerformance[0].deliveredOrders, 1)) * 100 : 8}%`, background: "#059669" }}
+                              />
+                            </div>
+                            <strong className="num" style={{ minWidth: 40, textAlign: "right" }}>{entry.deliveredOrders}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </article>
             )}
           </div>
@@ -5220,6 +5349,107 @@ export default function App() {
           <button type="submit">{selectedPromotion ? t("save_changes") : t("create_promotion")}</button>
         </form>
       </AdminDialog>
+      {/* ── Confirmation : Supprimer restaurant ─────────────────────── */}
+      <AdminDialog
+        open={showDeleteRestaurantModal}
+        title="Supprimer le restaurant"
+        subtitle={deleteRestaurantTarget ? `Vous êtes sur le point d'agir sur "${deleteRestaurantTarget.name}".` : ""}
+        onClose={() => { setShowDeleteRestaurantModal(false); setDeleteRestaurantTarget(null); }}
+        size="sm"
+        actions={
+          <div style={{ display: "flex", gap: 8, width: "100%", justifyContent: "flex-end", flexWrap: "wrap" }}>
+            <button type="button" className="ghost" onClick={() => { setShowDeleteRestaurantModal(false); setDeleteRestaurantTarget(null); }}>
+              Annuler
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              style={{ borderColor: "#fca5a5", color: "#b91c1c" }}
+              disabled={isDeletingRestaurant}
+              onClick={() => handleDeleteRestaurant(deleteRestaurantTarget?.id, false)}
+            >
+              {isDeletingRestaurant ? "En cours…" : "Désactiver (soft)"}
+            </button>
+            <button
+              type="button"
+              style={{ background: "#dc2626", color: "#fff", border: "none", borderRadius: 10, padding: "8px 16px", fontWeight: 600, cursor: "pointer" }}
+              disabled={isDeletingRestaurant}
+              onClick={() => handleDeleteRestaurant(deleteRestaurantTarget?.id, true)}
+            >
+              {isDeletingRestaurant ? "Suppression…" : "Supprimer définitivement"}
+            </button>
+          </div>
+        }
+      >
+        <div style={{ padding: "0 24px 8px" }}>
+          <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 12, padding: "14px 16px", marginBottom: 12 }}>
+            <p style={{ color: "#991b1b", fontWeight: 600, marginBottom: 6 }}>⚠️ Action irréversible</p>
+            <p style={{ color: "#b91c1c", fontSize: 13, lineHeight: 1.6 }}>
+              <strong>Désactiver (soft)</strong> : le restaurant disparaît de l'app client, mais l'historique des commandes est conservé.<br />
+              <strong>Supprimer définitivement</strong> : suppression complète avec tous les plats du menu. Impossible si des commandes actives sont en cours.
+            </p>
+          </div>
+          {deleteRestaurantTarget && (
+            <div style={{ display: "grid", gap: 4, fontSize: 13, color: "#64748b" }}>
+              <span>🏪 <strong style={{ color: "#0f172a" }}>{deleteRestaurantTarget.name}</strong></span>
+              <span>📂 {deleteRestaurantTarget.category}</span>
+              <span>🍽 {deleteRestaurantTarget.menu?.length || 0} plat(s) au menu</span>
+            </div>
+          )}
+        </div>
+      </AdminDialog>
+
+      {/* ── Confirmation : Supprimer plat du menu ────────────────────── */}
+      <AdminDialog
+        open={showDeleteMenuItemModal}
+        title="Supprimer ce plat"
+        subtitle={deleteMenuItemTarget ? `"${deleteMenuItemTarget.name}" sera archivé et masqué de l'app.` : ""}
+        onClose={() => { setShowDeleteMenuItemModal(false); setDeleteMenuItemTarget(null); }}
+        size="sm"
+        actions={
+          <>
+            <button type="button" className="ghost" onClick={() => { setShowDeleteMenuItemModal(false); setDeleteMenuItemTarget(null); }}>
+              Annuler
+            </button>
+            <button
+              type="button"
+              style={{ background: "#dc2626", color: "#fff", border: "none", borderRadius: 10, padding: "8px 16px", fontWeight: 600, cursor: "pointer" }}
+              onClick={() => handleDeleteMenuItem(deleteMenuItemTarget?.id)}
+            >
+              Archiver le plat
+            </button>
+          </>
+        }
+      >
+        <div style={{ padding: "0 24px 8px" }}>
+          {deleteMenuItemTarget && (
+            <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 12, padding: "14px 16px" }}>
+              <p style={{ color: "#991b1b", fontWeight: 600, marginBottom: 4 }}>🍽 {deleteMenuItemTarget.name}</p>
+              <p style={{ color: "#b91c1c", fontSize: 13, lineHeight: 1.6 }}>
+                Ce plat sera masqué de l'application mais son historique dans les commandes passées sera conservé.
+              </p>
+            </div>
+          )}
+        </div>
+      </AdminDialog>
+
+      <OmniSearch
+        items={[
+          ...restaurants.map((r) => ({ ...r, _type: "restaurant" })),
+          ...customers.map((c) => ({ ...c, _type: "customer" })),
+          ...couriers.map((c) => ({ ...c, _type: "courier" })),
+        ]}
+        onSelect={(item) => {
+          if (item._type === "restaurant") {
+            setSelectedRestaurantId(item.id);
+            setActiveView("restaurants");
+          } else if (item._type === "customer") {
+            setActiveView("customers");
+          } else if (item._type === "courier") {
+            setActiveView("couriers");
+          }
+        }}
+      />
     </main>
   );
 }

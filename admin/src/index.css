@@ -132,6 +132,22 @@
     @apply border-slate-800 bg-slate-900;
   }
 
+  .stat-card p {
+    @apply text-slate-500 text-sm;
+  }
+
+  .dark .stat-card p {
+    @apply text-slate-400;
+  }
+
+  .stat-card strong {
+    @apply text-slate-900 text-2xl font-semibold;
+  }
+
+  .dark .stat-card strong {
+    @apply text-slate-100;
+  }
+
   .stat-card.orange {
     @apply border-l-4 border-l-orange-600;
   }
@@ -643,6 +659,10 @@
     @apply rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition;
   }
 
+  .dark .ghost {
+    @apply border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800;
+  }
+
   .ghost.small {
     @apply px-2.5 py-1.5 text-xs;
   }
@@ -1069,7 +1089,11 @@
   }
 
   .filter-pill {
-    @apply rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50;
+    @apply rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition;
+  }
+
+  .dark .filter-pill {
+    @apply border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800;
   }
 
   .filter-pill.active {
@@ -1086,6 +1110,14 @@
 
   .dark .order-card {
     @apply border-slate-800 bg-slate-900;
+  }
+
+  .order-card strong {
+    @apply text-slate-900;
+  }
+
+  .dark .order-card strong {
+    @apply text-slate-100;
   }
 
   .order-head {
@@ -1174,6 +1206,10 @@
     @apply rounded-2xl border border-slate-200 bg-white p-4 shadow-soft;
   }
 
+  .dark .chart-card {
+    @apply border-slate-800 bg-slate-900;
+  }
+
   .bar-chart {
     @apply grid gap-2;
   }
@@ -1186,8 +1222,17 @@
     @apply flex-1 h-2 rounded-full bg-slate-200 overflow-hidden;
   }
 
+  .dark .bar-track {
+    @apply bg-slate-700;
+  }
+
   .bar-fill {
-    @apply h-full rounded-full bg-orange-500;
+    @apply h-full rounded-full;
+    background: #ea580c;
+  }
+
+  .dark .bar-fill {
+    background: #f97316;
   }
 
   /* ─── Modules overview ────────────────────────────────────── */
@@ -1198,6 +1243,10 @@
 
   .module-card {
     @apply rounded-2xl border border-slate-200 bg-white p-4 shadow-soft grid gap-2;
+  }
+
+  .dark .module-card {
+    @apply border-slate-800 bg-slate-900;
   }
 
   .application-details {
@@ -1250,3 +1299,388 @@
     @apply whitespace-nowrap;
   }
 }
+
+  /* ═══════════════════════════════════════════════════════════
+     OMNISEARCH — Ctrl+K global search
+     ═══════════════════════════════════════════════════════════ */
+
+  .omnisearch-backdrop {
+    @apply fixed inset-0 z-[20000] flex items-start justify-center;
+    padding-top: 80px;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(6px);
+    animation: backdropFadeIn 0.15s ease;
+  }
+
+  .omnisearch-panel {
+    @apply w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden;
+    animation: modalSlideIn 0.2s cubic-bezier(0.34, 1.26, 0.64, 1);
+  }
+
+  .dark .omnisearch-panel {
+    @apply border-slate-800 bg-slate-950;
+  }
+
+  .omnisearch-input-row {
+    @apply flex items-center gap-3 px-4 py-3 border-b border-slate-100;
+  }
+
+  .dark .omnisearch-input-row {
+    @apply border-slate-800;
+  }
+
+  .omnisearch-icon-search {
+    @apply text-slate-400 shrink-0;
+  }
+
+  .omnisearch-input {
+    @apply flex-1 bg-transparent text-base text-slate-900 placeholder:text-slate-400 outline-none;
+  }
+
+  .dark .omnisearch-input {
+    @apply text-slate-100;
+  }
+
+  .omnisearch-clear {
+    @apply flex items-center justify-center w-6 h-6 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition;
+  }
+
+  .dark .omnisearch-clear {
+    @apply hover:text-slate-200 hover:bg-slate-800;
+  }
+
+  .omnisearch-hint {
+    @apply flex items-center gap-4 px-4 py-1.5 border-b border-slate-100 text-xs text-slate-400;
+  }
+
+  .dark .omnisearch-hint {
+    @apply border-slate-800;
+  }
+
+  .omnisearch-hint kbd {
+    @apply inline-flex items-center px-1.5 py-0.5 rounded border border-slate-200 bg-slate-50 font-mono text-[10px] text-slate-500;
+  }
+
+  .dark .omnisearch-hint kbd {
+    @apply border-slate-700 bg-slate-800 text-slate-400;
+  }
+
+  .omnisearch-list {
+    @apply max-h-[360px] overflow-y-auto py-1;
+    scrollbar-width: thin;
+    scrollbar-color: #e2e8f0 transparent;
+  }
+
+  .omnisearch-empty {
+    @apply flex flex-col items-center gap-2 py-10 text-slate-400;
+    font-size: 14px;
+  }
+
+  .omnisearch-empty p { @apply text-slate-500; }
+  .omnisearch-empty span { @apply text-xs text-slate-400; }
+
+  .omnisearch-item {
+    @apply flex items-center gap-3 px-4 py-2.5 cursor-pointer transition;
+  }
+
+  .omnisearch-item:hover,
+  .omnisearch-item.active {
+    @apply bg-orange-50;
+    box-shadow: inset 3px 0 0 #f97316;
+  }
+
+  .dark .omnisearch-item:hover,
+  .dark .omnisearch-item.active {
+    @apply bg-slate-800/60;
+    box-shadow: inset 3px 0 0 #ea580c;
+  }
+
+  .omnisearch-item-icon {
+    @apply flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 text-slate-500 shrink-0;
+  }
+
+  .omnisearch-item.active .omnisearch-item-icon {
+    @apply bg-orange-100 text-orange-600;
+  }
+
+  .dark .omnisearch-item-icon {
+    @apply bg-slate-800 text-slate-400;
+  }
+
+  .omnisearch-item-body {
+    @apply flex flex-col min-w-0 flex-1;
+  }
+
+  .omnisearch-item-name {
+    @apply text-sm font-semibold text-slate-900 truncate;
+  }
+
+  .dark .omnisearch-item-name {
+    @apply text-slate-100;
+  }
+
+  .omnisearch-item-sub {
+    @apply text-xs text-slate-400 truncate;
+  }
+
+  .omnisearch-item-enter {
+    @apply text-xs text-slate-300 shrink-0 font-mono;
+  }
+
+  .omnisearch-footer {
+    @apply px-4 py-2 text-xs text-slate-400 border-t border-slate-100;
+  }
+
+  .dark .omnisearch-footer {
+    @apply border-slate-800;
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     STAT DELTA badges — dans les stat-cards
+     ═══════════════════════════════════════════════════════════ */
+
+  .stat-delta {
+    @apply inline-flex items-center gap-1 text-xs font-semibold mt-1;
+  }
+
+  .stat-delta.up     { @apply text-emerald-600; }
+  .stat-delta.down   { @apply text-red-500; }
+  .stat-delta.neutral { @apply text-slate-400; }
+
+  /* ═══════════════════════════════════════════════════════════
+     ORDER ASSIGN BOARD — dark mode safe
+     ═══════════════════════════════════════════════════════════ */
+
+  .order-board-grid {
+    @apply grid gap-4;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+
+  .order-board-col {
+    @apply rounded-2xl border border-slate-200 bg-slate-50 p-3 min-h-[200px] flex flex-col gap-2;
+    transition: background 0.15s, box-shadow 0.15s;
+  }
+
+  .dark .order-board-col {
+    @apply border-slate-700 bg-slate-900;
+  }
+
+  /* Highlight quand un élément est au-dessus de la colonne */
+  .order-board-col.is-over {
+    @apply border-orange-400 bg-orange-50;
+    box-shadow: inset 0 0 0 2px #f97316;
+  }
+
+  .dark .order-board-col.is-over {
+    @apply bg-orange-950/30 border-orange-500;
+  }
+
+  .order-board-col-head {
+    @apply flex items-center justify-between mb-1;
+  }
+
+  .order-board-col-title {
+    @apply text-sm font-semibold text-slate-700;
+  }
+
+  .dark .order-board-col-title {
+    @apply text-slate-200;
+  }
+
+  .order-board-col-count {
+    @apply inline-flex items-center justify-center min-w-[20px] h-5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-600 px-1.5;
+  }
+
+  .dark .order-board-col-count {
+    @apply bg-slate-700 text-slate-300;
+  }
+
+  .order-board-card {
+    @apply rounded-xl border border-slate-200 bg-white p-3 shadow-sm cursor-grab flex flex-col gap-1;
+    transition: box-shadow 0.12s, transform 0.12s;
+  }
+
+  .dark .order-board-card {
+    @apply border-slate-700 bg-slate-800;
+  }
+
+  .order-board-card:hover {
+    @apply shadow-md border-slate-300;
+  }
+
+  .dark .order-board-card:hover {
+    @apply border-slate-600;
+  }
+
+  .order-board-card.is-dragging {
+    @apply shadow-xl border-orange-300 rotate-1;
+    cursor: grabbing;
+  }
+
+  .dark .order-board-card.is-dragging {
+    @apply border-orange-500;
+  }
+
+  .order-board-card-head {
+    @apply flex items-center justify-between gap-2;
+  }
+
+  .order-board-card-title {
+    @apply text-sm font-semibold text-slate-900 truncate;
+  }
+
+  .dark .order-board-card-title {
+    @apply text-slate-100;
+  }
+
+  .order-board-card-amount {
+    @apply text-xs font-bold text-orange-600 whitespace-nowrap;
+  }
+
+  .order-board-card-sub {
+    @apply text-xs text-slate-500 truncate;
+  }
+
+  .dark .order-board-card-sub {
+    @apply text-slate-400;
+  }
+
+  .order-board-card-restaurant {
+    @apply text-xs text-slate-400 truncate;
+  }
+
+  .order-board-empty {
+    @apply flex-1 flex items-center justify-center rounded-xl border-2 border-dashed border-slate-200 text-slate-300 text-xs font-medium py-6;
+    min-height: 80px;
+  }
+
+  .dark .order-board-empty {
+    @apply border-slate-700 text-slate-600;
+  }
+
+  .order-board-col.is-over .order-board-empty {
+    @apply border-orange-300 text-orange-400;
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     DARK MODE — Recharts global overrides
+     (remplace les couleurs hardcodées des axes et grilles)
+     ═══════════════════════════════════════════════════════════ */
+
+  .dark .recharts-cartesian-axis-tick-value {
+    fill: #64748b !important; /* slate-500 */
+  }
+
+  .dark .recharts-cartesian-grid line {
+    stroke: #1e293b !important; /* slate-800 */
+  }
+
+  .dark .recharts-tooltip-wrapper .recharts-default-tooltip {
+    background: #0f172a !important;
+    border-color: #334155 !important;
+    color: #e2e8f0 !important;
+  }
+
+  .dark .recharts-text {
+    fill: #94a3b8;
+  }
+
+  .dark .recharts-legend-item-text {
+    color: #94a3b8 !important;
+  }
+
+  /* ─── Sidebar dark (amélioration texte) ──────────────────── */
+
+  .sidebar h4,
+  .sidebar strong {
+    @apply text-slate-100;
+  }
+
+  /* ─── Detail panel dark ───────────────────────────────────── */
+
+  .dark .detail-panel {
+    @apply border-slate-800 bg-slate-900;
+  }
+
+  .dark .detail-copy {
+    @apply text-slate-400;
+  }
+
+  .dark .menu-preview {
+    @apply border-slate-800 bg-slate-900;
+  }
+
+  /* ─── Schedule dark ───────────────────────────────────────── */
+
+  .dark .schedule-block {
+    @apply border-slate-800 bg-slate-900;
+  }
+
+  /* ─── Option editor dark ──────────────────────────────────── */
+
+  .dark .option-editor {
+    @apply border-slate-800 bg-slate-900;
+  }
+
+  .dark .option-group-card {
+    @apply border-slate-700 bg-slate-800/40;
+  }
+
+  /* ─── Restaurant tile dark ────────────────────────────────── */
+
+  .dark .restaurant-tile {
+    @apply border-slate-700;
+  }
+
+  /* ─── Table toolbar dark ──────────────────────────────────── */
+
+  .dark .table-toolbar {
+    @apply border-slate-800;
+  }
+
+  /* ─── Form section dark ───────────────────────────────────── */
+
+  .dark .form-section {
+    @apply border-slate-800 bg-slate-950/40;
+  }
+
+  /* ─── Inline select dark ──────────────────────────────────── */
+
+  .dark .inline-select {
+    @apply border-slate-700 bg-slate-800 text-slate-200 hover:border-slate-600;
+  }
+
+  /* ─── Toggle dark ─────────────────────────────────────────── */
+
+  .dark .toggle-inline {
+    @apply border-slate-700 bg-slate-800;
+  }
+
+  /* ─── Search input dark ───────────────────────────────────── */
+
+  .dark input[type="text"],
+  .dark input[type="email"],
+  .dark input[type="tel"],
+  .dark input[type="number"],
+  .dark input[type="search"],
+  .dark input[type="password"],
+  .dark textarea,
+  .dark select {
+    @apply border-slate-700 bg-slate-900 text-slate-100 placeholder:text-slate-600;
+  }
+
+  .dark input:focus,
+  .dark textarea:focus,
+  .dark select:focus {
+    @apply border-orange-500 ring-orange-900/40;
+  }
+
+  /* ─── Insight list dark ───────────────────────────────────── */
+
+  .dark .insight-row {
+    @apply text-slate-400;
+  }
+
+  .dark .insight-row strong {
+    @apply text-slate-200;
+  }

@@ -1,5 +1,6 @@
 require("dotenv").config();
 const express = require("express");
+const rateLimit = require("express-rate-limit");
 const cors = require("cors");
 const http = require("http");
 const bcrypt = require("bcryptjs");
@@ -73,6 +74,71 @@ const upload = multer({
 app.use(cors());
 app.use(express.json());
 app.use("/uploads", express.static(uploadsDir));
+
+// ─── Rate limiters ────────────────────────────────────────────────────────────
+// Limite les requêtes OTP pour éviter le brute-force et le SMS flooding
+
+/** Envoi de code OTP : max 5 requêtes / 15 min par IP */
+const requestCodeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: "Trop de tentatives d'envoi de code. Réessayez dans 15 minutes.",
+    retryAfter: 15 * 60,
+  },
+  handler: (req, res, _next, options) => {
+    res.setHeader("Retry-After", Math.ceil(options.windowMs / 1000));
+    res.status(429).json(options.message);
+  },
+  skip: (req) => {
+    // Ne pas limiter en mode développement local
+    const ip = req.ip || "";
+    return ip === "::1" || ip === "127.0.0.1";
+  },
+});
+
+/** Vérification de code OTP : max 10 requêtes / 15 min par IP */
+const verifyCodeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: "Trop de tentatives de vérification. Réessayez dans 15 minutes.",
+    retryAfter: 15 * 60,
+  },
+  handler: (req, res, _next, options) => {
+    res.setHeader("Retry-After", Math.ceil(options.windowMs / 1000));
+    res.status(429).json(options.message);
+  },
+  skip: (req) => {
+    const ip = req.ip || "";
+    return ip === "::1" || ip === "127.0.0.1";
+  },
+});
+
+/** Login admin : max 10 tentatives / 15 min par IP */
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: "Trop de tentatives de connexion. Réessayez dans 15 minutes.",
+    retryAfter: 15 * 60,
+  },
+  handler: (req, res, _next, options) => {
+    res.setHeader("Retry-After", Math.ceil(options.windowMs / 1000));
+    res.status(429).json(options.message);
+  },
+  skip: (req) => {
+    const ip = req.ip || "";
+    return ip === "::1" || ip === "127.0.0.1";
+  },
+});
+// ─────────────────────────────────────────────────────────────────────────────
 
 const realtimeClients = new Set();
 const wsServer = new WebSocketServer({ server, path: "/ws" });
@@ -1233,7 +1299,7 @@ app.post("/api/integrations/whatsapp/webhook", async (req, res) => {
   res.status(200).json({ ok: true, processed: statuses.length });
 });
 
-app.post("/api/auth/request-code", async (req, res) => {
+app.post("/api/auth/request-code", requestCodeLimiter, async (req, res) => {
   const method = req.body?.method === "SMS" ? "SMS" : "WHATSAPP";
   const phone = normalizePhoneNumber(req.body?.phone);
 
@@ -1281,7 +1347,7 @@ app.post("/api/auth/request-code", async (req, res) => {
   }
 });
 
-app.post("/api/auth/request-email-code", async (req, res) => {
+app.post("/api/auth/request-email-code", requestCodeLimiter, async (req, res) => {
   const email = normalizeEmail(req.body?.email);
   const fullName = String(req.body?.fullName || "").trim();
 
@@ -1323,7 +1389,7 @@ app.post("/api/auth/request-email-code", async (req, res) => {
   }
 });
 
-app.post("/api/auth/verify-code", async (req, res) => {
+app.post("/api/auth/verify-code", verifyCodeLimiter, async (req, res) => {
   const challengeId = String(req.body?.challengeId || "").trim();
   const code = String(req.body?.code || "").trim();
 
@@ -1384,7 +1450,7 @@ app.post("/api/auth/verify-code", async (req, res) => {
   });
 });
 
-app.post("/api/auth/verify-email-code", async (req, res) => {
+app.post("/api/auth/verify-email-code", verifyCodeLimiter, async (req, res) => {
   const challengeId = String(req.body?.challengeId || "").trim();
   const code = String(req.body?.code || "").trim();
   const email = normalizeEmail(req.body?.email);
@@ -1652,7 +1718,7 @@ app.patch("/api/auth/notification-preferences", optionalAuth, async (req, res) =
   });
 });
 
-app.post("/api/auth/login", async (req, res) => {
+app.post("/api/auth/login", loginLimiter, async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) {
     res.status(400).json({ message: "Email et mot de passe requis." });
@@ -2521,6 +2587,54 @@ app.put("/api/admin/restaurants/:id", requireAuth, requireAdmin, async (req, res
   });
   res.json(serializeRestaurant(restaurant));
 });
+
+// ─── Suppression restaurant ────────────────────────────────────────────────────
+// Soft-delete : marque le restaurant comme inactif ET supprimé
+// (garde l'historique des commandes intact via Cascade défini dans Prisma)
+app.delete("/api/admin/restaurants/:id", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { hard } = req.query; // ?hard=true pour suppression physique (admin only)
+
+    // Vérifie qu'il n'y a pas de commandes actives (en cours / en attente)
+    const activeOrders = await prisma.order.count({
+      where: {
+        restaurantId: id,
+        status: { in: ["Pending", "Confirmed", "Preparing", "ReadyForPickup", "OnTheWay"] },
+      },
+    });
+
+    if (activeOrders > 0) {
+      return res.status(409).json({
+        error: `Impossible de supprimer : ${activeOrders} commande(s) active(s) en cours.`,
+        activeOrders,
+      });
+    }
+
+    if (hard === "true") {
+      // Suppression physique — cascade Prisma gère les menuItems, favoris, etc.
+      await prisma.restaurant.delete({ where: { id } });
+      return res.status(200).json({ deleted: true, hard: true });
+    }
+
+    // Soft-delete par défaut : désactive le restaurant (pas de deletedAt sur ce modèle)
+    const updated = await prisma.restaurant.update({
+      where: { id },
+      data: {
+        isActive: false,
+        validationStatus: "REJECTED",
+      },
+    });
+
+    return res.status(200).json({ deleted: true, hard: false, id: updated.id });
+  } catch (error) {
+    console.error("DELETE /api/admin/restaurants/:id", error);
+    return res.status(500).json({ error: "Erreur lors de la suppression." });
+  }
+});
+
+// ─── Archivage menu item (amélioration : retour du record archivé) ─────────────
+// Le DELETE menu-items existant fait un soft-delete, on l'améliore avec une réponse
 
 app.post("/api/admin/restaurants/:id/menu-items", requireAuth, requireAdmin, async (req, res) => {
   const body = req.body || {};
