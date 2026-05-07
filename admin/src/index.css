@@ -192,8 +192,28 @@
     @apply bg-slate-900 border-slate-800 text-slate-100;
   }
 
+  /* ═══════════════════════════════════════════════════════════
+     DATA TABLE — améliorations UX/UI
+     ═══════════════════════════════════════════════════════════ */
+
   .data-table-wrap {
     @apply rounded-xl border border-slate-200 bg-white shadow-sm overflow-auto max-h-[600px];
+    /* Scrollbar fine et discrète */
+    scrollbar-width: thin;
+    scrollbar-color: #e2e8f0 transparent;
+  }
+
+  .data-table-wrap::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .data-table-wrap::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .data-table-wrap::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-slate-200;
   }
 
   .data-table-wrap-full {
@@ -202,67 +222,310 @@
 
   .dark .data-table-wrap {
     @apply border-slate-800 bg-slate-900;
+    scrollbar-color: #334155 transparent;
+  }
+
+  .dark .data-table-wrap::-webkit-scrollbar-thumb {
+    @apply bg-slate-700;
   }
 
   .data-table {
     @apply w-full text-sm;
+    border-collapse: separate;
+    border-spacing: 0;
   }
 
+  /* En-têtes : sticky + typographie renforcée */
   .data-table thead th {
-    @apply sticky top-0 z-10 bg-white text-slate-500 uppercase text-[0.65rem] tracking-[0.15em] font-semibold border-b border-slate-100 px-4 py-4;
+    @apply sticky top-0 z-10 bg-white text-slate-400 uppercase text-[0.62rem] tracking-[0.18em] font-bold border-b border-slate-100 px-4;
+    /* Espacement vertical plus généreux pour la lisibilité */
+    padding-top: 14px;
+    padding-bottom: 14px;
+    /* Alignement : texte à gauche sauf les colonnes numériques */
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  /* Ombre légère sous le header lorsqu'on scrolle */
+  .data-table-wrap.is-scrolled thead th {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   }
 
   .dark .data-table thead th {
-    @apply bg-slate-900 border-slate-800 text-slate-400;
+    @apply bg-slate-900 border-slate-800 text-slate-500;
   }
 
+  .dark .data-table-wrap.is-scrolled thead th {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Cellules : espacement & typographie */
   .data-table tbody td {
-    @apply px-4 py-3.5 border-0 text-slate-900;
+    @apply px-4 border-0 text-slate-900;
+    padding-top: 13px;
+    padding-bottom: 13px;
+    vertical-align: middle;
   }
 
   .dark .data-table tbody td {
     @apply text-slate-100;
   }
 
+  /* Séparateur subtil entre lignes */
   .data-table tbody tr {
     @apply border-b border-slate-100 last:border-b-0;
+    transition: background 0.12s ease;
   }
 
   .dark .data-table tbody tr {
     @apply border-slate-800;
   }
 
-  .data-table tbody tr:nth-child(even) {
-    @apply bg-transparent;
-  }
-
-  .dark .data-table tbody tr:nth-child(even) {
-    @apply bg-transparent;
-  }
-
+  /* État HOVER — mise en évidence douce + indicateur latéral */
   .data-table tbody tr:hover {
-    @apply bg-slate-50/60 transition-colors;
+    @apply bg-orange-50/60;
+    box-shadow: inset 3px 0 0 #f97316;
   }
 
   .dark .data-table tbody tr:hover {
-    @apply bg-slate-800/30 transition-colors;
+    @apply bg-slate-800/50;
+    box-shadow: inset 3px 0 0 #ea580c;
   }
 
-  .table-toolbar {
-    @apply flex flex-wrap items-center gap-2 py-3 border-b border-slate-100 mb-4 -mx-5 px-5 pb-4;
+  /* Mode confort : hauteur de ligne augmentée */
+  .data-table.comfort tbody td {
+    padding-top: 18px;
+    padding-bottom: 18px;
   }
 
-  .dark .table-toolbar {
-    @apply border-slate-800;
+  /* État VIDE — centré avec illustration textuelle */
+  .data-table tbody td.table-empty-cell {
+    @apply py-16 text-center;
   }
 
+  .table-empty-state {
+    @apply flex flex-col items-center gap-3 text-slate-400;
+  }
+
+  .table-empty-state .table-empty-icon {
+    @apply w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-300;
+  }
+
+  .dark .table-empty-state .table-empty-icon {
+    @apply bg-slate-800 text-slate-600;
+  }
+
+  .table-empty-state p {
+    @apply text-sm font-medium text-slate-500;
+  }
+
+  .table-empty-state span {
+    @apply text-xs text-slate-400;
+  }
+
+  /* État LOADING — skeleton rows */
+  .data-table tbody tr.is-loading td {
+    @apply py-4;
+  }
+
+  .table-skeleton {
+    @apply h-4 rounded-full bg-slate-100 animate-pulse;
+  }
+
+  .dark .table-skeleton {
+    @apply bg-slate-800;
+  }
+
+  /* Colonnes numériques : alignement à droite */
+  .data-table th.num,
+  .data-table td.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    @apply font-medium;
+  }
+
+  /* ── Actions inline dans la table ──────────────────────────────────────
+     Principe : une seule colonne "actions" avec un menu ⋮ (MoreVertical)
+     Erreur à éviter : ne pas empiler 4 boutons textuels dans chaque ligne
+  ─────────────────────────────────────────────────────────────────────── */
   .table-action-stack {
     @apply inline-flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5;
+    /* Masqué par défaut, révélé au hover de la ligne pour ne pas encombrer */
+    opacity: 0.6;
+    transition: opacity 0.15s ease;
+  }
+
+  .data-table tbody tr:hover .table-action-stack {
+    opacity: 1;
   }
 
   .table-action-stack.compact {
     @apply gap-0.5 px-1 py-1;
   }
+
+  .dark .table-action-stack {
+    @apply border-slate-700 bg-slate-800/50;
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     MODAL / ADMIN DIALOG — améliorations UX/UI
+     ═══════════════════════════════════════════════════════════ */
+
+  .modal-backdrop {
+    @apply fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/60 p-4;
+    backdrop-filter: blur(4px);
+    animation: backdropFadeIn 0.18s ease;
+  }
+
+  @keyframes backdropFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  /* Carte modale : layout flex column pour header/body/footer sticky */
+  .modal-card {
+    @apply w-full rounded-3xl border border-slate-200 bg-white shadow-2xl;
+    /* Hauteur max avec défilement interne du body uniquement */
+    max-height: calc(100vh - 2rem);
+    display: flex;
+    flex-direction: column;
+    animation: modalSlideIn 0.22s cubic-bezier(0.34, 1.26, 0.64, 1);
+  }
+
+  @keyframes modalSlideIn {
+    from {
+      opacity: 0;
+      transform: translateY(12px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  .dark .modal-card {
+    @apply border-slate-800 bg-slate-950;
+  }
+
+  .modal-sm { @apply max-w-lg; }
+  .modal-md { @apply max-w-2xl; }
+  .modal-lg { @apply max-w-4xl; }
+
+  /* Header : sticky en haut, ne défile jamais */
+  .modal-head {
+    @apply flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    @apply bg-white;
+    border-radius: 1.5rem 1.5rem 0 0;
+  }
+
+  .dark .modal-head {
+    @apply border-slate-800 bg-slate-950;
+  }
+
+  .modal-head-content {
+    @apply grid gap-1;
+  }
+
+  .modal-head h3 {
+    @apply text-xl font-semibold text-slate-900;
+  }
+
+  .dark .modal-head h3 {
+    @apply text-slate-100;
+  }
+
+  .modal-subtitle {
+    @apply text-sm leading-relaxed max-w-prose;
+  }
+
+  /* Bouton fermeture : taille cible 40×40px pour l'accessibilité tactile */
+  .modal-close-btn {
+    @apply flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-500 transition;
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+  }
+
+  .modal-close-btn:hover {
+    @apply bg-slate-100 border-slate-300 text-slate-700;
+  }
+
+  .modal-close-btn:focus-visible {
+    @apply outline-none ring-2 ring-orange-300 ring-offset-2;
+  }
+
+  .dark .modal-close-btn {
+    @apply border-slate-700 bg-slate-800 text-slate-400;
+  }
+
+  .dark .modal-close-btn:hover {
+    @apply bg-slate-700 text-slate-200;
+  }
+
+  .modal-actions {
+    @apply shrink-0 flex items-center gap-2;
+  }
+
+  /* Corps : la seule zone qui défile */
+  .modal-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    /* Scrollbar fine */
+    scrollbar-width: thin;
+    scrollbar-color: #e2e8f0 transparent;
+  }
+
+  .modal-body::-webkit-scrollbar { width: 5px; }
+  .modal-body::-webkit-scrollbar-track { background: transparent; }
+  .modal-body::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-slate-200;
+  }
+
+  .dark .modal-body {
+    scrollbar-color: #334155 transparent;
+  }
+  .dark .modal-body::-webkit-scrollbar-thumb {
+    @apply bg-slate-700;
+  }
+
+  /* Le formulaire à l'intérieur du modal-body */
+  .modal-card form {
+    @apply px-6 py-6;
+  }
+
+  /* Footer : sticky en bas, ne défile jamais */
+  .modal-footer {
+    @apply flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4 bg-slate-50;
+    flex-shrink: 0;
+    border-radius: 0 0 1.5rem 1.5rem;
+  }
+
+  .dark .modal-footer {
+    @apply border-slate-800 bg-slate-950;
+  }
+
+  /* Indicateur d'étapes (pour formulaires longs) */
+  .modal-steps {
+    @apply flex items-center gap-2 mt-2;
+  }
+
+  .modal-step-dot {
+    @apply w-2 h-2 rounded-full bg-slate-200 transition-all duration-200;
+  }
+
+  .modal-step-dot.active {
+    @apply bg-orange-500 w-4;
+  }
+
+  .modal-step-label {
+    @apply text-xs font-semibold text-slate-400 ml-1;
+  }
+
+  /* ─── Action-menu (kebab ⋮) ─────────────────────────────── */
 
   .action-menu-anchor {
     @apply inline-flex items-center justify-end;
@@ -292,61 +555,7 @@
     @apply text-slate-500;
   }
 
-  .modal-backdrop {
-    @apply fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm;
-  }
-
-  .modal-card {
-    @apply w-full max-h-[calc(100vh-2rem)] overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl;
-  }
-
-  .dark .modal-card {
-    @apply border-slate-800 bg-slate-950;
-  }
-
-  .modal-sm {
-    @apply max-w-lg;
-  }
-
-  .modal-md {
-    @apply max-w-2xl;
-  }
-
-  .modal-lg {
-    @apply max-w-4xl;
-  }
-
-  .modal-head {
-    @apply flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5;
-  }
-
-  .dark .modal-head {
-    @apply border-slate-800;
-  }
-
-  .modal-head h3 {
-    @apply text-xl font-semibold text-slate-900;
-  }
-
-  .dark .modal-head h3 {
-    @apply text-slate-100;
-  }
-
-  .modal-actions {
-    @apply shrink-0;
-  }
-
-  .modal-card form {
-    @apply px-6 py-6;
-  }
-
-  .modal-footer {
-    @apply flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4 bg-slate-50;
-  }
-
-  .dark .modal-footer {
-    @apply border-slate-800 bg-slate-950;
-  }
+  /* ─── Notifications / Email timeline ───────────────────────── */
 
   .email-timeline {
     @apply mt-2 grid gap-2;
@@ -424,6 +633,8 @@
     @apply max-h-[calc(100vh-340px)] overflow-auto pr-1;
   }
 
+  /* ─── Boutons ─────────────────────────────────────────────── */
+
   .table-checkbox {
     @apply inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600;
   }
@@ -440,10 +651,28 @@
     @apply bg-slate-900 text-white border-slate-900;
   }
 
+  .ghost:focus-visible,
+  .ghost.small:focus-visible {
+    @apply outline-none ring-2 ring-orange-300 ring-offset-1;
+  }
+
   .primary-alt,
   button[type="submit"] {
     @apply rounded-xl bg-gradient-to-r from-orange-600 to-orange-500 text-white font-bold px-4 py-3 shadow-md;
+    transition: box-shadow 0.15s ease, opacity 0.15s ease;
   }
+
+  .primary-alt:hover,
+  button[type="submit"]:hover {
+    @apply shadow-lg opacity-95;
+  }
+
+  .primary-alt:focus-visible,
+  button[type="submit"]:focus-visible {
+    @apply outline-none ring-2 ring-orange-300 ring-offset-2;
+  }
+
+  /* ─── Status pills ────────────────────────────────────────── */
 
   .status-pill {
     @apply inline-flex items-center justify-center rounded-full px-3 py-1.5 text-xs font-semibold;
@@ -473,6 +702,8 @@
     @apply border-slate-800 bg-slate-900/70;
   }
 
+  /* ─── Empty state amélioré ────────────────────────────────── */
+
   .empty-slot {
     @apply rounded-2xl border border-slate-200 bg-white p-6 text-center text-slate-500 grid gap-2;
   }
@@ -481,6 +712,8 @@
     content: "◎";
     @apply text-xl text-orange-500;
   }
+
+  /* ─── Layout helpers ──────────────────────────────────────── */
 
   .stack {
     @apply grid gap-4;
@@ -501,6 +734,8 @@
   .form-layout {
     @apply grid gap-4;
   }
+
+  /* ─── Formulaires ─────────────────────────────────────────── */
 
   .form-field {
     @apply grid gap-1.5 min-w-0;
@@ -593,6 +828,8 @@
     @apply text-red-600 text-sm;
   }
 
+  /* ─── Auth ────────────────────────────────────────────────── */
+
   .auth-shell {
     @apply min-h-screen grid place-items-center bg-slate-50 p-6;
   }
@@ -625,6 +862,8 @@
     @apply flex items-center justify-end gap-2 mb-4;
   }
 
+  /* ─── Brand / sidebar ─────────────────────────────────────── */
+
   .brand-block {
     @apply grid gap-3;
   }
@@ -648,6 +887,8 @@
   .dark .large-panel {
     @apply border-slate-800 bg-slate-900;
   }
+
+  /* ─── Table text helpers ──────────────────────────────────── */
 
   .table-headline {
     @apply text-sm font-semibold text-slate-900 flex items-center gap-3;
@@ -681,13 +922,19 @@
     @apply inline-flex items-center gap-2 cursor-pointer select-none;
   }
 
+  .table-sort:hover {
+    @apply text-slate-700;
+  }
+
+  .dark .table-sort:hover {
+    @apply text-slate-200;
+  }
+
   .sort-indicator {
     @apply text-orange-500 text-xs;
   }
 
-  .table-checkbox {
-    @apply gap-2;
-  }
+  /* ─── Chips / badges ──────────────────────────────────────── */
 
   .chip {
     @apply inline-flex items-center rounded-full bg-slate-100 text-slate-700 text-xs font-semibold px-3 py-1;
@@ -720,6 +967,8 @@
   .danger-outline {
     @apply border-red-200 text-red-600 hover:bg-red-50;
   }
+
+  /* ─── Restaurants ─────────────────────────────────────────── */
 
   .restaurant-board {
     @apply grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)];
@@ -805,6 +1054,8 @@
     @apply text-xs text-slate-500;
   }
 
+  /* ─── Orders ──────────────────────────────────────────────── */
+
   .orders-toolbar {
     @apply flex flex-col gap-3;
   }
@@ -877,6 +1128,8 @@
     @apply bg-slate-50;
   }
 
+  /* ─── Option editor ───────────────────────────────────────── */
+
   .option-editor {
     @apply rounded-2xl border border-slate-200 bg-white p-4 grid gap-3;
   }
@@ -901,6 +1154,8 @@
     @apply flex flex-wrap gap-2;
   }
 
+  /* ─── Schedule ────────────────────────────────────────────── */
+
   .schedule-block {
     @apply rounded-2xl border border-slate-200 bg-white p-4 grid gap-3;
   }
@@ -908,6 +1163,8 @@
   .schedule-row {
     @apply grid gap-2 sm:grid-cols-[120px_1fr_1fr];
   }
+
+  /* ─── Charts / Reports ────────────────────────────────────── */
 
   .chart-grid {
     @apply grid gap-4 lg:grid-cols-2;
@@ -933,6 +1190,8 @@
     @apply h-full rounded-full bg-orange-500;
   }
 
+  /* ─── Modules overview ────────────────────────────────────── */
+
   .module-grid {
     @apply grid gap-3 sm:grid-cols-2 xl:grid-cols-3;
   }
@@ -953,6 +1212,8 @@
     @apply flex items-center justify-between text-sm text-slate-500;
   }
 
+  /* ─── Misc ────────────────────────────────────────────────── */
+
   .admin-image-preview {
     @apply rounded-2xl border border-slate-200 bg-white p-4;
   }
@@ -963,6 +1224,24 @@
 
   .avatar {
     @apply inline-flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 text-white text-xs font-semibold;
+  }
+
+  .panel-subhead {
+    @apply flex items-center justify-between gap-3 mb-2;
+  }
+
+  .success {
+    @apply text-emerald-600 text-sm;
+  }
+
+  /* ─── Table toolbar ───────────────────────────────────────── */
+
+  .table-toolbar {
+    @apply flex flex-wrap items-center gap-2 py-3 border-b border-slate-100 mb-4 -mx-5 px-5 pb-4;
+  }
+
+  .dark .table-toolbar {
+    @apply border-slate-800;
   }
 }
 

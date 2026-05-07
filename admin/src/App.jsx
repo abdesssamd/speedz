@@ -2896,7 +2896,7 @@ export default function App() {
                           </div>
                         </div>
 
-                        <form onSubmit={handleUpdateRestaurant} className="stack compact-stack form-layout">
+                        <form id="form-edit-restaurant" onSubmit={handleUpdateRestaurant} className="stack compact-stack form-layout">
                           <div className="order-metrics">
                             <span>{selectedRestaurant.validationStatus || "PENDING"}</span>
                             <span>{formatBillingPlan(selectedRestaurant)}</span>
@@ -3464,7 +3464,13 @@ export default function App() {
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={7} className="table-muted">Aucun client</td>
+                          <td colSpan={7} className="table-empty-cell">
+                                <div className="table-empty-state">
+                                  <span className="table-empty-icon">👤</span>
+                                  <p>Aucun client</p>
+                                  <span>Aucun résultat pour ce filtre.</span>
+                                </div>
+                              </td>
                         </tr>
                       )}
                     </tbody>
@@ -3714,7 +3720,13 @@ export default function App() {
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={8} className="table-muted">{t("no_applications")}</td>
+                          <td colSpan={8} className="table-empty-cell">
+                                <div className="table-empty-state">
+                                  <span className="table-empty-icon">📋</span>
+                                  <p>{t("no_applications")}</p>
+                                  <span>Modifiez les filtres ou actualisez les données.</span>
+                                </div>
+                              </td>
                         </tr>
                       )}
                     </tbody>
@@ -3960,7 +3972,13 @@ export default function App() {
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={4} className="table-muted">{t("no_categories")}</td>
+                          <td colSpan={4} className="table-empty-cell">
+                                <div className="table-empty-state">
+                                  <span className="table-empty-icon">🏷️</span>
+                                  <p>{t("no_categories")}</p>
+                                  <span>Créez une première catégorie avec le bouton ci-dessus.</span>
+                                </div>
+                              </td>
                         </tr>
                       )}
                     </tbody>
@@ -4233,7 +4251,13 @@ export default function App() {
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={8} className="table-muted">Aucun livreur</td>
+                          <td colSpan={8} className="table-empty-cell">
+                                <div className="table-empty-state">
+                                  <span className="table-empty-icon">🚴</span>
+                                  <p>Aucun livreur</p>
+                                  <span>Ajoutez un premier livreur avec le bouton ci-dessus.</span>
+                                </div>
+                              </td>
                         </tr>
                       )}
                     </tbody>
@@ -4404,7 +4428,7 @@ export default function App() {
         }}
         size="lg"
       >
-            <form onSubmit={handleCreateRestaurant} className="stack compact-stack form-layout">
+            <form id="form-create-restaurant" onSubmit={handleCreateRestaurant} className="stack compact-stack form-layout">
               <FormSection title="Informations principales" hint="Commencez par les informations visibles dans le catalogue.">
                 <div className="split form-grid">
                   <FormField label={t("name")} error={restaurantCreateErrors.name}>
@@ -4637,7 +4661,7 @@ export default function App() {
         }}
         size="lg"
       >
-            <form onSubmit={selectedMenuItem ? handleUpdateMenuItem : handleAddMenuItem} className="stack compact-stack form-layout">
+            <form id="form-menu-item" onSubmit={selectedMenuItem ? handleUpdateMenuItem : handleAddMenuItem} className="stack compact-stack form-layout">
               <FormSection title="Informations du plat" hint="Les champs principaux sont regroupes pour une saisie plus fluide.">
                 <FormField label={t("dish_name")} error={menuItemErrors.name}>
                   <input
@@ -4891,7 +4915,7 @@ export default function App() {
           setShowCourierModal(false);
         }}
       >
-        <form onSubmit={selectedCourier ? handleUpdateCourier : handleCreateCourier} className="stack compact-stack form-layout">
+        <form id="form-courier" onSubmit={selectedCourier ? handleUpdateCourier : handleCreateCourier} className="stack compact-stack form-layout">
           <FormSection title="Identite du livreur" hint="Les informations principales sont groupees pour aller plus vite.">
             <div className="split form-grid">
               <FormField label={t("name")} error={courierErrors.name}>
@@ -5009,7 +5033,7 @@ export default function App() {
           setShowCategoryModal(false);
         }}
       >
-        <form onSubmit={handleCategoryModalSubmit} className="stack compact-stack form-layout">
+        <form id="form-category" onSubmit={handleCategoryModalSubmit} className="stack compact-stack form-layout">
           <FormSection title="Categorie du menu" hint="Utilisez un nom court et un ordre d'affichage clair.">
             <FormField label={t("category_name")} error={categoryErrors.name}>
               <input
@@ -5053,7 +5077,7 @@ export default function App() {
           setShowPromotionModal(false);
         }}
       >
-        <form onSubmit={selectedPromotion ? handleUpdatePromotion : handleCreatePromotion} className="stack compact-stack form-layout">
+        <form id="form-promotion" onSubmit={selectedPromotion ? handleUpdatePromotion : handleCreatePromotion} className="stack compact-stack form-layout">
           <FormSection title="Identite de l'offre" hint="Renseignez un code clair et un titre lisible pour l'equipe.">
             <div className="split form-grid">
               <FormField label={t("code")} hint="Exemple: RAMADAN10" error={promotionErrors.code}>

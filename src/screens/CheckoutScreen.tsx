@@ -1,8 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useState } from "react";
 import { SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { AnimatedCard } from "../components/AnimatedCard";
 import { EmptyState } from "../components/EmptyState";
@@ -15,135 +14,125 @@ import { PaymentMethod } from "../types";
 
 export function CheckoutScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const {
-    cart,
-    user,
-    savedAddresses,
-    currentLocation,
-    getCartSummary,
-    createCheckoutDraft,
-    pushNotification,
-    promoCode,
-    requestLocation,
-    t,
-    isRTL,
-  } = useApp();
+  const { cart, user, currentLocation, getCartSummary, createCheckoutDraft, pushNotification, promoCode, t, isRTL } = useApp();
   const summary = getCartSummary();
+  const [address, setAddress] = useState(user.defaultAddress);
   const paymentMethod: PaymentMethod = "Cash";
-  const resolvedAddress = useMemo(() => {
-    const defaultSavedAddress = savedAddresses.find((item) => item.isDefault)?.address?.trim();
-    return (
-      defaultSavedAddress ||
-      user.defaultAddress?.trim() ||
-      (currentLocation.source === "device" ? currentLocation.label.trim() : "") ||
-      ""
-    );
-  }, [currentLocation.label, currentLocation.source, savedAddresses, user.defaultAddress]);
-  const [address, setAddress] = useState(resolvedAddress);
   const [notes, setNotes] = useState("");
-
-  useEffect(() => {
-    if (!address.trim() || address === user.defaultAddress || address === currentLocation.label) {
-      setAddress(resolvedAddress);
-    }
-  }, [address, currentLocation.label, resolvedAddress, user.defaultAddress]);
+  const [focusedField, setFocusedField] = useState<string | null>(null);
 
   if (!cart.length) return (
     <SafeAreaView style={s.safe}>
-      <View style={s.emptyWrap}><EmptyState title={t("empty_cart")} message={t("empty_cart_back")}/></View>
+      <View style={{ flex: 1, justifyContent: "center", padding: 20 }}>
+        <EmptyState title={t("empty_cart")} message={t("empty_cart_back")} />
+      </View>
     </SafeAreaView>
   );
 
   const onContinue = () => {
-    const draft = createCheckoutDraft({ address, paymentMethod, notes });
-    if (!draft.address.trim()) {
-      pushNotification({title:t("address_required"),message:t("address_required_msg"),tone:"error"});
-      return;
-    }
-    navigation.navigate("ConfirmOrder",{draft});
+    if (!address.trim()) { pushNotification({ title: t("address_required"), message: t("address_required_msg"), tone: "error" }); return; }
+    navigation.navigate("ConfirmOrder", { draft: createCheckoutDraft({ address, paymentMethod, notes }) });
   };
 
   return (
     <SafeAreaView style={s.safe}>
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
-        <LinearGradient colors={["#0A0A0F","#1a1207","#92400E"]} style={s.hero}>
-          <Text style={s.heroEyebrow}>Finalisation</Text>
-          <Text style={[s.heroTitle,{textAlign:isRTL?"right":"left"}]}>{t("checkout_title")}</Text>
-          <View style={s.heroChips}>
-            <View style={s.heroChip}>
-              <Ionicons name="location-outline" size={13} color="#F59E0B"/>
-              <Text style={s.heroChipText}>{currentLocation.source==="fallback"?t("demo_mode"):"GPS actif"}</Text>
-            </View>
-            <View style={s.heroChip}>
-              <Ionicons name="time-outline" size={13} color="#F59E0B"/>
-              <Text style={s.heroChipText}>{summary.estimatedDeliveryLabel}</Text>
-            </View>
-          </View>
-        </LinearGradient>
+        <Text style={s.pageTitle}>{t("checkout_title")}</Text>
 
-        <AnimatedCard style={s.card}>
-          <Text style={s.sectionLabel}>{t("delivery_address")}</Text>
-          <View style={s.locationRow}>
-            <View style={s.locationIcon}><Ionicons name="navigate" size={14} color="#F59E0B"/></View>
-            <Text style={s.locationHint} numberOfLines={1}>{currentLocation.label}</Text>
+        {/* Delivery info bar */}
+        <View style={s.infoBar}>
+          <View style={s.infoChip}>
+            <View style={[s.infoChipIcon, { backgroundColor: "#FFF3EC" }]}><Ionicons name="location" size={14} color="#FF7622" /></View>
+            <Text style={s.infoChipText}>{currentLocation.source === "fallback" ? t("demo_mode") : "GPS actif"}</Text>
           </View>
-          <View style={s.addressInfoCard}>
-            <View style={{flex:1,gap:4}}>
-              <Text style={s.addressInfoTitle}>Adresse utilisee automatiquement</Text>
-              <Text style={[s.addressInfoValue,{textAlign:isRTL?"right":"left"}]}>
-                {address || "Touchez actualiser GPS ou ajoutez une adresse."}
-              </Text>
-            </View>
-            <ScalePressable containerStyle={s.gpsButton} onPress={() => requestLocation()}>
-              <Ionicons name="refresh-outline" size={16} color="#F59E0B"/>
-            </ScalePressable>
+          <View style={s.infoChip}>
+            <View style={[s.infoChipIcon, { backgroundColor: "#F0FFF4" }]}><Ionicons name="time" size={14} color="#22C55E" /></View>
+            <Text style={s.infoChipText}>{summary.estimatedDeliveryLabel}</Text>
           </View>
-          <View style={s.inputWrap}>
-            <Ionicons name="home-outline" size={16} color="#5C5C70"/>
-            <TextInput
-              value={address}
-              onChangeText={setAddress}
-              style={[s.input,{textAlign:isRTL?"right":"left"}]}
-              placeholder={t("delivery_address")}
-              placeholderTextColor="#3A3A50"
-            />
-          </View>
+        </View>
 
-          <Text style={s.sectionLabel}>{t("payment_method")}</Text>
+        {/* Address */}
+        <AnimatedCard style={s.section}>
+          <View style={s.sectionHeader}>
+            <View style={s.sectionIconWrap}><Ionicons name="location-outline" size={18} color="#FF7622" /></View>
+            <Text style={s.sectionTitle}>{t("delivery_address")}</Text>
+          </View>
+          <View style={s.locationHint}>
+            <Ionicons name="navigate-circle-outline" size={14} color="#898989" />
+            <Text style={s.locationHintText} numberOfLines={1}>{currentLocation.label}</Text>
+          </View>
+          <View style={[s.inputWrap, focusedField === "address" && s.inputFocused]}>
+            <Ionicons name="home-outline" size={16} color={focusedField === "address" ? "#FF7622" : "#A0A5BA"} />
+            <TextInput value={address} onChangeText={setAddress} style={[s.input, { textAlign: isRTL ? "right" : "left" }]}
+              placeholderTextColor="#C4C4C4"
+              onFocus={() => setFocusedField("address")} onBlur={() => setFocusedField(null)} />
+          </View>
+        </AnimatedCard>
+
+        {/* Payment */}
+        <AnimatedCard style={s.section}>
+          <View style={s.sectionHeader}>
+            <View style={s.sectionIconWrap}><Ionicons name="card-outline" size={18} color="#FF7622" /></View>
+            <Text style={s.sectionTitle}>{t("payment_method")}</Text>
+          </View>
           <View style={s.paymentCard}>
-            <View style={s.paymentIconWrap}><Ionicons name="cash-outline" size={18} color="#F59E0B"/></View>
-            <View style={{flex:1,gap:3}}>
-              <Text style={s.paymentValue}>{translatePayment(isRTL?"ar":"fr",paymentMethod)}</Text>
-              <Text style={[s.paymentHint,{textAlign:isRTL?"right":"left"}]}>{t("payment_step_notice")}</Text>
+            <View style={s.paymentIconLarge}><Ionicons name="cash" size={22} color="#22C55E" /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.paymentName}>{translatePayment(isRTL ? "ar" : "fr", paymentMethod)}</Text>
+              <Text style={s.paymentNote}>{t("payment_step_notice")}</Text>
             </View>
-          </View>
-
-          <Text style={s.sectionLabel}>{t("delivery_instructions")}</Text>
-          <View style={[s.inputWrap,{alignItems:"flex-start"}]}>
-            <Ionicons name="create-outline" size={16} color="#5C5C70" style={{marginTop:2}}/>
-            <TextInput value={notes} onChangeText={setNotes} style={[s.input,s.multiline,{textAlign:isRTL?"right":"left"}]} placeholder={t("access_hint")} placeholderTextColor="#3A3A50" multiline/>
+            <View style={s.paymentCheck}><Ionicons name="checkmark-circle" size={22} color="#22C55E" /></View>
           </View>
         </AnimatedCard>
 
-        <AnimatedCard style={s.summaryCard}>
+        {/* Notes */}
+        <AnimatedCard style={s.section}>
+          <View style={s.sectionHeader}>
+            <View style={s.sectionIconWrap}><Ionicons name="create-outline" size={18} color="#FF7622" /></View>
+            <Text style={s.sectionTitle}>{t("delivery_instructions")}</Text>
+          </View>
+          <View style={[s.inputWrap, s.inputWrapMulti, focusedField === "notes" && s.inputFocused]}>
+            <Ionicons name="chatbubble-outline" size={16} color={focusedField === "notes" ? "#FF7622" : "#A0A5BA"} style={{ marginTop: 2 }} />
+            <TextInput value={notes} onChangeText={setNotes} placeholder={t("access_hint")} placeholderTextColor="#C4C4C4"
+              multiline style={[s.input, s.inputMulti, { textAlign: isRTL ? "right" : "left" }]}
+              onFocus={() => setFocusedField("notes")} onBlur={() => setFocusedField(null)} />
+          </View>
+        </AnimatedCard>
+
+        {/* Summary */}
+        <View style={s.summaryCard}>
           <Text style={s.summaryTitle}>{t("summary")}</Text>
-          {[{l:t("subtotal"),v:formatCurrency(summary.subtotal)},{l:t("delivery"),v:formatCurrency(summary.deliveryFee)},{l:t("distance"),v:`${summary.deliveryDistanceKm} km`},{l:t("service_fee"),v:formatCurrency(summary.serviceFee)}].map(r=>(
-            <View key={r.l} style={s.summaryRow}><Text style={s.summaryLbl}>{r.l}</Text><Text style={s.summaryVal}>{r.v}</Text></View>
+          {[
+            { l: t("subtotal"), v: formatCurrency(summary.subtotal) },
+            { l: t("delivery"), v: formatCurrency(summary.deliveryFee) },
+            { l: t("distance"), v: `${summary.deliveryDistanceKm} km` },
+            { l: t("service_fee"), v: formatCurrency(summary.serviceFee) },
+          ].map((r) => (
+            <View key={r.l} style={s.summaryRow}>
+              <Text style={s.summaryLbl}>{r.l}</Text>
+              <Text style={s.summaryVal}>{r.v}</Text>
+            </View>
           ))}
-          {summary.discountAmount?(<View style={s.summaryRow}><Text style={s.summaryLbl}>{t("discount")} {promoCode?`(${promoCode})`:""}</Text><Text style={s.discountVal}>- {formatCurrency(summary.discountAmount)}</Text></View>):null}
-          <View style={s.divider}/>
-          <View style={s.summaryRow}><Text style={s.totalLbl}>{t("total_to_pay")}</Text><Text style={s.totalVal}>{formatCurrency(summary.total)}</Text></View>
-          <View style={s.pointsRow}>
-            <Ionicons name="star" size={13} color="#F59E0B"/>
-            <Text style={s.pointsText}><Text style={{color:"#F59E0B",fontWeight:"800"}}>{summary.pointsToEarn} pts</Text> {t("points_after_payment")}</Text>
+          {summary.discountAmount ? (
+            <View style={s.summaryRow}>
+              <Text style={s.summaryLbl}>{t("discount")} {promoCode ? `(${promoCode})` : ""}</Text>
+              <Text style={s.discountVal}>- {formatCurrency(summary.discountAmount)}</Text>
+            </View>
+          ) : null}
+          <View style={s.divider} />
+          <View style={s.summaryRow}>
+            <Text style={s.totalLbl}>{t("total_to_pay")}</Text>
+            <Text style={s.totalVal}>{formatCurrency(summary.total)}</Text>
           </View>
-        </AnimatedCard>
+          <View style={s.pointsRow}>
+            <Ionicons name="star" size={14} color="#FF7622" />
+            <Text style={s.pointsText}><Text style={{ color: "#FF7622", fontWeight: "800" }}>{summary.pointsToEarn} pts</Text> {t("points_after_payment")}</Text>
+          </View>
+        </View>
 
-        <ScalePressable containerStyle={s.primaryBtn} onPress={onContinue}>
-          <LinearGradient colors={["#D97706","#F59E0B"]} start={{x:0,y:0}} end={{x:1,y:0}} style={s.btnGradient}>
-            <Text style={s.btnText}>{t("continue_confirmation")}</Text>
-            <Ionicons name="arrow-forward" size={16} color="#0A0A0F"/>
-          </LinearGradient>
+        <ScalePressable containerStyle={s.ctaBtn} onPress={onContinue}>
+          <Text style={s.ctaText}>{t("continue_confirmation")}</Text>
+          <View style={s.ctaArrow}><Ionicons name="arrow-forward" size={18} color="#FF7622" /></View>
         </ScalePressable>
       </ScrollView>
     </SafeAreaView>
@@ -151,43 +140,46 @@ export function CheckoutScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:{flex:1,backgroundColor:"#0A0A0F"},
-  emptyWrap:{flex:1,justifyContent:"center",padding:18},
-  content:{padding:14,gap:16,paddingBottom:32},
-  hero:{borderRadius:26,padding:18,gap:12,borderWidth:1,borderColor:"#2A2A3A"},
-  heroEyebrow:{color:"#F59E0B",fontSize:10,fontWeight:"900",textTransform:"uppercase",letterSpacing:1.5},
-  heroTitle:{color:"#F5F0E8",fontSize:26,fontWeight:"900"},
-  heroChips:{flexDirection:"row",flexWrap:"wrap",gap:8},
-  heroChip:{flexDirection:"row",alignItems:"center",gap:5,backgroundColor:"rgba(245,158,11,0.1)",borderRadius:999,paddingHorizontal:12,paddingVertical:7,borderWidth:1,borderColor:"rgba(245,158,11,0.2)"},
-  heroChipText:{color:"#F59E0B",fontWeight:"800",fontSize:12},
-  card:{backgroundColor:"#12121A",borderRadius:24,borderWidth:1,borderColor:"#2A2A3A",padding:18,gap:14},
-  sectionLabel:{color:"#9B9BB0",fontSize:11,fontWeight:"700",textTransform:"uppercase",letterSpacing:0.8},
-  locationRow:{flexDirection:"row",alignItems:"center",gap:8},
-  locationIcon:{width:28,height:28,borderRadius:14,backgroundColor:"rgba(245,158,11,0.12)",alignItems:"center",justifyContent:"center"},
-  locationHint:{flex:1,color:"#5C5C70",fontWeight:"600",fontSize:13},
-  addressInfoCard:{flexDirection:"row",alignItems:"center",gap:12,backgroundColor:"#16161F",borderRadius:18,borderWidth:1,borderColor:"rgba(245,158,11,0.18)",padding:14},
-  addressInfoTitle:{color:"#F59E0B",fontSize:12,fontWeight:"800"},
-  addressInfoValue:{color:"#F5F0E8",fontWeight:"700",fontSize:14,lineHeight:20},
-  gpsButton:{width:44,height:44,borderRadius:16,alignItems:"center",justifyContent:"center",backgroundColor:"rgba(245,158,11,0.08)",borderWidth:1,borderColor:"rgba(245,158,11,0.2)"},
-  inputWrap:{flexDirection:"row",alignItems:"center",gap:10,backgroundColor:"#16161F",borderRadius:16,borderWidth:1,borderColor:"#2A2A3A",paddingHorizontal:14,paddingVertical:4},
-  input:{flex:1,color:"#F5F0E8",paddingVertical:12,fontSize:14},
-  multiline:{minHeight:80,textAlignVertical:"top",paddingTop:12},
-  paymentCard:{flexDirection:"row",alignItems:"flex-start",gap:12,backgroundColor:"#16161F",borderRadius:18,borderWidth:1,borderColor:"rgba(245,158,11,0.2)",padding:14},
-  paymentIconWrap:{width:36,height:36,borderRadius:18,backgroundColor:"rgba(245,158,11,0.12)",alignItems:"center",justifyContent:"center"},
-  paymentValue:{color:"#F5F0E8",fontWeight:"900",fontSize:15},
-  paymentHint:{color:"#9B9BB0",fontSize:12,lineHeight:18,fontWeight:"600"},
-  summaryCard:{backgroundColor:"#12121A",borderRadius:24,padding:18,gap:12,borderWidth:1,borderColor:"#2A2A3A"},
-  summaryTitle:{color:"#F5F0E8",fontWeight:"900",fontSize:18},
-  summaryRow:{flexDirection:"row",justifyContent:"space-between"},
-  summaryLbl:{color:"#9B9BB0",fontWeight:"600",fontSize:13},
-  summaryVal:{color:"#F5F0E8",fontWeight:"800",fontSize:13},
-  discountVal:{color:"#34D399",fontWeight:"900"},
-  divider:{height:1,backgroundColor:"#1E1E2C",marginVertical:4},
-  totalLbl:{color:"#F5F0E8",fontWeight:"900",fontSize:18},
-  totalVal:{color:"#F59E0B",fontWeight:"900",fontSize:22},
-  pointsRow:{flexDirection:"row",alignItems:"center",gap:6,backgroundColor:"rgba(245,158,11,0.07)",borderRadius:12,padding:10,borderWidth:1,borderColor:"rgba(245,158,11,0.15)"},
-  pointsText:{color:"#9B9BB0",fontSize:13,fontWeight:"600"},
-  primaryBtn:{borderRadius:20,overflow:"hidden"},
-  btnGradient:{flexDirection:"row",alignItems:"center",justifyContent:"center",gap:10,paddingVertical:16},
-  btnText:{color:"#0A0A0F",fontWeight:"900",fontSize:16},
+  safe: { flex: 1, backgroundColor: "#F5F5F5" },
+  content: { padding: 20, gap: 16, paddingBottom: 36 },
+  pageTitle: { color: "#181C2E", fontSize: 28, fontWeight: "900" },
+
+  infoBar: { flexDirection: "row", gap: 12 },
+  infoChip: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF", borderRadius: 16, padding: 12, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+  infoChipIcon: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
+  infoChipText: { color: "#181C2E", fontWeight: "700", fontSize: 13 },
+
+  section: { backgroundColor: "#FFF", borderRadius: 24, padding: 18, gap: 14, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 14, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
+  sectionHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+  sectionIconWrap: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#FFF3EC", alignItems: "center", justifyContent: "center" },
+  sectionTitle: { color: "#181C2E", fontWeight: "900", fontSize: 16 },
+  locationHint: { flexDirection: "row", alignItems: "center", gap: 6 },
+  locationHintText: { flex: 1, color: "#898989", fontSize: 13 },
+  inputWrap: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 52, borderRadius: 16, borderWidth: 1.5, borderColor: "#EFEFEF", backgroundColor: "#FAFAFA", paddingHorizontal: 14 },
+  inputWrapMulti: { alignItems: "flex-start", paddingVertical: 12 },
+  inputFocused: { borderColor: "#FF7622", backgroundColor: "#FFF9F5" },
+  input: { flex: 1, color: "#181C2E", fontSize: 14, paddingVertical: 4 },
+  inputMulti: { minHeight: 72, textAlignVertical: "top" },
+
+  paymentCard: { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#F0FFF4", borderRadius: 18, padding: 14, borderWidth: 1, borderColor: "#BBF7D0" },
+  paymentIconLarge: { width: 48, height: 48, borderRadius: 24, backgroundColor: "#DCFCE7", alignItems: "center", justifyContent: "center" },
+  paymentName: { color: "#181C2E", fontWeight: "800", fontSize: 15 },
+  paymentNote: { color: "#898989", fontSize: 12, lineHeight: 18, marginTop: 2 },
+  paymentCheck: {},
+
+  summaryCard: { backgroundColor: "#FFF", borderRadius: 24, padding: 20, gap: 12, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 14, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
+  summaryTitle: { color: "#181C2E", fontWeight: "900", fontSize: 18 },
+  summaryRow: { flexDirection: "row", justifyContent: "space-between" },
+  summaryLbl: { color: "#898989", fontSize: 14, fontWeight: "600" },
+  summaryVal: { color: "#181C2E", fontSize: 14, fontWeight: "700" },
+  discountVal: { color: "#22C55E", fontWeight: "800" },
+  divider: { height: 1, backgroundColor: "#F5F5F5", marginVertical: 4 },
+  totalLbl: { color: "#181C2E", fontWeight: "900", fontSize: 18 },
+  totalVal: { color: "#FF7622", fontWeight: "900", fontSize: 22 },
+  pointsRow: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FFF3EC", borderRadius: 12, padding: 10 },
+  pointsText: { color: "#898989", fontSize: 13 },
+
+  ctaBtn: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#181C2E", borderRadius: 22, paddingVertical: 18, paddingHorizontal: 22, shadowColor: "#181C2E", shadowOpacity: 0.3, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 6 },
+  ctaText: { color: "#FFF", fontWeight: "900", fontSize: 16 },
+  ctaArrow: { width: 38, height: 38, borderRadius: 19, backgroundColor: "#FF7622", alignItems: "center", justifyContent: "center" },
 });

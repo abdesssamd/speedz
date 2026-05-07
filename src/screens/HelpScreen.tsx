@@ -1,61 +1,93 @@
-import React from "react";
-import { SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+// HelpScreen.tsx
+import { Ionicons } from "@expo/vector-icons";
+import React, { useState } from "react";
+import { LayoutAnimation, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, UIManager, View } from "react-native";
 import { AnimatedCard } from "../components/AnimatedCard";
 import { useApp } from "../context/AppContext";
-import { Ionicons } from "@expo/vector-icons";
+
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 export function HelpScreen() {
   const { t, isRTL } = useApp();
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
+
   const faqs = [
     { q: t("faq_delivery"), a: t("faq_delivery_answer") },
     { q: t("faq_payment"), a: t("faq_payment_answer") },
     { q: t("faq_support"), a: t("faq_support_answer") },
   ];
 
+  const toggle = (i: number) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setOpenIndex(openIndex === i ? null : i);
+  };
+
   return (
     <SafeAreaView style={s.safe}>
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
-        <Text style={s.eyebrow}>Centre d'aide</Text>
-        <Text style={[s.title,{textAlign:isRTL?"right":"left"}]}>{t("help_title")}</Text>
-        <Text style={[s.subtitle,{textAlign:isRTL?"right":"left"}]}>{t("help_subtitle")}</Text>
+        <View style={s.heroWrap}>
+          <View style={s.heroIcon}><Ionicons name="help-buoy" size={30} color="#FF7622" /></View>
+          <Text style={s.pageTitle}>{t("help_title")}</Text>
+          <Text style={s.pageSubtitle}>{t("help_subtitle")}</Text>
+        </View>
 
-        {faqs.map((item,index)=>(
-          <AnimatedCard key={item.q} delay={Math.min(index*70,180)} style={s.card}>
-            <View style={s.cardHeader}>
-              <View style={s.qIconWrap}><Ionicons name="help-circle-outline" size={16} color="#F59E0B"/></View>
-              <Text style={[s.question,{textAlign:isRTL?"right":"left",flex:1}]}>{item.q}</Text>
+        {faqs.map((item, index) => {
+          const open = openIndex === index;
+          return (
+            <AnimatedCard key={item.q} delay={Math.min(index * 70, 180)} style={s.faqCard}>
+              <TouchableOpacity style={s.faqHeader} onPress={() => toggle(index)} activeOpacity={0.7}>
+                <View style={[s.faqNum, open && s.faqNumActive]}><Text style={[s.faqNumText, open && s.faqNumTextActive]}>{index + 1}</Text></View>
+                <Text style={[s.question, { flex: 1, textAlign: isRTL ? "right" : "left" }]}>{item.q}</Text>
+                <Ionicons name={open ? "chevron-up" : "chevron-down"} size={18} color={open ? "#FF7622" : "#898989"} />
+              </TouchableOpacity>
+              {open && <Text style={[s.answer, { textAlign: isRTL ? "right" : "left" }]}>{item.a}</Text>}
+            </AnimatedCard>
+          );
+        })}
+
+        <View style={s.contactCard}>
+          <View style={s.contactLeft}>
+            <View style={s.contactIcon}><Ionicons name="mail" size={22} color="#FF7622" /></View>
+            <View>
+              <Text style={s.contactLabel}>Support direct</Text>
+              <Text style={s.contactEmail}>support@fooddelyvry.app</Text>
             </View>
-            <Text style={[s.answer,{textAlign:isRTL?"right":"left"}]}>{item.a}</Text>
-          </AnimatedCard>
-        ))}
-
-        <AnimatedCard style={s.contactCard}>
-          <View style={s.contactIconWrap}><Ionicons name="mail" size={20} color="#F59E0B"/></View>
-          <View style={{flex:1}}>
-            <Text style={s.contactLabel}>Support direct</Text>
-            <Text style={s.contactEmail}>support@fooddelyvry.app</Text>
           </View>
-          <View style={s.contactArrow}><Ionicons name="arrow-forward" size={16} color="#F59E0B"/></View>
-        </AnimatedCard>
+          <View style={s.contactArrow}><Ionicons name="arrow-forward" size={16} color="#FF7622" /></View>
+        </View>
+
+        <View style={s.hoursCard}>
+          <Ionicons name="time-outline" size={18} color="#898989" />
+          <Text style={s.hoursText}>Disponible 7j/7 de 8h à 23h</Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
-  safe:{flex:1,backgroundColor:"#0A0A0F"},
-  content:{padding:18,gap:14,paddingBottom:32},
-  eyebrow:{color:"#F59E0B",fontSize:10,fontWeight:"900",textTransform:"uppercase",letterSpacing:1.5},
-  title:{color:"#F5F0E8",fontSize:28,fontWeight:"900"},
-  subtitle:{color:"#9B9BB0",lineHeight:20,fontSize:13},
-  card:{backgroundColor:"#12121A",borderRadius:20,borderWidth:1,borderColor:"#2A2A3A",padding:16,gap:12},
-  cardHeader:{flexDirection:"row",alignItems:"flex-start",gap:10},
-  qIconWrap:{width:30,height:30,borderRadius:15,backgroundColor:"rgba(245,158,11,0.1)",alignItems:"center",justifyContent:"center",marginTop:1},
-  question:{color:"#F5F0E8",fontWeight:"800",fontSize:16,lineHeight:22},
-  answer:{color:"#9B9BB0",lineHeight:21,fontSize:13,paddingLeft:40},
-  contactCard:{flexDirection:"row",alignItems:"center",gap:14,backgroundColor:"#12121A",borderRadius:20,borderWidth:1,borderColor:"rgba(245,158,11,0.2)",padding:18},
-  contactIconWrap:{width:44,height:44,borderRadius:22,backgroundColor:"rgba(245,158,11,0.12)",alignItems:"center",justifyContent:"center"},
-  contactLabel:{color:"#9B9BB0",fontSize:11,fontWeight:"700",textTransform:"uppercase",letterSpacing:0.8},
-  contactEmail:{color:"#F5F0E8",fontWeight:"800",fontSize:15,marginTop:2},
-  contactArrow:{width:32,height:32,borderRadius:16,backgroundColor:"rgba(245,158,11,0.1)",alignItems:"center",justifyContent:"center"},
+  safe: { flex: 1, backgroundColor: "#F5F5F5" },
+  content: { padding: 20, gap: 14, paddingBottom: 36 },
+  heroWrap: { alignItems: "center", gap: 10, paddingVertical: 20 },
+  heroIcon: { width: 72, height: 72, borderRadius: 36, backgroundColor: "#FFF3EC", alignItems: "center", justifyContent: "center", shadowColor: "#FF7622", shadowOpacity: 0.2, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 4 },
+  pageTitle: { color: "#181C2E", fontSize: 26, fontWeight: "900", textAlign: "center" },
+  pageSubtitle: { color: "#898989", fontSize: 14, textAlign: "center", lineHeight: 20 },
+  faqCard: { backgroundColor: "#FFF", borderRadius: 20, overflow: "hidden", shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
+  faqHeader: { flexDirection: "row", alignItems: "center", gap: 12, padding: 16 },
+  faqNum: { width: 30, height: 30, borderRadius: 15, backgroundColor: "#F5F5F5", alignItems: "center", justifyContent: "center" },
+  faqNumActive: { backgroundColor: "#FF7622" },
+  faqNumText: { color: "#898989", fontWeight: "900", fontSize: 13 },
+  faqNumTextActive: { color: "#FFF" },
+  question: { color: "#181C2E", fontWeight: "800", fontSize: 15, lineHeight: 21 },
+  answer: { color: "#898989", lineHeight: 22, fontSize: 14, paddingHorizontal: 16, paddingBottom: 18, paddingTop: 4 },
+  contactCard: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#FFF", borderRadius: 22, padding: 18, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
+  contactLeft: { flexDirection: "row", alignItems: "center", gap: 14 },
+  contactIcon: { width: 46, height: 46, borderRadius: 23, backgroundColor: "#FFF3EC", alignItems: "center", justifyContent: "center" },
+  contactLabel: { color: "#898989", fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
+  contactEmail: { color: "#181C2E", fontWeight: "800", fontSize: 14, marginTop: 2 },
+  contactArrow: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#FFF3EC", alignItems: "center", justifyContent: "center" },
+  hoursCard: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF", borderRadius: 16, padding: 14, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
+  hoursText: { color: "#898989", fontSize: 13, fontWeight: "600" },
 });
