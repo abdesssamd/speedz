@@ -574,18 +574,36 @@ function buildSparkline(values, width = 120, height = 32) {
 }
 
 async function apiRequest(path, options = {}, token) {
-  const response = await fetch(`${API_URL}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers || {}),
-    },
-    ...options,
-  });
+  let response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers || {}),
+      },
+      ...options,
+    });
+  } catch (error) {
+    const networkError = new Error(`Impossible de joindre l'API (${API_URL}). Verifiez que le backend est accessible.`);
+    networkError.cause = error;
+    throw networkError;
+  }
 
-  const payload = await response.json().catch(() => ({}));
+  const rawBody = await response.text();
+  let payload = {};
+  try {
+    payload = rawBody ? JSON.parse(rawBody) : {};
+  } catch {
+    payload = {};
+  }
+
   if (!response.ok) {
-    const message = payload.message || "Erreur API";
+    const message =
+      payload.message ||
+      payload.error ||
+      (rawBody && !/^<!doctype html/i.test(rawBody.trim()) ? rawBody.trim() : "") ||
+      `Erreur API (${response.status})`;
     if (
       typeof window !== "undefined" &&
       (response.status === 401 ||
