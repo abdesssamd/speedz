@@ -1,10 +1,30 @@
+/**
+ * HomeScreen — Refonte Just Eat Takeaway
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Changements vs version originale :
+ *  1. Header plein orange signé (#F36E26) avec localisation + search intégrés
+ *  2. Bannières promo en scroll horizontal (2 cartes, pas d'auto-défilement)
+ *  3. Catégories en icônes circulaires (emoji + label 2 lignes)
+ *  4. Cartes restaurant horizontales compactes (80×80 px, chips méta colorées)
+ *  5. Section "Recommandés pour vous" basée sur les favoris
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  FlatList, Image, NativeScrollEvent, NativeSyntheticEvent,
-  SafeAreaView, ScrollView, StyleSheet, Text, View,
+  FlatList,
+  Image,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { AnimatedCard } from "../components/AnimatedCard";
 import { EmptyState } from "../components/EmptyState";
@@ -14,43 +34,128 @@ import { RootStackParamList } from "../navigation/AppNavigator";
 import { getDeliveryQuote } from "../services/delivery";
 import { formatCurrency } from "../services/format";
 
-const PAGE_SIZE = 4;
+// ─── Palette Just Eat ────────────────────────────────────────────────────────
+const JE = {
+  orange: "#F36E26",
+  orangeLight: "#FFF0E8",
+  dark: "#181C2E",
+  grey: "#898989",
+  greyLight: "#F5F5F5",
+  white: "#FFFFFF",
+  green: "#22C55E",
+  greenLight: "#F0FFF4",
+};
+
+const PAGE_SIZE = 6;
 
 const CATEGORIES = [
-  { id: "all",       label: "Tous",      emoji: "🍽️" },
-  { id: "Burgers",   label: "Burgers",   emoji: "🍔" },
-  { id: "Pizza",     label: "Pizza",     emoji: "🍕" },
-  { id: "Sushi",     label: "Sushi",     emoji: "🍣" },
-  { id: "Healthy",   label: "Healthy",   emoji: "🥗" },
-  { id: "Desserts",  label: "Desserts",  emoji: "🍰" },
+  { id: "all",      label: "Tous",     emoji: "✨" },
+  { id: "Burgers",  label: "Burgers",  emoji: "🍔" },
+  { id: "Pizza",    label: "Pizza",    emoji: "🍕" },
+  { id: "Sushi",    label: "Sushi",    emoji: "🍣" },
+  { id: "Healthy",  label: "Healthy",  emoji: "🥗" },
+  { id: "Desserts", label: "Desserts", emoji: "🍰" },
+  { id: "Drinks",   label: "Boissons", emoji: "🥤" },
 ];
 
 function shortenAddress(addr: string) {
-  return addr.length > 28 ? addr.slice(0, 28) + "…" : addr;
+  return addr.length > 26 ? addr.slice(0, 26) + "…" : addr;
 }
 
 function sanitizeDelivery(raw: string, fallback: string) {
   const nums = raw.match(/\d+/g);
   if (!nums?.length) return fallback;
   const vals = nums.map(Number).filter((v) => v < 180);
-  if (!vals.length) return "Bientôt dispo";
+  if (!vals.length) return "Bientôt";
   return vals.length >= 2 ? `${vals[0]}-${vals[1]} min` : `${vals[0]} min`;
 }
 
+// ─── Composant carte restaurant horizontale ──────────────────────────────────
+function RestaurantRowCard({
+  item,
+  isFav,
+  onPress,
+  onFav,
+  deliveryFee,
+  deliveryTime,
+}: {
+  item: any;
+  isFav: boolean;
+  onPress: () => void;
+  onFav: () => void;
+  deliveryFee: string;
+  deliveryTime: string;
+}) {
+  return (
+    <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={s.rowCard}>
+      <Image source={{ uri: item.image }} style={s.rowImg} />
+      <View style={s.rowBody}>
+        <View style={s.rowTop}>
+          <Text style={s.rowName} numberOfLines={1}>{item.name}</Text>
+          <TouchableOpacity onPress={onFav} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons
+              name={isFav ? "heart" : "heart-outline"}
+              size={18}
+              color={isFav ? JE.orange : "#C4C4C4"}
+            />
+          </TouchableOpacity>
+        </View>
+        <Text style={s.rowDesc} numberOfLines={1}>{item.shortDescription}</Text>
+        <View style={s.rowChips}>
+          <View style={[s.chip, { backgroundColor: JE.greenLight }]}>
+            <Ionicons name="star" size={10} color={JE.green} />
+            <Text style={[s.chipTxt, { color: JE.green }]}>{item.rating.toFixed(1)}</Text>
+          </View>
+          <View style={[s.chip, { backgroundColor: JE.orangeLight }]}>
+            <Ionicons name="time-outline" size={10} color={JE.orange} />
+            <Text style={[s.chipTxt, { color: JE.orange }]}>{deliveryTime}</Text>
+          </View>
+          <View style={[s.chip, { backgroundColor: JE.greyLight }]}>
+            <Ionicons name="bicycle-outline" size={10} color={JE.grey} />
+            <Text style={[s.chipTxt, { color: JE.grey }]}>{deliveryFee}</Text>
+          </View>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+// ─── Composant catégorie circulaire ─────────────────────────────────────────
+function CatBubble({
+  cat,
+  active,
+  onPress,
+}: {
+  cat: (typeof CATEGORIES)[number];
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity onPress={onPress} style={s.catWrap} activeOpacity={0.75}>
+      <View style={[s.catCircle, active && s.catCircleActive]}>
+        <Text style={s.catEmoji}>{cat.emoji}</Text>
+      </View>
+      <Text style={[s.catLabel, active && s.catLabelActive]} numberOfLines={1}>
+        {cat.label}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 export function HomeScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const {
-    user, favorites, restaurants, favoriteRestaurants, currentLocation,
-    notificationPreferences, pointsBalance, requestLocation, toggleFavorite,
-    t, isRTL, refreshRemoteData,
+    user, favorites, restaurants, favoriteRestaurants,
+    currentLocation, toggleFavorite, t, isRTL, refreshRemoteData,
   } = useApp();
 
-  const [activeFeed, setActiveFeed] = useState<"all" | "favorites">("all");
   const [selectedCat, setSelectedCat] = useState("all");
+  const [activeFeed, setActiveFeed] = useState<"all" | "favorites">("all");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const [promoIndex, setPromoIndex] = useState(0);
 
   useFocusEffect(useCallback(() => { refreshRemoteData().catch(() => {}); }, [refreshRemoteData]));
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [selectedCat, activeFeed]);
 
   const sorted = useMemo(() => [...restaurants].sort((a, b) => b.rating - a.rating), [restaurants]);
   const feedSource = activeFeed === "favorites" ? favoriteRestaurants : sorted;
@@ -59,149 +164,166 @@ export function HomeScreen() {
     return feedSource.filter((r) => r.category === selectedCat);
   }, [feedSource, selectedCat]);
   const visible = filtered.slice(0, visibleCount);
-  const featured = filtered[0] ?? sorted[0] ?? null;
+
   const firstName = user.firstName?.trim() || user.name?.split(" ")[0] || "vous";
 
-  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [activeFeed, selectedCat]);
-
+  // Promos — scroll horizontal statique (style JE)
   const PROMOS = [
-    { id: "1", tag: "🔥 Offre du jour", title: "Livraison gratuite", sub: "Sur votre 1ère commande du jour dès 800 DA", bg: "#FFF3EC" },
-    { id: "2", tag: "⭐ Populaire", title: "Les mieux notés", sub: "Découvrez les restaurants les plus appréciés près de vous", bg: "#F0FFF4" },
-    { id: "3", tag: "⚡ Express", title: "Livraison en 20 min", sub: "Restaurants express disponibles maintenant", bg: "#EEF2FF" },
+    {
+      id: "p1",
+      title: "Livraison gratuite",
+      sub: "1ère commande dès 800 DA",
+      emoji: "🎁",
+      color: JE.orange,
+      bg: JE.orangeLight,
+    },
+    {
+      id: "p2",
+      title: "Les mieux notés ⭐",
+      sub: "Découvrez les tops restos",
+      emoji: "🏆",
+      color: "#3B82F6",
+      bg: "#EFF6FF",
+    },
+    {
+      id: "p3",
+      title: "Express 20 min ⚡",
+      sub: "Disponibles maintenant",
+      emoji: "🛵",
+      color: JE.green,
+      bg: JE.greenLight,
+    },
   ];
 
-  const renderRestaurant = useCallback(({ item, index }: { item: typeof visible[number]; index: number }) => {
-    const dq = getDeliveryQuote(currentLocation.coordinates, item.coordinates);
-    const time = sanitizeDelivery(item.deliveryTime, dq.estimatedLabel);
-    const fee = formatCurrency(dq.fee);
-    const isFav = favorites.includes(item.id);
-    return (
-      <AnimatedCard delay={Math.min(index * 60, 240)}>
-        <ScalePressable containerStyle={s.restCard} onPress={() => navigation.navigate("Restaurant", { restaurantId: item.id })}>
-          <View>
-            <Image source={{ uri: item.image }} style={s.restImg} />
-            <ScalePressable containerStyle={s.favBtn} onPress={() => toggleFavorite(item.id)}>
-              <Ionicons name={isFav ? "heart" : "heart-outline"} size={18} color={isFav ? "#FF7622" : "#898989"} />
-            </ScalePressable>
-            <View style={s.ratingPill}>
-              <Ionicons name="star" size={11} color="#FF7622" />
-              <Text style={s.ratingText}>{item.rating.toFixed(1)}</Text>
-            </View>
-            {notificationPreferences.promotions && (
-              <View style={s.promoBadge}><Text style={s.promoBadgeText}>Livraison offerte</Text></View>
-            )}
-          </View>
-          <View style={s.restBody}>
-            <Text style={s.restName}>{item.name}</Text>
-            <Text style={s.restDesc} numberOfLines={1}>{item.shortDescription}</Text>
-            <View style={s.restMeta}>
-              <View style={s.metaPill}>
-                <Ionicons name="time-outline" size={12} color="#FF7622" />
-                <Text style={s.metaText}>{time}</Text>
-              </View>
-              <View style={s.metaDot} />
-              <View style={s.metaPill}>
-                <Ionicons name="bicycle-outline" size={12} color="#898989" />
-                <Text style={[s.metaText, { color: "#898989" }]}>{fee}</Text>
-              </View>
-              <View style={s.metaDot} />
-              <Text style={s.restCat}>{item.category}</Text>
-            </View>
-          </View>
-        </ScalePressable>
-      </AnimatedCard>
-    );
-  }, [currentLocation.coordinates, favorites, navigation, notificationPreferences.promotions, toggleFavorite]);
+  const renderRestaurant = useCallback(
+    ({ item, index }: { item: typeof visible[number]; index: number }) => {
+      const dq = getDeliveryQuote(currentLocation.coordinates, item.coordinates);
+      const time = sanitizeDelivery(item.deliveryTime, dq.estimatedLabel);
+      const fee = formatCurrency(dq.fee);
+      const isFav = favorites.includes(item.id);
+      return (
+        <AnimatedCard delay={Math.min(index * 50, 200)}>
+          <RestaurantRowCard
+            item={item}
+            isFav={isFav}
+            deliveryFee={fee}
+            deliveryTime={time}
+            onPress={() => navigation.navigate("Restaurant", { restaurantId: item.id })}
+            onFav={() => toggleFavorite(item.id)}
+          />
+        </AnimatedCard>
+      );
+    },
+    [currentLocation.coordinates, favorites, navigation, toggleFavorite]
+  );
 
-  const header = (
-    <View style={s.headerBlock}>
-      {/* Top bar */}
-      <View style={s.topBar}>
-        <View style={s.topLeft}>
-          <ScalePressable containerStyle={s.locationRow} onPress={() => navigation.navigate("Addresses")}>
-            <View style={s.locationIconWrap}><Ionicons name="location" size={14} color="#FF7622" /></View>
-            <Text style={s.locationText} numberOfLines={1}>{shortenAddress(currentLocation.label)}</Text>
-            <Ionicons name="chevron-down" size={14} color="#FF7622" />
+  // ── Header complet ──────────────────────────────────────────────────────────
+  const Header = (
+    <View>
+      {/* ── Zone orange signée Just Eat ── */}
+      <View style={s.jeHeader}>
+        <StatusBar barStyle="light-content" backgroundColor={JE.orange} />
+
+        {/* Ligne 1 : localisation + notif */}
+        <View style={s.jeTopRow}>
+          <ScalePressable
+            containerStyle={s.locPill}
+            onPress={() => navigation.navigate("Addresses")}
+          >
+            <Ionicons name="location" size={13} color={JE.white} />
+            <Text style={s.locText} numberOfLines={1}>
+              {shortenAddress(currentLocation.label)}
+            </Text>
+            <Ionicons name="chevron-down" size={13} color={JE.white} />
           </ScalePressable>
-          <Text style={s.greeting}>Bonjour, {firstName} 👋</Text>
+
+          <ScalePressable
+            containerStyle={s.notifBtn}
+            onPress={() => navigation.navigate("Notifications")}
+          >
+            <Ionicons name="notifications-outline" size={20} color={JE.white} />
+          </ScalePressable>
         </View>
-        <ScalePressable containerStyle={s.avatarBtn} onPress={() => (navigation as any).navigate("MainTabs", { screen: "Profile" })}>
-          <Text style={s.avatarText}>{(user.name || "U")[0].toUpperCase()}</Text>
+
+        {/* Ligne 2 : salutation */}
+        <Text style={s.greeting}>Bonjour, {firstName} 👋</Text>
+
+        {/* Barre de recherche dans le header */}
+        <ScalePressable
+          containerStyle={s.searchBar}
+          onPress={() => (navigation as any).navigate("MainTabs", { screen: "Explore" })}
+        >
+          <Ionicons name="search" size={16} color={JE.grey} />
+          <Text style={s.searchPlaceholder}>
+            Restaurant, plat, cuisine…
+          </Text>
+          <View style={s.searchFilter}>
+            <Ionicons name="options-outline" size={16} color={JE.orange} />
+          </View>
         </ScalePressable>
       </View>
 
-      {/* Search bar */}
-      <ScalePressable containerStyle={s.searchBar} onPress={() => (navigation as any).navigate("MainTabs", { screen: "Explore" })}>
-        <View style={s.searchIconWrap}><Ionicons name="search" size={18} color="#FF7622" /></View>
-        <Text style={s.searchPlaceholder}>Rechercher un plat ou restaurant…</Text>
-        <View style={s.filterBtn}><Ionicons name="options-outline" size={16} color="#FF7622" /></View>
-      </ScalePressable>
+      {/* ── Corps blanc ── */}
+      <View style={s.body}>
 
-      {/* Promo banner */}
-      <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false}
-        onMomentumScrollEnd={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
-          const w = e.nativeEvent.layoutMeasurement.width;
-          setPromoIndex(Math.round(e.nativeEvent.contentOffset.x / w));
-        }}>
-        {PROMOS.map((p) => (
-          <View key={p.id} style={[s.promoSlide, { backgroundColor: p.bg }]}>
-            <Text style={s.promoTag}>{p.tag}</Text>
-            <Text style={s.promoTitle}>{p.title}</Text>
-            <Text style={s.promoSub}>{p.sub}</Text>
+        {/* Promos horizontales scrollables */}
+        <Text style={s.sectionTitle}>🔥 Offres du moment</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={s.promoRow}
+        >
+          {PROMOS.map((p) => (
+            <TouchableOpacity key={p.id} style={[s.promoCard, { backgroundColor: p.bg }]} activeOpacity={0.85}>
+              <Text style={s.promoEmoji}>{p.emoji}</Text>
+              <Text style={[s.promoTitle, { color: p.color }]}>{p.title}</Text>
+              <Text style={s.promoSub}>{p.sub}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* Catégories en bulles */}
+        <Text style={s.sectionTitle}>Catégories</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={s.catRow}
+        >
+          {CATEGORIES.map((cat) => (
+            <CatBubble
+              key={cat.id}
+              cat={cat}
+              active={selectedCat === cat.id}
+              onPress={() => setSelectedCat(cat.id)}
+            />
+          ))}
+        </ScrollView>
+
+        {/* Switch Tous / Favoris */}
+        <View style={s.feedSwitchRow}>
+          <Text style={s.sectionTitle}>
+            {activeFeed === "favorites" ? "Mes favoris" : "Restaurants"}
+          </Text>
+          <View style={s.feedSwitch}>
+            {(["all", "favorites"] as const).map((f) => (
+              <ScalePressable
+                key={f}
+                containerStyle={[s.feedBtn, activeFeed === f && s.feedBtnActive]}
+                onPress={() => setActiveFeed(f)}
+              >
+                {f === "favorites" && (
+                  <Ionicons
+                    name="heart"
+                    size={12}
+                    color={activeFeed === f ? JE.white : JE.grey}
+                  />
+                )}
+                <Text style={[s.feedBtnTxt, activeFeed === f && s.feedBtnTxtActive]}>
+                  {f === "all" ? "Tous" : "Favoris"}
+                </Text>
+              </ScalePressable>
+            ))}
           </View>
-        ))}
-      </ScrollView>
-      <View style={s.promoDots}>
-        {PROMOS.map((p, i) => <View key={p.id} style={[s.promoDot, i === promoIndex && s.promoDotActive]} />)}
-      </View>
-
-      {/* Categories */}
-      <Text style={s.sectionTitle}>Catégories</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.catRow}>
-        {CATEGORIES.map((cat) => {
-          const active = selectedCat === cat.id;
-          return (
-            <ScalePressable key={cat.id} containerStyle={[s.catChip, active && s.catChipActive]} onPress={() => setSelectedCat(cat.id)}>
-              <Text style={s.catEmoji}>{cat.emoji}</Text>
-              <Text style={[s.catLabel, active && s.catLabelActive]}>{cat.label}</Text>
-            </ScalePressable>
-          );
-        })}
-      </ScrollView>
-
-      {/* Featured */}
-      {featured && (
-        <View>
-          <Text style={s.sectionTitle}>Sélection du jour</Text>
-          <ScalePressable containerStyle={s.featCard} onPress={() => navigation.navigate("Restaurant", { restaurantId: featured.id })}>
-            <Image source={{ uri: featured.image }} style={s.featImg} />
-            <View style={s.featOverlay}>
-              <View style={s.featTag}><Text style={s.featTagText}>⭐ Top choix</Text></View>
-              <Text style={s.featName}>{featured.name}</Text>
-              <Text style={s.featSub} numberOfLines={2}>{featured.shortDescription}</Text>
-              <View style={s.featMeta}>
-                <Ionicons name="time-outline" size={13} color="#FFF" />
-                <Text style={s.featMetaText}>{featured.deliveryTime}</Text>
-                <View style={s.featMetaDot} />
-                <Ionicons name="star" size={13} color="#FFD234" />
-                <Text style={s.featMetaText}>{featured.rating.toFixed(1)}</Text>
-              </View>
-            </View>
-          </ScalePressable>
-        </View>
-      )}
-
-      {/* Feed switcher */}
-      <View style={s.feedRow}>
-        <Text style={s.sectionTitle}>{activeFeed === "favorites" ? "Mes favoris" : "Restaurants"}</Text>
-        <View style={s.feedSwitch}>
-          <ScalePressable containerStyle={[s.feedBtn, activeFeed === "all" && s.feedBtnActive]} onPress={() => setActiveFeed("all")}>
-            <Text style={[s.feedBtnText, activeFeed === "all" && s.feedBtnTextActive]}>Tous</Text>
-          </ScalePressable>
-          <ScalePressable containerStyle={[s.feedBtn, activeFeed === "favorites" && s.feedBtnActive]} onPress={() => setActiveFeed("favorites")}>
-            <Ionicons name="heart" size={12} color={activeFeed === "favorites" ? "#FFF" : "#898989"} />
-            <Text style={[s.feedBtnText, activeFeed === "favorites" && s.feedBtnTextActive]}>Favoris</Text>
-          </ScalePressable>
         </View>
       </View>
     </View>
@@ -210,86 +332,137 @@ export function HomeScreen() {
   return (
     <SafeAreaView style={s.safe}>
       <FlatList
-        data={visible} keyExtractor={(item) => item.id}
+        data={visible}
+        keyExtractor={(item) => item.id}
         renderItem={renderRestaurant}
-        ListHeaderComponent={header}
-        contentContainerStyle={s.content}
+        ListHeaderComponent={Header}
+        contentContainerStyle={s.listContent}
         showsVerticalScrollIndicator={false}
         onEndReached={() => setVisibleCount((c) => Math.min(c + PAGE_SIZE, filtered.length))}
         onEndReachedThreshold={0.4}
-        ListEmptyComponent={<EmptyState title={t("no_restaurant")} message={t("no_restaurant_msg")} actionLabel="Actualiser" onAction={() => refreshRemoteData().catch(() => {})} />}
+        ListEmptyComponent={
+          <View style={s.emptyWrap}>
+            <EmptyState
+              title={t("no_restaurant")}
+              message={t("no_restaurant_msg")}
+              actionLabel="Actualiser"
+              onAction={() => refreshRemoteData().catch(() => {})}
+            />
+          </View>
+        }
         ListFooterComponent={<View style={{ height: 32 }} />}
       />
     </SafeAreaView>
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#F5F5F5" },
-  content: { paddingBottom: 24 },
-  headerBlock: { padding: 20, gap: 18 },
+  safe: { flex: 1, backgroundColor: JE.greyLight },
+  listContent: { paddingBottom: 24 },
 
-  topBar: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
-  topLeft: { flex: 1, gap: 4 },
-  locationRow: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start" },
-  locationIconWrap: { width: 22, height: 22, borderRadius: 11, backgroundColor: "#FFF3EC", alignItems: "center", justifyContent: "center" },
-  locationText: { color: "#181C2E", fontSize: 13, fontWeight: "600", maxWidth: 180 },
-  greeting: { color: "#181C2E", fontSize: 22, fontWeight: "900" },
-  avatarBtn: { width: 46, height: 46, borderRadius: 23, backgroundColor: "#FF7622", alignItems: "center", justifyContent: "center", shadowColor: "#FF7622", shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 5 },
-  avatarText: { color: "#FFF", fontSize: 18, fontWeight: "900" },
-
-  searchBar: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#FFF", borderRadius: 18, padding: 14, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 14, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
-  searchIconWrap: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#FFF3EC", alignItems: "center", justifyContent: "center" },
+  // ── Header orange ────────────────────────────────────────────────────────
+  jeHeader: {
+    backgroundColor: JE.orange,
+    paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) + 12 : 16,
+    paddingHorizontal: 18,
+    paddingBottom: 24,
+    gap: 12,
+  },
+  jeTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  locPill: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    backgroundColor: "rgba(255,255,255,0.22)", borderRadius: 999,
+    paddingHorizontal: 12, paddingVertical: 7,
+  },
+  locText: { color: JE.white, fontSize: 13, fontWeight: "600", maxWidth: 180 },
+  notifBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.22)",
+    alignItems: "center", justifyContent: "center",
+  },
+  greeting: { color: JE.white, fontSize: 22, fontWeight: "900" },
+  searchBar: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    backgroundColor: JE.white, borderRadius: 16,
+    paddingHorizontal: 14, paddingVertical: 13,
+  },
   searchPlaceholder: { flex: 1, color: "#A0A5BA", fontSize: 14, fontWeight: "500" },
-  filterBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#FFF3EC", alignItems: "center", justifyContent: "center" },
+  searchFilter: {
+    width: 30, height: 30, borderRadius: 15,
+    backgroundColor: JE.orangeLight, alignItems: "center", justifyContent: "center",
+  },
 
-  promoSlide: { width: 320, marginRight: 12, borderRadius: 20, padding: 18, gap: 6, minHeight: 110 },
-  promoTag: { fontSize: 12, fontWeight: "700", color: "#FF7622" },
-  promoTitle: { color: "#181C2E", fontSize: 18, fontWeight: "900" },
-  promoSub: { color: "#6B7280", fontSize: 13, lineHeight: 19 },
-  promoDots: { flexDirection: "row", justifyContent: "center", gap: 6 },
-  promoDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#D1D5DB" },
-  promoDotActive: { width: 20, backgroundColor: "#FF7622" },
+  // ── Corps ────────────────────────────────────────────────────────────────
+  body: { paddingHorizontal: 18, paddingTop: 18, gap: 14 },
+  sectionTitle: { color: JE.dark, fontSize: 18, fontWeight: "900" },
 
-  sectionTitle: { color: "#181C2E", fontSize: 20, fontWeight: "900" },
-  catRow: { gap: 10, paddingHorizontal: 2 },
-  catChip: { alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 16, backgroundColor: "#FFF", borderWidth: 1.5, borderColor: "#F0F0F0", shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
-  catChipActive: { backgroundColor: "#FF7622", borderColor: "#FF7622", shadowColor: "#FF7622", shadowOpacity: 0.3 },
-  catEmoji: { fontSize: 20 },
-  catLabel: { color: "#6B7280", fontWeight: "700", fontSize: 12 },
-  catLabelActive: { color: "#FFF" },
+  // Promos
+  promoRow: { gap: 12, paddingBottom: 2 },
+  promoCard: {
+    width: 168, borderRadius: 16, padding: 14, gap: 6,
+    shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  promoEmoji: { fontSize: 26 },
+  promoTitle: { fontSize: 14, fontWeight: "900" },
+  promoSub: { fontSize: 11, color: JE.grey, lineHeight: 16 },
 
-  featCard: { borderRadius: 24, overflow: "hidden", height: 200 },
-  featImg: { width: "100%", height: "100%" },
-  featOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(24,28,46,0.6)", padding: 18, justifyContent: "flex-end", gap: 6 },
-  featTag: { alignSelf: "flex-start", backgroundColor: "#FF7622", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
-  featTagText: { color: "#FFF", fontSize: 11, fontWeight: "800" },
-  featName: { color: "#FFF", fontSize: 22, fontWeight: "900" },
-  featSub: { color: "rgba(255,255,255,0.8)", fontSize: 13, lineHeight: 18 },
-  featMeta: { flexDirection: "row", alignItems: "center", gap: 6 },
-  featMetaText: { color: "#FFF", fontSize: 13, fontWeight: "700" },
-  featMetaDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.5)" },
+  // Catégories
+  catRow: { gap: 14, paddingBottom: 2 },
+  catWrap: { alignItems: "center", gap: 6, width: 60 },
+  catCircle: {
+    width: 52, height: 52, borderRadius: 26,
+    backgroundColor: JE.white, alignItems: "center", justifyContent: "center",
+    shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
+    elevation: 2, borderWidth: 1.5, borderColor: "#F0F0F0",
+  },
+  catCircleActive: {
+    backgroundColor: JE.orange, borderColor: JE.orange,
+    shadowColor: JE.orange, shadowOpacity: 0.4,
+  },
+  catEmoji: { fontSize: 22 },
+  catLabel: { fontSize: 10, fontWeight: "700", color: JE.grey, textAlign: "center" },
+  catLabelActive: { color: JE.orange },
 
-  feedRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  feedSwitch: { flexDirection: "row", backgroundColor: "#F0F0F0", borderRadius: 12, padding: 3, gap: 2 },
-  feedBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
-  feedBtnActive: { backgroundColor: "#FF7622", shadowColor: "#FF7622", shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-  feedBtnText: { color: "#898989", fontWeight: "700", fontSize: 13 },
-  feedBtnTextActive: { color: "#FFF" },
+  // Feed switch
+  feedSwitchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  feedSwitch: {
+    flexDirection: "row", backgroundColor: "#EBEBEB",
+    borderRadius: 14, padding: 3, gap: 2,
+  },
+  feedBtn: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 11,
+  },
+  feedBtnActive: {
+    backgroundColor: JE.orange,
+    shadowColor: JE.orange, shadowOpacity: 0.35,
+    shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2,
+  },
+  feedBtnTxt: { color: JE.grey, fontWeight: "700", fontSize: 12 },
+  feedBtnTxtActive: { color: JE.white },
 
-  restCard: { marginHorizontal: 20, marginBottom: 14, backgroundColor: "#FFF", borderRadius: 22, overflow: "hidden", shadowColor: "#000", shadowOpacity: 0.07, shadowRadius: 16, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
-  restImg: { width: "100%", height: 170 },
-  favBtn: { position: "absolute", top: 12, right: 12, width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.9)", alignItems: "center", justifyContent: "center" },
-  ratingPill: { position: "absolute", bottom: 10, left: 12, flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(255,255,255,0.95)", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 5 },
-  ratingText: { color: "#181C2E", fontSize: 12, fontWeight: "800" },
-  promoBadge: { position: "absolute", top: 12, left: 12, backgroundColor: "#FF7622", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 },
-  promoBadgeText: { color: "#FFF", fontSize: 10, fontWeight: "800" },
-  restBody: { padding: 14, gap: 8 },
-  restName: { color: "#181C2E", fontSize: 18, fontWeight: "900" },
-  restDesc: { color: "#898989", fontSize: 13 },
-  restMeta: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  metaPill: { flexDirection: "row", alignItems: "center", gap: 4 },
-  metaText: { color: "#FF7622", fontSize: 12, fontWeight: "700" },
-  metaDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: "#D1D5DB" },
-  restCat: { color: "#898989", fontSize: 12, fontWeight: "600" },
+  // Carte restaurant horizontale
+  rowCard: {
+    flexDirection: "row", gap: 12,
+    marginHorizontal: 18, marginBottom: 10,
+    backgroundColor: JE.white, borderRadius: 16,
+    padding: 12, borderWidth: 1, borderColor: "#F0F0F0",
+    shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 }, elevation: 2,
+  },
+  rowImg: { width: 80, height: 80, borderRadius: 12 },
+  rowBody: { flex: 1, gap: 5, justifyContent: "center" },
+  rowTop: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
+  rowName: { flex: 1, color: JE.dark, fontSize: 14, fontWeight: "800" },
+  rowDesc: { color: JE.grey, fontSize: 11 },
+  rowChips: { flexDirection: "row", gap: 6, flexWrap: "wrap" },
+  chip: {
+    flexDirection: "row", alignItems: "center", gap: 3,
+    borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3,
+  },
+  chipTxt: { fontSize: 10, fontWeight: "700" },
+
+  emptyWrap: { paddingHorizontal: 18, marginTop: 24 },
 });
