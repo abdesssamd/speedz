@@ -20,6 +20,8 @@ export function AdminDialog({
   onClose,
   children,
   size = "md",
+  /** Libellé au-dessus du titre (bandeau contexte) */
+  eyebrowLabel = "Formulaire",
   /** Actions de footer : bouton submit + éventuellement bouton Annuler custom */
   actions,
   /** Pour les formulaires longs multi-étapes */
@@ -103,7 +105,7 @@ export function AdminDialog({
         {/* ── HEADER sticky ─────────────────────────────────────────── */}
         <div className="modal-head">
           <div className="modal-head-content">
-            <p className="eyebrow">Formulaire</p>
+            <p className="eyebrow modal-eyebrow">{eyebrowLabel}</p>
             <h3 id={titleId}>{title}</h3>
             {subtitle ? <p className="muted modal-subtitle">{subtitle}</p> : null}
 
@@ -147,9 +149,9 @@ export function AdminDialog({
         {/* ── FOOTER sticky ─────────────────────────────────────────── */}
         <div className="modal-footer">
           {actions ? (
-            actions
+            <div className="modal-footer-actions">{actions}</div>
           ) : (
-            <button type="button" className="ghost" onClick={onClose}>
+            <button type="button" className="btn-modal-ghost" onClick={onClose}>
               Annuler
             </button>
           )}

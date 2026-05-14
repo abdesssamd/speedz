@@ -388,8 +388,10 @@
      ═══════════════════════════════════════════════════════════ */
 
   .modal-backdrop {
-    @apply fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/60 p-4;
-    backdrop-filter: blur(4px);
+    @apply fixed inset-0 z-[10000] flex items-center justify-center p-4 sm:p-6;
+    background: rgba(9, 9, 11, 0.55);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     animation: backdropFadeIn 0.18s ease;
   }
 
@@ -400,12 +402,12 @@
 
   /* Carte modale : layout flex column pour header/body/footer sticky */
   .modal-card {
-    @apply w-full rounded-3xl border border-slate-200 bg-white shadow-2xl;
-    /* Hauteur max avec défilement interne du body uniquement */
-    max-height: calc(100vh - 2rem);
-    display: flex;
-    flex-direction: column;
+    @apply w-full max-h-[calc(100vh-2rem)] rounded-[28px] border border-zinc-200/80 bg-white/95 backdrop-blur-xl shadow-2xl flex flex-col;
     animation: modalSlideIn 0.22s cubic-bezier(0.34, 1.26, 0.64, 1);
+  }
+
+  .dark .modal-card {
+    @apply border-white/[0.1] bg-zinc-950/95;
   }
 
   @keyframes modalSlideIn {
@@ -419,27 +421,17 @@
     }
   }
 
-  .dark .modal-card {
-    @apply border-slate-800 bg-slate-950;
-  }
-
   .modal-sm { @apply max-w-lg; }
   .modal-md { @apply max-w-2xl; }
   .modal-lg { @apply max-w-4xl; }
 
   /* Header : sticky en haut, ne défile jamais */
   .modal-head {
-    @apply flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5;
-    flex-shrink: 0;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    @apply bg-white;
-    border-radius: 1.5rem 1.5rem 0 0;
+    @apply flex items-start justify-between gap-4 border-b border-zinc-200/80 px-6 py-5 shrink-0 sticky top-0 z-10 bg-white/95 backdrop-blur-md rounded-t-[28px];
   }
 
   .dark .modal-head {
-    @apply border-slate-800 bg-slate-950;
+    @apply border-white/[0.08] bg-zinc-950/95;
   }
 
   .modal-head-content {
@@ -447,11 +439,11 @@
   }
 
   .modal-head h3 {
-    @apply text-xl font-semibold text-slate-900;
+    @apply text-xl font-bold tracking-tight text-zinc-900;
   }
 
   .dark .modal-head h3 {
-    @apply text-slate-100;
+    @apply text-zinc-50;
   }
 
   .modal-subtitle {
@@ -515,13 +507,136 @@
 
   /* Footer : sticky en bas, ne défile jamais */
   .modal-footer {
-    @apply flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4 bg-slate-50;
-    flex-shrink: 0;
-    border-radius: 0 0 1.5rem 1.5rem;
+    @apply flex items-center justify-end gap-3 border-t border-zinc-200/80 px-6 py-4 bg-zinc-50/90 shrink-0 rounded-b-[28px];
   }
 
   .dark .modal-footer {
-    @apply border-slate-800 bg-slate-950;
+    @apply border-white/[0.08] bg-zinc-950/90;
+  }
+
+  .modal-footer-actions {
+    @apply flex flex-wrap items-center justify-end gap-2 w-full;
+  }
+
+  .modal-eyebrow {
+    @apply text-[0.65rem] tracking-[0.2em];
+  }
+
+  .btn-modal-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold text-white border-0 cursor-pointer;
+    background: linear-gradient(135deg, #ea580c 0%, #f97316 50%, #fb923c 100%);
+    box-shadow: 0 4px 18px rgba(234, 88, 12, 0.35);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+  }
+
+  .btn-modal-primary:hover:not(:disabled) {
+    @apply brightness-105;
+    transform: translateY(-1px);
+    box-shadow: 0 8px 26px rgba(234, 88, 12, 0.42);
+  }
+
+  .btn-modal-primary:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
+  .btn-modal-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 transition;
+  }
+
+  .dark .btn-modal-ghost {
+    @apply border-white/10 bg-zinc-900 text-zinc-200 hover:bg-zinc-800;
+  }
+
+  .btn-modal-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white border-0 cursor-pointer bg-red-600 hover:bg-red-500 transition shadow-md shadow-red-900/20;
+  }
+
+  .btn-modal-danger:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
+  .btn-modal-warn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-800 hover:bg-red-100 transition;
+  }
+
+  .dark .btn-modal-warn {
+    @apply border-red-900/50 bg-red-950/40 text-red-200 hover:bg-red-950/60;
+  }
+
+  .modal-confirm-box {
+    @apply rounded-2xl border border-red-200/80 bg-red-50/90 px-4 py-3.5 text-sm text-red-900 leading-relaxed;
+  }
+
+  .dark .modal-confirm-box {
+    @apply border-red-900/40 bg-red-950/35 text-red-100;
+  }
+
+  .modal-confirm-meta {
+    @apply grid gap-1 text-sm text-zinc-600 mt-3;
+  }
+
+  .dark .modal-confirm-meta {
+    @apply text-zinc-400;
+  }
+
+  /* ─── Fiche restaurant : actions hors formulaire ───────────── */
+
+  .detail-actions-bar {
+    @apply rounded-2xl border border-zinc-200/70 bg-white/70 backdrop-blur-sm p-4 grid gap-4;
+  }
+
+  .dark .detail-actions-bar {
+    @apply border-white/[0.08] bg-zinc-900/50;
+  }
+
+  .detail-meta-chips {
+    @apply flex flex-wrap gap-2;
+  }
+
+  .detail-chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-zinc-200/80 bg-zinc-50 px-3 py-1.5 text-xs font-semibold text-zinc-700;
+  }
+
+  .dark .detail-chip {
+    @apply border-white/10 bg-zinc-800/80 text-zinc-200;
+  }
+
+  .detail-actions-row {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .btn-toolbar-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold transition border border-zinc-200 bg-white text-zinc-700 shadow-sm hover:bg-zinc-50 hover:border-zinc-300;
+  }
+
+  .dark .btn-toolbar-ghost {
+    @apply border-white/10 bg-zinc-800/90 text-zinc-200 hover:bg-zinc-800;
+  }
+
+  .btn-toolbar-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold transition border border-transparent text-white shadow-sm;
+    background: linear-gradient(135deg, #ea580c 0%, #f97316 100%);
+    box-shadow: 0 4px 16px rgba(234, 88, 12, 0.3);
+  }
+
+  .btn-toolbar-primary:hover {
+    @apply brightness-105 -translate-y-px;
+  }
+
+  .btn-toolbar-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold transition border border-red-200 bg-red-50 text-red-800 shadow-sm hover:bg-red-100;
+  }
+
+  .dark .btn-toolbar-danger {
+    @apply border-red-900/40 bg-red-950/30 text-red-200 hover:bg-red-950/50;
+  }
+
+  .btn-toolbar-accent {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold transition border border-orange-300/50 bg-orange-50 text-orange-900 shadow-sm hover:bg-orange-100/90;
+  }
+
+  .dark .btn-toolbar-accent {
+    @apply border-orange-500/30 bg-orange-950/40 text-orange-100 hover:bg-orange-950/55;
   }
 
   /* Indicateur d'étapes (pour formulaires longs) */

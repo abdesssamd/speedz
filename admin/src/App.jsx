@@ -20,6 +20,7 @@ import {
   Store,
   Sun,
   Tags,
+  Trash2,
   Users,
   X,
 } from "lucide-react";
@@ -120,6 +121,8 @@ const translations = {
     add_to_menu: "Ajouter au menu",
     update_dish: "Mettre a jour le plat",
     delete_dish: "Supprimer le plat",
+    delete: "Supprimer",
+    edit_record: "Modifier la fiche",
     in_stock: "Stock",
     availability: "Disponibilite",
     available: "Disponible",
@@ -270,7 +273,8 @@ const translations = {
     add_to_menu: "إضافة إلى القائمة",
     update_dish: "تحديث الطبق",
     delete_dish: "حذف الطبق",
-    in_stock: "المخزون",
+    delete: "حذف",
+    edit_record: "تعديل البطاقة",
     availability: "التوفر",
     available: "متاح",
     unavailable: "غير متاح",
@@ -984,6 +988,7 @@ export default function App() {
   const [showCourierModal, setShowCourierModal] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showPromotionModal, setShowPromotionModal] = useState(false);
+  const [deleteCategoryTarget, setDeleteCategoryTarget] = useState(null);
   const [selectedMenuItem, setSelectedMenuItem] = useState(null);
   const [selectedCourier, setSelectedCourier] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -2229,6 +2234,7 @@ export default function App() {
   async function handleDeleteMenuItem(itemId) {
     try {
       await apiRequest(`/api/admin/menu-items/${itemId}`, { method: "DELETE" }, token);
+      setStatusMessage("Plat archive.");
       setShowDeleteMenuItemModal(false);
       setDeleteMenuItemTarget(null);
       await loadAdminData();
@@ -2246,7 +2252,7 @@ export default function App() {
       setDeleteRestaurantTarget(null);
       setSelectedRestaurantId("");
       await loadAdminData();
-      setSuccessMessage(hard ? "Restaurant supprimé définitivement." : "Restaurant désactivé et archivé.");
+      setStatusMessage(hard ? "Restaurant supprime definitivement." : "Restaurant desactive et archive.");
     } catch (error) {
       setErrorMessage(error.message || "Erreur lors de la suppression.");
     } finally {
@@ -2419,6 +2425,7 @@ export default function App() {
     try {
       await apiRequest(`/api/admin/menu-categories/${categoryId}`, { method: "DELETE" }, token);
       setStatusMessage("Categorie supprimee.");
+      setDeleteCategoryTarget(null);
       await loadAdminData();
     } catch (error) {
       setErrorMessage(error.message);
@@ -3008,96 +3015,38 @@ export default function App() {
                           </div>
                         </div>
 
-                        <form id="form-edit-restaurant" onSubmit={handleUpdateRestaurant} className="stack compact-stack form-layout">
-                          <div className="order-metrics">
-                            <span>{selectedRestaurant.validationStatus || "PENDING"}</span>
-                            <span>{formatBillingPlan(selectedRestaurant)}</span>
-                            <span>{selectedRestaurant.ownerEmail || "owner@n/a"}</span>
+                        <div className="detail-actions-bar">
+                          <div className="detail-meta-chips">
+                            <span className="detail-chip">{selectedRestaurant.validationStatus || "PENDING"}</span>
+                            <span className="detail-chip">{formatBillingPlan(selectedRestaurant)}</span>
+                            <span className="detail-chip">{selectedRestaurant.ownerEmail || "—"}</span>
+                            <span className="detail-chip">{selectedRestaurant.deliveryTime}</span>
                           </div>
-                          <FormSection title="Informations principales" hint="Les libelles sont places au-dessus pour une lecture verticale plus rapide.">
-                            <div className="split form-grid">
-                              <FormField label={t("name")} error={restaurantEditErrors.name}>
-                                <input
-                                  value={selectedRestaurant.name}
-                                  onChange={(event) => updateSelectedRestaurant("name", event.target.value)}
-                                  placeholder="La Table du Marche"
-                                  required
-                                />
-                              </FormField>
-                              <FormField label={t("category")} error={restaurantEditErrors.category}>
-                                <input
-                                  value={selectedRestaurant.category}
-                                  onChange={(event) => updateSelectedRestaurant("category", event.target.value)}
-                                  placeholder="Burgers, Pizza, Sushi..."
-                                  required
-                                />
-                              </FormField>
-                            </div>
-                            <FormField label={t("short_description")} hint="Resume clair du concept ou des specialites.">
-                              <textarea
-                                value={selectedRestaurant.shortDescription}
-                                onChange={(event) => updateSelectedRestaurant("shortDescription", event.target.value)}
-                                placeholder="Cuisine rapide, portions genereuses et livraison soignee."
-                              />
-                            </FormField>
-                          </FormSection>
-                          <FormSection title="Operations" hint="Groupez les informations de service pour garder le formulaire compact.">
-                            <div className="split form-grid">
-                              <FormField label={t("base_preparation")}>
-                                <input
-                                  value={selectedRestaurant.deliveryTime}
-                                  onChange={(event) => updateSelectedRestaurant("deliveryTime", event.target.value)}
-                                  placeholder="25-35 min"
-                                />
-                              </FormField>
-                              <FormField label={t("hours")} hint="Exemple: 09:00 - 23:00">
-                                <input
-                                  value={selectedRestaurant.openingHours}
-                                  onChange={(event) => updateSelectedRestaurant("openingHours", event.target.value)}
-                                  placeholder="09:00 - 23:00"
-                                />
-                              </FormField>
-                            </div>
-                          </FormSection>
-                          <FormSection title="Contact et localisation" hint="Les coordonnees GPS sont groupees pour limiter les erreurs.">
-                            <div className="split form-grid">
-                            <FormField label={t("latitude")} error={restaurantEditErrors.latitude}>
-                                <input
-                                  value={selectedRestaurant.coordinates.latitude}
-                                  onChange={(event) => updateSelectedRestaurantCoordinates("latitude", event.target.value)}
-                                  placeholder="36.7525"
-                                  inputMode="decimal"
-                                />
-                              </FormField>
-                            <FormField label={t("longitude")} error={restaurantEditErrors.longitude}>
-                                <input
-                                  value={selectedRestaurant.coordinates.longitude}
-                                  onChange={(event) => updateSelectedRestaurantCoordinates("longitude", event.target.value)}
-                                  placeholder="3.0420"
-                                  inputMode="decimal"
-                                />
-                              </FormField>
-                            </div>
-                            <div className="split form-grid">
-                              <FormField label="Contact restaurant">
-                                <input
-                                  value={selectedRestaurant.ownerName || ""}
-                                  onChange={(event) => updateSelectedRestaurant("ownerName", event.target.value)}
-                                  placeholder="Karim Benali"
-                                />
-                              </FormField>
-                              <FormField label="Email restaurant" error={restaurantEditErrors.ownerEmail}>
-                                <input
-                                  value={selectedRestaurant.ownerEmail || ""}
-                                  onChange={(event) => updateSelectedRestaurant("ownerEmail", event.target.value)}
-                                  placeholder="restaurant@exemple.com"
-                                  type="email"
-                                />
-                              </FormField>
-                            </div>
-                          </FormSection>
-                          <button type="submit">Enregistrer les changements</button>
-                        </form>
+                          <div className="detail-actions-row">
+                            <button
+                              type="button"
+                              className="btn-toolbar-primary"
+                              onClick={() => {
+                                setRestaurantEditErrors({});
+                                setShowEditModal(true);
+                              }}
+                            >
+                              <Edit3 size={14} />
+                              {t("edit_record")}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-toolbar-danger"
+                              onClick={() => {
+                                setDeleteRestaurantTarget(selectedRestaurant);
+                                setShowDeleteRestaurantModal(true);
+                              }}
+                            >
+                              <Trash2 size={14} />
+                              {t("delete")}
+                            </button>
+                          </div>
+                        </div>
 
                         <div className="menu-preview">
                           <div className="panel-subhead">
@@ -3121,24 +3070,10 @@ export default function App() {
                           <div className="panel-subhead">
                             <h4>Menu actuel</h4>
                             <div className="inline-actions">
-                              <span>{selectedRestaurant.menu.length} {t("dishes")}</span>
-                              <button type="button" className="ghost small" onClick={() => {
-                                setRestaurantEditErrors({});
-                                setShowEditModal(true);
-                              }}>Modifier</button>
+                              <span className="detail-chip">{selectedRestaurant.menu.length} {t("dishes")}</span>
                               <button
                                 type="button"
-                                className="ghost small danger-outline"
-                                onClick={() => {
-                                  setDeleteRestaurantTarget(selectedRestaurant);
-                                  setShowDeleteRestaurantModal(true);
-                                }}
-                              >
-                                🗑 Supprimer
-                              </button>
-                              <button
-                                type="button"
-                                className="ghost small selected"
+                                className="btn-toolbar-accent"
                                 onClick={() => {
                                   setSelectedMenuItem(null);
                                   setMenuItemForm(emptyMenuItem);
@@ -3147,6 +3082,7 @@ export default function App() {
                                   setShowMenuModal(true);
                                 }}
                               >
+                                <Plus size={14} />
                                 {t("new_dish")}
                               </button>
                             </div>
@@ -3172,7 +3108,7 @@ export default function App() {
                                 </button>
                                 <button
                                   type="button"
-                                  className="ghost small"
+                                  className="btn-toolbar-ghost"
                                   onClick={() => {
                                     setSelectedMenuItem({
                                       ...item,
@@ -3186,17 +3122,19 @@ export default function App() {
                                     setShowMenuModal(true);
                                   }}
                                 >
+                                  <Edit3 size={14} />
                                   {t("edit")}
                                 </button>
                                 <button
                                   type="button"
-                                  className="ghost small danger-outline"
+                                  className="btn-toolbar-danger"
                                   onClick={() => {
                                     setDeleteMenuItemTarget(item);
                                     setShowDeleteMenuItemModal(true);
                                   }}
                                 >
-                                  {t("delete_dish")}
+                                  <Trash2 size={14} />
+                                  {t("delete")}
                                 </button>
                               </div>
                             </div>
@@ -4091,9 +4029,9 @@ export default function App() {
                                     {t("edit")}
                                   </span>
                                 </button>
-                                <button className="ghost small" onClick={() => handleDeleteMenuCategory(category.id)}>
+                                <button className="ghost small" onClick={() => setDeleteCategoryTarget({ id: category.id, name: category.name })}>
                                   <span className="inline-flex items-center gap-1">
-                                    <X size={12} />
+                                    <Trash2 size={12} />
                                     {t("delete")}
                                   </span>
                                 </button>
@@ -4569,11 +4507,29 @@ export default function App() {
         open={showCreateModal}
         title={t("new_restaurant")}
         subtitle="Creation rapide depuis la liste sans quitter le tableau de bord."
+        eyebrowLabel={t("restaurants")}
         onClose={() => {
           setRestaurantCreateErrors({});
           setShowCreateModal(false);
         }}
         size="lg"
+        actions={
+          <>
+            <button
+              type="button"
+              className="btn-modal-ghost"
+              onClick={() => {
+                setRestaurantCreateErrors({});
+                setShowCreateModal(false);
+              }}
+            >
+              Annuler
+            </button>
+            <button type="submit" form="form-create-restaurant" className="btn-modal-primary">
+              {t("publish_restaurant")}
+            </button>
+          </>
+        }
       >
             <form id="form-create-restaurant" onSubmit={handleCreateRestaurant} className="stack compact-stack form-layout">
               <FormSection title="Informations principales" hint="Commencez par les informations visibles dans le catalogue.">
@@ -4702,22 +4658,39 @@ export default function App() {
                   <input value={restaurantForm.tags} onChange={(event) => setRestaurantForm({ ...restaurantForm, tags: event.target.value })} placeholder="Burger, Family, Livraison rapide" />
                 </FormField>
               </FormSection>
-              <button type="submit">{t("publish_restaurant")}</button>
             </form>
       </AdminDialog>
 
       <AdminDialog
         open={showEditModal && selectedRestaurant}
         title={selectedRestaurant ? `${t("edit")} ${selectedRestaurant.name}` : t("edit")}
-        subtitle="Modification en contexte avec retour automatique sur la liste mise a jour."
+        subtitle="Toutes les informations modifiables sont regroupees ici."
+        eyebrowLabel={t("restaurants")}
         onClose={() => {
           setRestaurantEditErrors({});
           setShowEditModal(false);
         }}
         size="lg"
+        actions={
+          <>
+            <button
+              type="button"
+              className="btn-modal-ghost"
+              onClick={() => {
+                setRestaurantEditErrors({});
+                setShowEditModal(false);
+              }}
+            >
+              Annuler
+            </button>
+            <button type="submit" form="form-edit-restaurant-modal" className="btn-modal-primary">
+              {t("save_changes")}
+            </button>
+          </>
+        }
       >
         {selectedRestaurant ? (
-            <form onSubmit={handleUpdateRestaurant} className="stack compact-stack form-layout">
+            <form id="form-edit-restaurant-modal" onSubmit={handleUpdateRestaurant} className="stack compact-stack form-layout">
               <FormSection title="Identite du restaurant" hint="Modifiez les informations affichables sans quitter la fiche.">
                 <div className="split form-grid">
                   <FormField label={t("name")} error={restaurantEditErrors.name}>
@@ -4793,7 +4766,35 @@ export default function App() {
                   </FormField>
                 </div>
               </FormSection>
-              <button type="submit">Enregistrer les changements</button>
+              <FormSection title={t("address")} hint="Adresse affichee aux clients sur la fiche.">
+                <FormField label={t("address")} error={restaurantEditErrors.address}>
+                  <input
+                    value={selectedRestaurant.address || ""}
+                    onChange={(event) => updateSelectedRestaurant("address", event.target.value)}
+                    placeholder="12 Rue Didouche Mourad, Alger"
+                    required
+                  />
+                </FormField>
+              </FormSection>
+              <FormSection title="Contact restaurant" hint="Responsable local et messagerie.">
+                <div className="split form-grid">
+                  <FormField label="Contact restaurant">
+                    <input
+                      value={selectedRestaurant.ownerName || ""}
+                      onChange={(event) => updateSelectedRestaurant("ownerName", event.target.value)}
+                      placeholder="Karim Benali"
+                    />
+                  </FormField>
+                  <FormField label="Email restaurant" error={restaurantEditErrors.ownerEmail}>
+                    <input
+                      value={selectedRestaurant.ownerEmail || ""}
+                      onChange={(event) => updateSelectedRestaurant("ownerEmail", event.target.value)}
+                      placeholder="restaurant@exemple.com"
+                      type="email"
+                    />
+                  </FormField>
+                </div>
+              </FormSection>
             </form>
         ) : null}
       </AdminDialog>
@@ -5047,9 +5048,6 @@ export default function App() {
                   </div>
                 ))}
               </div>
-              <button type="submit" disabled={!selectedRestaurantId}>
-                {selectedMenuItem ? t("update_dish") : t("add_to_menu")}
-              </button>
             </form>
       </AdminDialog>
 
@@ -5057,10 +5055,28 @@ export default function App() {
         open={showCourierModal}
         title={selectedCourier ? `${t("edit")} ${selectedCourier.name}` : t("create_courier")}
         subtitle="Creation et modification des livreurs dans une fenetre dediee."
+        eyebrowLabel={t("couriers_nav")}
         onClose={() => {
           resetCourierForm();
           setShowCourierModal(false);
         }}
+        actions={
+          <>
+            <button
+              type="button"
+              className="btn-modal-ghost"
+              onClick={() => {
+                resetCourierForm();
+                setShowCourierModal(false);
+              }}
+            >
+              Annuler
+            </button>
+            <button type="submit" form="form-courier" className="btn-modal-primary">
+              {selectedCourier ? t("save_changes") : t("create_courier")}
+            </button>
+          </>
+        }
       >
         <form id="form-courier" onSubmit={selectedCourier ? handleUpdateCourier : handleCreateCourier} className="stack compact-stack form-layout">
           <FormSection title="Identite du livreur" hint="Les informations principales sont groupees pour aller plus vite.">
@@ -5167,7 +5183,6 @@ export default function App() {
               </FormField>
             </div>
           </FormSection>
-          <button type="submit">{selectedCourier ? t("save_changes") : t("create_courier")}</button>
         </form>
       </AdminDialog>
 
@@ -5175,10 +5190,28 @@ export default function App() {
         open={showCategoryModal}
         title={selectedCategory ? `${t("edit")} ${selectedCategory.name}` : t("create_category")}
         subtitle="Gestion rapide des categories avec fermeture automatique apres validation."
+        eyebrowLabel={t("categories_nav")}
         onClose={() => {
           resetCategoryModal();
           setShowCategoryModal(false);
         }}
+        actions={
+          <>
+            <button
+              type="button"
+              className="btn-modal-ghost"
+              onClick={() => {
+                resetCategoryModal();
+                setShowCategoryModal(false);
+              }}
+            >
+              Annuler
+            </button>
+            <button type="submit" form="form-category" className="btn-modal-primary">
+              {selectedCategory ? t("save_changes") : t("create_category")}
+            </button>
+          </>
+        }
       >
         <form id="form-category" onSubmit={handleCategoryModalSubmit} className="stack compact-stack form-layout">
           <FormSection title="Categorie du menu" hint="Utilisez un nom court et un ordre d'affichage clair.">
@@ -5211,7 +5244,6 @@ export default function App() {
               </FormField>
             </div>
           </FormSection>
-          <button type="submit">{selectedCategory ? t("save_changes") : t("create_category")}</button>
         </form>
       </AdminDialog>
 
@@ -5219,10 +5251,28 @@ export default function App() {
         open={showPromotionModal}
         title={selectedPromotion ? `${t("edit")} ${selectedPromotion.title}` : t("create_promotion")}
         subtitle="Les offres s'ouvrent en modal et la liste se rafraichit apres sauvegarde."
+        eyebrowLabel={t("promotions_nav")}
         onClose={() => {
           resetPromotionModal();
           setShowPromotionModal(false);
         }}
+        actions={
+          <>
+            <button
+              type="button"
+              className="btn-modal-ghost"
+              onClick={() => {
+                resetPromotionModal();
+                setShowPromotionModal(false);
+              }}
+            >
+              Annuler
+            </button>
+            <button type="submit" form="form-promotion" className="btn-modal-primary">
+              {selectedPromotion ? t("save_changes") : t("create_promotion")}
+            </button>
+          </>
+        }
       >
         <form id="form-promotion" onSubmit={selectedPromotion ? handleUpdatePromotion : handleCreatePromotion} className="stack compact-stack form-layout">
           <FormSection title="Identite de l'offre" hint="Renseignez un code clair et un titre lisible pour l'equipe.">
@@ -5364,25 +5414,56 @@ export default function App() {
               </label>
             </FormField>
           </FormSection>
-          <button type="submit">{selectedPromotion ? t("save_changes") : t("create_promotion")}</button>
         </form>
+      </AdminDialog>
+      {/* ── Confirmation : Supprimer catégorie ───────────────────────── */}
+      <AdminDialog
+        open={Boolean(deleteCategoryTarget)}
+        title={t("delete")}
+        subtitle={deleteCategoryTarget ? `La catégorie « ${deleteCategoryTarget.name} » sera supprimée définitivement.` : ""}
+        eyebrowLabel="Confirmation"
+        onClose={() => setDeleteCategoryTarget(null)}
+        size="sm"
+        actions={
+          <>
+            <button type="button" className="btn-modal-ghost" onClick={() => setDeleteCategoryTarget(null)}>
+              Annuler
+            </button>
+            <button
+              type="button"
+              className="btn-modal-danger"
+              onClick={() => deleteCategoryTarget && handleDeleteMenuCategory(deleteCategoryTarget.id)}
+            >
+              {t("delete")}
+            </button>
+          </>
+        }
+      >
+        <div className="px-6 pb-2">
+          <div className="modal-confirm-box">
+            <p className="font-semibold text-red-950 dark:text-red-100">Suppression définitive</p>
+            <p className="text-sm mt-1 opacity-90">
+              Les plats peuvent rester liés à cette catégorie côté base : vérifiez le catalogue après suppression.
+            </p>
+          </div>
+        </div>
       </AdminDialog>
       {/* ── Confirmation : Supprimer restaurant ─────────────────────── */}
       <AdminDialog
         open={showDeleteRestaurantModal}
         title="Supprimer le restaurant"
-        subtitle={deleteRestaurantTarget ? `Vous êtes sur le point d'agir sur "${deleteRestaurantTarget.name}".` : ""}
+        subtitle={deleteRestaurantTarget ? `Vous êtes sur le point d'agir sur « ${deleteRestaurantTarget.name} ».` : ""}
+        eyebrowLabel="Confirmation"
         onClose={() => { setShowDeleteRestaurantModal(false); setDeleteRestaurantTarget(null); }}
         size="sm"
         actions={
-          <div style={{ display: "flex", gap: 8, width: "100%", justifyContent: "flex-end", flexWrap: "wrap" }}>
-            <button type="button" className="ghost" onClick={() => { setShowDeleteRestaurantModal(false); setDeleteRestaurantTarget(null); }}>
+          <>
+            <button type="button" className="btn-modal-ghost" onClick={() => { setShowDeleteRestaurantModal(false); setDeleteRestaurantTarget(null); }}>
               Annuler
             </button>
             <button
               type="button"
-              className="ghost"
-              style={{ borderColor: "#fca5a5", color: "#b91c1c" }}
+              className="btn-modal-warn"
               disabled={isDeletingRestaurant}
               onClick={() => handleDeleteRestaurant(deleteRestaurantTarget?.id, false)}
             >
@@ -5390,30 +5471,31 @@ export default function App() {
             </button>
             <button
               type="button"
-              style={{ background: "#dc2626", color: "#fff", border: "none", borderRadius: 10, padding: "8px 16px", fontWeight: 600, cursor: "pointer" }}
+              className="btn-modal-danger"
               disabled={isDeletingRestaurant}
               onClick={() => handleDeleteRestaurant(deleteRestaurantTarget?.id, true)}
             >
               {isDeletingRestaurant ? "Suppression…" : "Supprimer définitivement"}
             </button>
-          </div>
+          </>
         }
       >
-        <div style={{ padding: "0 24px 8px" }}>
-          <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 12, padding: "14px 16px", marginBottom: 12 }}>
-            <p style={{ color: "#991b1b", fontWeight: 600, marginBottom: 6 }}>⚠️ Action irréversible</p>
-            <p style={{ color: "#b91c1c", fontSize: 13, lineHeight: 1.6 }}>
-              <strong>Désactiver (soft)</strong> : le restaurant disparaît de l'app client, mais l'historique des commandes est conservé.<br />
-              <strong>Supprimer définitivement</strong> : suppression complète avec tous les plats du menu. Impossible si des commandes actives sont en cours.
+        <div className="px-6 pb-2">
+          <div className="modal-confirm-box">
+            <p className="font-semibold">Action irréversible possible</p>
+            <p className="text-sm mt-2 leading-relaxed">
+              <strong>Désactiver (soft)</strong> : le restaurant disparaît de l&apos;app client, l&apos;historique des commandes est conservé.
+              <br />
+              <strong>Supprimer définitivement</strong> : suppression complète avec le menu. Impossible si des commandes actives sont en cours.
             </p>
           </div>
-          {deleteRestaurantTarget && (
-            <div style={{ display: "grid", gap: 4, fontSize: 13, color: "#64748b" }}>
-              <span>🏪 <strong style={{ color: "#0f172a" }}>{deleteRestaurantTarget.name}</strong></span>
-              <span>📂 {deleteRestaurantTarget.category}</span>
-              <span>🍽 {deleteRestaurantTarget.menu?.length || 0} plat(s) au menu</span>
+          {deleteRestaurantTarget ? (
+            <div className="modal-confirm-meta">
+              <span><strong className="text-zinc-900 dark:text-zinc-100">{deleteRestaurantTarget.name}</strong></span>
+              <span>{deleteRestaurantTarget.category}</span>
+              <span>{deleteRestaurantTarget.menu?.length || 0} plat(s) au menu</span>
             </div>
-          )}
+          ) : null}
         </div>
       </AdminDialog>
 
@@ -5421,33 +5503,30 @@ export default function App() {
       <AdminDialog
         open={showDeleteMenuItemModal}
         title="Supprimer ce plat"
-        subtitle={deleteMenuItemTarget ? `"${deleteMenuItemTarget.name}" sera archivé et masqué de l'app.` : ""}
+        subtitle={deleteMenuItemTarget ? `« ${deleteMenuItemTarget.name} » sera archivé et masqué de l'app.` : ""}
+        eyebrowLabel="Confirmation"
         onClose={() => { setShowDeleteMenuItemModal(false); setDeleteMenuItemTarget(null); }}
         size="sm"
         actions={
           <>
-            <button type="button" className="ghost" onClick={() => { setShowDeleteMenuItemModal(false); setDeleteMenuItemTarget(null); }}>
+            <button type="button" className="btn-modal-ghost" onClick={() => { setShowDeleteMenuItemModal(false); setDeleteMenuItemTarget(null); }}>
               Annuler
             </button>
-            <button
-              type="button"
-              style={{ background: "#dc2626", color: "#fff", border: "none", borderRadius: 10, padding: "8px 16px", fontWeight: 600, cursor: "pointer" }}
-              onClick={() => handleDeleteMenuItem(deleteMenuItemTarget?.id)}
-            >
+            <button type="button" className="btn-modal-danger" onClick={() => handleDeleteMenuItem(deleteMenuItemTarget?.id)}>
               Archiver le plat
             </button>
           </>
         }
       >
-        <div style={{ padding: "0 24px 8px" }}>
-          {deleteMenuItemTarget && (
-            <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 12, padding: "14px 16px" }}>
-              <p style={{ color: "#991b1b", fontWeight: 600, marginBottom: 4 }}>🍽 {deleteMenuItemTarget.name}</p>
-              <p style={{ color: "#b91c1c", fontSize: 13, lineHeight: 1.6 }}>
-                Ce plat sera masqué de l'application mais son historique dans les commandes passées sera conservé.
+        <div className="px-6 pb-2">
+          {deleteMenuItemTarget ? (
+            <div className="modal-confirm-box">
+              <p className="font-semibold">{deleteMenuItemTarget.name}</p>
+              <p className="text-sm mt-2 leading-relaxed">
+                Ce plat sera masqué de l&apos;application ; l&apos;historique dans les commandes passées est conservé.
               </p>
             </div>
-          )}
+          ) : null}
         </div>
       </AdminDialog>
 
