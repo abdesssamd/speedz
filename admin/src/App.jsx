@@ -4828,15 +4828,45 @@ export default function App() {
       <AdminDialog
         open={showMenuModal}
         title={isEditingMenuItem ? t("edit_dish") : t("new_dish")}
-        subtitle="Edition du menu sans quitter la fiche restaurant."
+        subtitle="Un formulaire plus compact, plus clair et stable pour saisir rapidement un plat."
+        eyebrowLabel={selectedRestaurant ? selectedRestaurant.name : t("restaurants")}
         onClose={() => {
           resetMenuModal();
           setShowMenuModal(false);
         }}
         size="lg"
+        actions={
+          <>
+            <button
+              type="button"
+              className="btn-modal-ghost"
+              onClick={() => {
+                resetMenuModal();
+                setShowMenuModal(false);
+              }}
+            >
+              Annuler
+            </button>
+            <button type="submit" form="form-menu-item" className="btn-modal-primary">
+              {isEditingMenuItem ? t("update_dish") : t("add_to_menu")}
+            </button>
+          </>
+        }
       >
-            <form id="form-menu-item" onSubmit={isEditingMenuItem ? handleUpdateMenuItem : handleAddMenuItem} className="stack compact-stack form-layout" autoComplete="off">
-              <FormSection title="Informations du plat" hint="Chaque champ reste independant pour une saisie plus propre.">
+            <form id="form-menu-item" onSubmit={isEditingMenuItem ? handleUpdateMenuItem : handleAddMenuItem} className="stack compact-stack form-layout menu-form-shell" autoComplete="off">
+              <div className="menu-form-hero">
+                <div className="menu-form-hero-copy">
+                  <span className="menu-form-kicker">{isEditingMenuItem ? "Edition rapide" : "Creation rapide"}</span>
+                  <h4>{currentMenuDraft.name?.trim() || "Nouveau plat"}</h4>
+                  <p>Remplissez les champs essentiels, ajoutez une image puis configurez les options si besoin.</p>
+                </div>
+                <div className="menu-form-hero-meta">
+                  <span className="menu-form-pill">{currentMenuDraft.category || "Categorie"}</span>
+                  <span className="menu-form-pill strong">{currentMenuDraft.price ? `${currentMenuDraft.price} DA` : "Prix a definir"}</span>
+                </div>
+              </div>
+              <div className="menu-form-grid">
+              <FormSection title="Informations du plat" hint="Les champs principaux restent visibles et compacts.">
                 <FormField label={t("dish_name")} error={menuItemErrors.name}>
                   <input
                     name="menu_item_name"
@@ -4883,6 +4913,7 @@ export default function App() {
                   </FormField>
                 </div>
               </FormSection>
+              <div className="menu-form-side">
               <FormSection title="Presentation et disponibilite" hint="Ajoutez les metadonnees utiles a l'affichage du menu.">
                 <div className="split form-grid">
                   <FormField label={t("badge")} hint="Exemple: Best seller">
@@ -4938,12 +4969,19 @@ export default function App() {
                     placeholder="https://.../dish.jpg"
                   />
                 </FormField>
+                <div className="menu-visual-card">
+                  {currentMenuDraft.image ? <img src={currentMenuDraft.image} alt={currentMenuDraft.name || "Apercu plat"} className="menu-preview-image" /> : <div className="menu-preview-placeholder">Apercu image</div>}
+                  {menuImageFile ? <p className="upload-hint">{menuImageFile.name}</p> : <p className="upload-hint">Ajoutez une image ou collez une URL pour l’aperçu.</p>}
+                </div>
               </FormSection>
-              {currentMenuDraft.image ? <img src={currentMenuDraft.image} alt={currentMenuDraft.name || "Apercu plat"} className="menu-preview-image" /> : null}
-              {menuImageFile ? <p className="upload-hint">{menuImageFile.name}</p> : null}
-                <div className="option-editor">
+                </div>
+                </div>
+                <div className="option-editor menu-option-editor">
                   <div className="option-editor-head">
-                    <strong>{t("item_options")}</strong>
+                    <div className="stack" style={{ gap: "4px" }}>
+                      <strong>{t("item_options")}</strong>
+                      <p className="field-hint">Créez des tailles, sauces ou suppléments sans surcharger le formulaire principal.</p>
+                    </div>
                     <button
                     type="button"
                     className="ghost small"

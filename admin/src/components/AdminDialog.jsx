@@ -30,6 +30,11 @@ export function AdminDialog({
 }) {
   const dialogRef = useRef(null);
   const previousFocusRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -48,7 +53,7 @@ export function AdminDialog({
 
     function handleKeyDown(event) {
       if (event.key === "Escape") {
-        onClose();
+        onCloseRef.current?.();
         return;
       }
 
@@ -81,7 +86,7 @@ export function AdminDialog({
       document.removeEventListener("keydown", handleKeyDown);
       previousFocusRef.current?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

@@ -870,6 +870,62 @@
     @apply grid gap-4;
   }
 
+  .menu-form-shell {
+    @apply gap-5;
+  }
+
+  .menu-form-hero {
+    @apply rounded-[24px] border border-orange-200/70 bg-gradient-to-br from-orange-50 via-amber-50 to-white p-4 grid gap-3 shadow-sm;
+  }
+
+  .menu-form-hero-copy {
+    @apply grid gap-1;
+  }
+
+  .menu-form-kicker {
+    @apply text-[0.68rem] font-extrabold uppercase tracking-[0.22em] text-orange-600;
+  }
+
+  .menu-form-hero-copy h4 {
+    @apply text-xl font-bold text-slate-900;
+  }
+
+  .menu-form-hero-copy p {
+    @apply text-sm leading-6 text-slate-500;
+  }
+
+  .menu-form-hero-meta {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .menu-form-pill {
+    @apply inline-flex items-center rounded-full border border-white/80 bg-white/80 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm;
+  }
+
+  .menu-form-pill.strong {
+    @apply text-orange-700 border-orange-200 bg-orange-100/80;
+  }
+
+  .menu-form-grid {
+    @apply grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.95fr)];
+  }
+
+  .menu-form-side {
+    @apply grid gap-4;
+  }
+
+  .menu-visual-card {
+    @apply rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-3 grid gap-2;
+  }
+
+  .menu-preview-placeholder {
+    @apply min-h-[180px] rounded-xl border border-dashed border-slate-200 bg-white grid place-items-center text-sm font-semibold text-slate-400;
+  }
+
+  .menu-option-editor {
+    @apply border-orange-100 bg-orange-50/50;
+  }
+
   /* ─── Formulaires ─────────────────────────────────────────── */
 
   .form-field {
@@ -1287,6 +1343,42 @@
 
   .option-group-card {
     @apply rounded-2xl border border-slate-200 bg-slate-50 p-3 grid gap-2;
+  }
+
+  .option-group-card > .split:first-child {
+    @apply items-start;
+  }
+
+  .option-group-card input {
+    @apply min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm transition focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200;
+  }
+
+  .dark .menu-form-hero {
+    @apply border-orange-500/20 from-orange-950/40 via-slate-950 to-slate-950;
+  }
+
+  .dark .menu-form-hero-copy h4 {
+    @apply text-slate-100;
+  }
+
+  .dark .menu-form-hero-copy p {
+    @apply text-slate-400;
+  }
+
+  .dark .menu-form-pill {
+    @apply border-white/10 bg-slate-900/80 text-slate-200;
+  }
+
+  .dark .menu-form-pill.strong {
+    @apply border-orange-500/30 bg-orange-950/50 text-orange-100;
+  }
+
+  .dark .menu-visual-card {
+    @apply border-slate-800 bg-slate-950/50;
+  }
+
+  .dark .menu-preview-placeholder {
+    @apply border-slate-700 bg-slate-900 text-slate-500;
   }
 
   .choice-list {
@@ -1739,6 +1831,10 @@
 
   .dark .option-group-card {
     @apply border-slate-700 bg-slate-800/40;
+  }
+
+  .dark .option-group-card input {
+    @apply border-slate-700 bg-slate-900 text-slate-100;
   }
 
   /* ─── Restaurant tile dark ────────────────────────────────── */
