@@ -724,6 +724,17 @@ function isNumeric(value) {
   return value !== "" && !Number.isNaN(Number(value));
 }
 
+function submitFormById(formId) {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  const form = document.getElementById(formId);
+  if (form instanceof HTMLFormElement) {
+    form.requestSubmit();
+  }
+}
+
 function validateLoginForm({ email, password }) {
   const errors = {};
   if (!String(email || "").trim()) {
@@ -4551,7 +4562,7 @@ export default function App() {
             >
               Annuler
             </button>
-            <button type="submit" form="form-create-restaurant" className="btn-modal-primary">
+            <button type="button" className="btn-modal-primary" onClick={() => submitFormById("form-create-restaurant")}>
               {t("publish_restaurant")}
             </button>
           </>
@@ -4709,7 +4720,7 @@ export default function App() {
             >
               Annuler
             </button>
-            <button type="submit" form="form-edit-restaurant-modal" className="btn-modal-primary">
+            <button type="button" className="btn-modal-primary" onClick={() => submitFormById("form-edit-restaurant-modal")}>
               {t("save_changes")}
             </button>
           </>
@@ -4847,7 +4858,7 @@ export default function App() {
             >
               Annuler
             </button>
-            <button type="submit" form="form-menu-item" className="btn-modal-primary">
+            <button type="button" className="btn-modal-primary" onClick={() => submitFormById("form-menu-item")}>
               {isEditingMenuItem ? t("update_dish") : t("add_to_menu")}
             </button>
           </>
@@ -5114,7 +5125,7 @@ export default function App() {
             >
               Annuler
             </button>
-            <button type="submit" form="form-courier" className="btn-modal-primary">
+            <button type="button" className="btn-modal-primary" onClick={() => submitFormById("form-courier")}>
               {selectedCourier ? t("save_changes") : t("create_courier")}
             </button>
           </>
@@ -5249,7 +5260,7 @@ export default function App() {
             >
               Annuler
             </button>
-            <button type="submit" form="form-category" className="btn-modal-primary">
+            <button type="button" className="btn-modal-primary" onClick={() => submitFormById("form-category")}>
               {selectedCategory ? t("save_changes") : t("create_category")}
             </button>
           </>
@@ -5310,7 +5321,7 @@ export default function App() {
             >
               Annuler
             </button>
-            <button type="submit" form="form-promotion" className="btn-modal-primary">
+            <button type="button" className="btn-modal-primary" onClick={() => submitFormById("form-promotion")}>
               {selectedPromotion ? t("save_changes") : t("create_promotion")}
             </button>
           </>
