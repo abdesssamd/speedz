@@ -870,6 +870,18 @@
     @apply grid gap-4;
   }
 
+  .form-banner {
+    @apply rounded-2xl px-4 py-3 text-sm font-medium border;
+  }
+
+  .error-banner {
+    @apply border-red-200 bg-red-50 text-red-700;
+  }
+
+  .success-banner {
+    @apply border-emerald-200 bg-emerald-50 text-emerald-700;
+  }
+
   .menu-form-shell {
     @apply gap-5;
   }
@@ -955,7 +967,7 @@
   }
 
   .form-section {
-    @apply rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm;
+    @apply rounded-[26px] border border-slate-200 bg-white p-5 shadow-sm;
   }
 
   .dark .form-section {
@@ -963,7 +975,7 @@
   }
 
   .form-section-head {
-    @apply mb-3 grid gap-2;
+    @apply mb-4 grid gap-2;
   }
 
   .form-section-head > h4 {
@@ -997,7 +1009,7 @@
 
   .form-label,
   .field-label {
-    @apply block text-xs font-semibold uppercase tracking-widest text-slate-500;
+    @apply block text-[0.72rem] font-bold uppercase tracking-[0.18em] text-slate-500;
   }
 
   .dark .form-label,
@@ -1007,8 +1019,12 @@
 
   .form-hint,
   .field-hint {
-    @apply block text-xs leading-5 text-slate-400;
+    @apply block text-[0.82rem] leading-5 text-slate-400;
     overflow-wrap: anywhere;
+  }
+
+  .form-field {
+    @apply gap-2;
   }
 
   .error-text {
@@ -1852,7 +1868,7 @@
   /* ─── Form section dark ───────────────────────────────────── */
 
   .dark .form-section {
-    @apply border-slate-800 bg-slate-950/40;
+    @apply border-slate-800 bg-slate-900/80;
   }
 
   /* ─── Inline select dark ──────────────────────────────────── */

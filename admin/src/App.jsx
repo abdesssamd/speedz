@@ -730,8 +730,13 @@ function submitFormById(formId) {
   }
 
   const form = document.getElementById(formId);
-  if (form instanceof HTMLFormElement) {
+  if (form && typeof form.requestSubmit === "function") {
     form.requestSubmit();
+    return;
+  }
+
+  if (form) {
+    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
   }
 }
 
@@ -988,6 +993,7 @@ export default function App() {
   const [menuItemForm, setMenuItemForm] = useState(() => createEmptyMenuItem());
   const [statusMessage, setStatusMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [submittingForm, setSubmittingForm] = useState("");
   const [activeView, setActiveView] = useState("overview");
   const [restaurantSearch, setRestaurantSearch] = useState("");
   const [restaurantStatusFilter, setRestaurantStatusFilter] = useState("ALL");
@@ -1942,10 +1948,13 @@ export default function App() {
 
   async function handleCreateRestaurant(event) {
     event.preventDefault();
+    setSubmittingForm("form-create-restaurant");
     setErrorMessage("");
+    setStatusMessage("");
     const errors = validateRestaurantFormData(restaurantForm);
     setRestaurantCreateErrors(errors);
     if (Object.keys(errors).length) {
+      setSubmittingForm("");
       return;
     }
     try {
@@ -1986,6 +1995,8 @@ export default function App() {
       await loadAdminData();
     } catch (error) {
       setErrorMessage(error.message);
+    } finally {
+      setSubmittingForm("");
     }
   }
 
@@ -1994,10 +2005,13 @@ export default function App() {
     if (!selectedRestaurant) {
       return;
     }
+    setSubmittingForm("form-edit-restaurant-modal");
     setErrorMessage("");
+    setStatusMessage("");
     const errors = validateRestaurantFormData(selectedRestaurant);
     setRestaurantEditErrors(errors);
     if (Object.keys(errors).length) {
+      setSubmittingForm("");
       return;
     }
     try {
@@ -2022,6 +2036,8 @@ export default function App() {
       await loadAdminData();
     } catch (error) {
       setErrorMessage(error.message);
+    } finally {
+      setSubmittingForm("");
     }
   }
 
@@ -2030,10 +2046,13 @@ export default function App() {
     if (!selectedRestaurantId) {
       return;
     }
+    setSubmittingForm("form-menu-item");
     setErrorMessage("");
+    setStatusMessage("");
     const errors = validateMenuItemFormData(menuItemForm);
     setMenuItemErrors(errors);
     if (Object.keys(errors).length) {
+      setSubmittingForm("");
       return;
     }
     try {
@@ -2073,6 +2092,8 @@ export default function App() {
       await loadAdminData();
     } catch (error) {
       setErrorMessage(error.message);
+    } finally {
+      setSubmittingForm("");
     }
   }
 
@@ -2082,10 +2103,13 @@ export default function App() {
       return;
     }
 
+    setSubmittingForm("form-menu-item");
     setErrorMessage("");
+    setStatusMessage("");
     const errors = validateMenuItemFormData(selectedMenuItem);
     setMenuItemErrors(errors);
     if (Object.keys(errors).length) {
+      setSubmittingForm("");
       return;
     }
     try {
@@ -2124,6 +2148,8 @@ export default function App() {
       await loadAdminData();
     } catch (error) {
       setErrorMessage(error.message);
+    } finally {
+      setSubmittingForm("");
     }
   }
 
@@ -4555,6 +4581,7 @@ export default function App() {
             <button
               type="button"
               className="btn-modal-ghost"
+              disabled={submittingForm === "form-create-restaurant"}
               onClick={() => {
                 setRestaurantCreateErrors({});
                 setShowCreateModal(false);
@@ -4562,13 +4589,20 @@ export default function App() {
             >
               Annuler
             </button>
-            <button type="button" className="btn-modal-primary" onClick={() => submitFormById("form-create-restaurant")}>
-              {t("publish_restaurant")}
+            <button
+              type="button"
+              className="btn-modal-primary"
+              disabled={submittingForm === "form-create-restaurant"}
+              onClick={() => submitFormById("form-create-restaurant")}
+            >
+              {submittingForm === "form-create-restaurant" ? "Publication..." : t("publish_restaurant")}
             </button>
           </>
         }
       >
             <form id="form-create-restaurant" onSubmit={handleCreateRestaurant} className="stack compact-stack form-layout">
+              {errorMessage ? <div className="form-banner error-banner">{errorMessage}</div> : null}
+              {statusMessage ? <div className="form-banner success-banner">{statusMessage}</div> : null}
               <FormSection title="Informations principales" hint="Commencez par les informations visibles dans le catalogue.">
                 <div className="split form-grid">
                   <FormField label={t("name")} error={restaurantCreateErrors.name}>
@@ -4851,6 +4885,7 @@ export default function App() {
             <button
               type="button"
               className="btn-modal-ghost"
+              disabled={submittingForm === "form-menu-item"}
               onClick={() => {
                 resetMenuModal();
                 setShowMenuModal(false);
@@ -4858,13 +4893,20 @@ export default function App() {
             >
               Annuler
             </button>
-            <button type="button" className="btn-modal-primary" onClick={() => submitFormById("form-menu-item")}>
-              {isEditingMenuItem ? t("update_dish") : t("add_to_menu")}
+            <button
+              type="button"
+              className="btn-modal-primary"
+              disabled={submittingForm === "form-menu-item"}
+              onClick={() => submitFormById("form-menu-item")}
+            >
+              {submittingForm === "form-menu-item" ? "Enregistrement..." : isEditingMenuItem ? t("update_dish") : t("add_to_menu")}
             </button>
           </>
         }
       >
             <form id="form-menu-item" onSubmit={isEditingMenuItem ? handleUpdateMenuItem : handleAddMenuItem} className="stack compact-stack form-layout menu-form-shell" autoComplete="off">
+              {errorMessage ? <div className="form-banner error-banner">{errorMessage}</div> : null}
+              {statusMessage ? <div className="form-banner success-banner">{statusMessage}</div> : null}
               <div className="menu-form-hero">
                 <div className="menu-form-hero-copy">
                   <span className="menu-form-kicker">{isEditingMenuItem ? "Edition rapide" : "Creation rapide"}</span>
