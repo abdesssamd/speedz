@@ -2588,6 +2588,44 @@ app.put("/api/admin/restaurants/:id", requireAuth, requireAdmin, async (req, res
   res.json(serializeRestaurant(restaurant));
 });
 
+app.post("/api/admin/restaurants/:id/update", requireAuth, requireAdmin, async (req, res) => {
+  const body = req.body || {};
+  const restaurant = await prisma.restaurant.update({
+    where: { id: req.params.id },
+    data: {
+      name: body.name,
+      category: body.category,
+      shortDescription: body.shortDescription,
+      address: body.address,
+      openingHours: body.openingHours,
+      deliveryTime: body.deliveryTime,
+      rating: Number(body.rating || 4.5),
+      reviewCount: Number(body.reviewCount || 0),
+      image: body.image,
+      heroColor: body.heroColor || "#EA580C",
+      latitude: Number(body.coordinates?.latitude || 0),
+      longitude: Number(body.coordinates?.longitude || 0),
+      tags: body.tags || [],
+      pointsPerEuro: Number(body.pointsPerEuro || 10),
+      isActive: body.isActive ?? true,
+      ownerName: body.ownerName || null,
+      ownerEmail: body.ownerEmail || null,
+      ownerPhone: body.ownerPhone || null,
+      validationStatus: body.validationStatus || undefined,
+      billingPlanType: body.billingPlanType || undefined,
+      billingFixedFee: body.billingFixedFee !== undefined ? Number(body.billingFixedFee) : undefined,
+      billingPercentage: body.billingPercentage !== undefined ? Number(body.billingPercentage) : undefined,
+      monthlySubscriptionFee:
+        body.monthlySubscriptionFee !== undefined ? Number(body.monthlySubscriptionFee) : undefined,
+      apiToken: body.apiToken || undefined,
+      qrCodeToken: body.qrCodeToken || undefined,
+      validatedAt: body.validatedAt ? new Date(body.validatedAt) : undefined,
+    },
+    include: { menuItems: true }
+  });
+  res.json(serializeRestaurant(restaurant));
+});
+
 // ─── Suppression restaurant ────────────────────────────────────────────────────
 // Soft-delete : marque le restaurant comme inactif ET supprimé
 // (garde l'historique des commandes intact via Cascade défini dans Prisma)
@@ -2629,6 +2667,44 @@ app.delete("/api/admin/restaurants/:id", requireAuth, requireAdmin, async (req, 
     return res.status(200).json({ deleted: true, hard: false, id: updated.id });
   } catch (error) {
     console.error("DELETE /api/admin/restaurants/:id", error);
+    return res.status(500).json({ error: "Erreur lors de la suppression." });
+  }
+});
+
+app.post("/api/admin/restaurants/:id/delete", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const hard = req.body?.hard === true;
+    const activeOrders = await prisma.order.count({
+      where: {
+        restaurantId: id,
+        status: { in: ["Pending", "Confirmed", "Preparing", "ReadyForPickup", "OnTheWay"] },
+      },
+    });
+
+    if (activeOrders > 0) {
+      return res.status(409).json({
+        error: `Impossible de supprimer : ${activeOrders} commande(s) active(s) en cours.`,
+        activeOrders,
+      });
+    }
+
+    if (hard) {
+      await prisma.restaurant.delete({ where: { id } });
+      return res.status(200).json({ deleted: true, hard: true });
+    }
+
+    const updated = await prisma.restaurant.update({
+      where: { id },
+      data: {
+        isActive: false,
+        validationStatus: "REJECTED",
+      },
+    });
+
+    return res.status(200).json({ deleted: true, hard: false, id: updated.id });
+  } catch (error) {
+    console.error("POST /api/admin/restaurants/:id/delete", error);
     return res.status(500).json({ error: "Erreur lors de la suppression." });
   }
 });
@@ -2677,7 +2753,35 @@ app.put("/api/admin/menu-items/:id", requireAuth, requireAdmin, async (req, res)
   res.json(item);
 });
 
+app.post("/api/admin/menu-items/:id/update", requireAuth, requireAdmin, async (req, res) => {
+  const body = req.body || {};
+  const item = await prisma.menuItem.update({
+    where: { id: req.params.id },
+    data: {
+      name: body.name,
+      description: body.description,
+      price: Number(body.price),
+      category: body.category,
+      image: body.image,
+      badge: body.badge || null,
+      calories: body.calories ? Number(body.calories) : null,
+      stock: Number(body.stock || 0),
+      isAvailable: body.isAvailable ?? true,
+      options: body.options || []
+    }
+  });
+  res.json(item);
+});
+
 app.patch("/api/admin/menu-items/:id/stock", requireAuth, requireAdmin, async (req, res) => {
+  const item = await prisma.menuItem.update({
+    where: { id: req.params.id },
+    data: { stock: Number(req.body?.stock || 0) }
+  });
+  res.json(item);
+});
+
+app.post("/api/admin/menu-items/:id/stock/update", requireAuth, requireAdmin, async (req, res) => {
   const item = await prisma.menuItem.update({
     where: { id: req.params.id },
     data: { stock: Number(req.body?.stock || 0) }
@@ -2693,12 +2797,28 @@ app.patch("/api/admin/menu-items/:id/availability", requireAuth, requireAdmin, a
   res.json(item);
 });
 
+app.post("/api/admin/menu-items/:id/availability/update", requireAuth, requireAdmin, async (req, res) => {
+  const item = await prisma.menuItem.update({
+    where: { id: req.params.id },
+    data: { isAvailable: Boolean(req.body?.isAvailable) }
+  });
+  res.json(item);
+});
+
 app.delete("/api/admin/menu-items/:id", requireAuth, requireAdmin, async (req, res) => {
   await prisma.menuItem.update({
     where: { id: req.params.id },
     data: { deletedAt: new Date() }
   });
   res.status(204).send();
+});
+
+app.post("/api/admin/menu-items/:id/delete", requireAuth, requireAdmin, async (req, res) => {
+  await prisma.menuItem.update({
+    where: { id: req.params.id },
+    data: { deletedAt: new Date() }
+  });
+  res.status(200).json({ deleted: true });
 });
 
 app.get("/api/admin/menu-categories", requireAuth, requireAdmin, async (_req, res) => {
@@ -2787,6 +2907,80 @@ app.patch("/api/admin/applications/:id", requireAuth, requireAdmin, async (req, 
   res.json(updatedApplication);
 });
 
+app.post("/api/admin/applications/:id/update", requireAuth, requireAdmin, async (req, res) => {
+  const applications = readPartnerApplications();
+  const index = applications.findIndex((item) => item.id === req.params.id);
+
+  if (index === -1) {
+    res.status(404).json({ message: "Demande introuvable." });
+    return;
+  }
+
+  const nextStatus = req.body?.status || applications[index].status;
+  let updatedApplication = {
+    ...applications[index],
+    status: nextStatus,
+    reviewedAt: new Date().toISOString(),
+  };
+
+  if (nextStatus === "ACCEPTED") {
+    updatedApplication = await ensureApplicationEntity(updatedApplication);
+    if (updatedApplication.linkedEntityType === "RESTAURANT" && updatedApplication.linkedEntityId) {
+      const generatedApiToken = updatedApplication.generatedApiToken || generateOpaqueToken("fdrest");
+      const qrCodeToken = updatedApplication.qrCodeToken || generateOpaqueToken("qr");
+      const restaurant = await prisma.restaurant.update({
+        where: { id: updatedApplication.linkedEntityId },
+        data: {
+          validationStatus: "VALIDATED",
+          ownerName: updatedApplication.applicantName,
+          ownerEmail: updatedApplication.email,
+          ownerPhone: updatedApplication.phone,
+          billingPlanType: updatedApplication.billingPlanType || "FIXED_PER_ORDER",
+          billingFixedFee:
+            updatedApplication.billingFixedFee !== null && updatedApplication.billingFixedFee !== undefined
+              ? Number(updatedApplication.billingFixedFee)
+              : null,
+          billingPercentage:
+            updatedApplication.billingPercentage !== null && updatedApplication.billingPercentage !== undefined
+              ? Number(updatedApplication.billingPercentage)
+              : null,
+          monthlySubscriptionFee:
+            updatedApplication.monthlySubscriptionFee !== null &&
+            updatedApplication.monthlySubscriptionFee !== undefined
+              ? Number(updatedApplication.monthlySubscriptionFee)
+              : null,
+          apiToken: generatedApiToken,
+          qrCodeToken,
+          validatedAt: new Date(),
+        }
+      });
+
+      updatedApplication = {
+        ...updatedApplication,
+        generatedApiToken,
+        qrCodeToken,
+        qrCodeUrl: getRestaurantQrLandingUrl(qrCodeToken),
+        linkedEntityLabel: restaurant.name,
+      };
+    }
+  }
+
+  if (nextStatus === "REJECTED" && updatedApplication.linkedEntityType === "RESTAURANT" && updatedApplication.linkedEntityId) {
+    await prisma.restaurant.update({
+      where: { id: updatedApplication.linkedEntityId },
+      data: { validationStatus: "REJECTED" }
+    });
+  }
+
+  if (applications[index].status !== nextStatus && (nextStatus === "ACCEPTED" || nextStatus === "REJECTED")) {
+    await queueApplicationEmail(updatedApplication, nextStatus);
+  }
+
+  applications[index] = updatedApplication;
+  writePartnerApplications(applications);
+  res.json(updatedApplication);
+});
+
 app.post("/api/admin/applications/:id/activate-restaurant", requireAuth, requireAdmin, async (req, res) => {
   const applications = readPartnerApplications();
   const application = applications.find((item) => item.id === req.params.id);
@@ -2834,6 +3028,19 @@ app.patch("/api/admin/menu-categories/:id", requireAuth, requireAdmin, async (re
   res.json(serializeMenuCategory(category));
 });
 
+app.post("/api/admin/menu-categories/:id/update", requireAuth, requireAdmin, async (req, res) => {
+  const body = req.body || {};
+  const category = await prisma.menuCategory.update({
+    where: { id: req.params.id },
+    data: {
+      name: body.name,
+      sortOrder: Number(body.sortOrder || 0),
+      isActive: body.isActive ?? true,
+    }
+  });
+  res.json(serializeMenuCategory(category));
+});
+
 app.delete("/api/admin/menu-categories/:id", requireAuth, requireAdmin, async (req, res) => {
   const category = await prisma.menuCategory.findUnique({
     where: { id: req.params.id }
@@ -2863,6 +3070,35 @@ app.delete("/api/admin/menu-categories/:id", requireAuth, requireAdmin, async (r
   res.status(204).send();
 });
 
+app.post("/api/admin/menu-categories/:id/delete", requireAuth, requireAdmin, async (req, res) => {
+  const category = await prisma.menuCategory.findUnique({
+    where: { id: req.params.id }
+  });
+
+  if (!category) {
+    res.status(404).json({ message: "Categorie introuvable." });
+    return;
+  }
+
+  const linkedItems = await prisma.menuItem.count({
+    where: {
+      category: category.name,
+      deletedAt: null,
+    }
+  });
+
+  if (linkedItems > 0) {
+    res.status(400).json({ message: "Impossible de supprimer une categorie utilisee par des plats." });
+    return;
+  }
+
+  await prisma.menuCategory.delete({
+    where: { id: req.params.id }
+  });
+
+  res.status(200).json({ deleted: true });
+});
+
 app.get("/api/admin/customers", requireAuth, requireAdmin, async (_req, res) => {
   const customers = await prisma.user.findMany({
     where: { role: "CUSTOMER" },
@@ -2877,6 +3113,25 @@ app.get("/api/admin/customers", requireAuth, requireAdmin, async (_req, res) => 
 });
 
 app.patch("/api/admin/customers/:id", requireAuth, requireAdmin, async (req, res) => {
+  const customer = await prisma.user.update({
+    where: { id: req.params.id },
+    data: {
+      name: req.body?.name,
+      email: req.body?.email,
+      phone: req.body?.phone,
+      defaultAddress: req.body?.defaultAddress,
+      isActive: req.body?.isActive
+    },
+    include: {
+      orders: true,
+      loyaltyEntries: true,
+      favorites: true
+    }
+  });
+  res.json(serializeCustomer(customer));
+});
+
+app.post("/api/admin/customers/:id/update", requireAuth, requireAdmin, async (req, res) => {
   const customer = await prisma.user.update({
     where: { id: req.params.id },
     data: {
@@ -2940,6 +3195,25 @@ app.patch("/api/admin/couriers/:id", requireAuth, requireAdmin, async (req, res)
   res.json(serializeCourier(courier));
 });
 
+app.post("/api/admin/couriers/:id/update", requireAuth, requireAdmin, async (req, res) => {
+  const courier = await prisma.courier.update({
+    where: { id: req.params.id },
+    data: {
+      name: req.body?.name,
+      phone: req.body?.phone,
+      vehicle: req.body?.vehicle,
+      status: req.body?.status,
+      payPerDelivery: req.body?.payPerDelivery !== undefined ? Number(req.body.payPerDelivery) : undefined,
+      payPerKm: req.body?.payPerKm !== undefined ? Number(req.body.payPerKm) : undefined,
+      zoneLabel: req.body?.zoneLabel || null,
+      currentLat: req.body?.currentLat !== undefined ? Number(req.body.currentLat) : undefined,
+      currentLng: req.body?.currentLng !== undefined ? Number(req.body.currentLng) : undefined
+    },
+    include: { orders: true }
+  });
+  res.json(serializeCourier(courier));
+});
+
 app.get("/api/admin/promotions", requireAuth, requireAdmin, async (_req, res) => {
   const promotions = await prisma.promotion.findMany({
     include: { orders: true },
@@ -2968,6 +3242,26 @@ app.post("/api/admin/promotions", requireAuth, requireAdmin, async (req, res) =>
 });
 
 app.patch("/api/admin/promotions/:id", requireAuth, requireAdmin, async (req, res) => {
+  const promotion = await prisma.promotion.update({
+    where: { id: req.params.id },
+    data: {
+      code: req.body?.code,
+      title: req.body?.title,
+      description: req.body?.description || null,
+      type: req.body?.type,
+      value: req.body?.value !== undefined ? Number(req.body.value) : undefined,
+      minOrderTotal: req.body?.minOrderTotal !== undefined ? Number(req.body.minOrderTotal) : undefined,
+      isActive: req.body?.isActive,
+      startsAt: req.body?.startsAt ? new Date(req.body.startsAt) : undefined,
+      endsAt: req.body?.endsAt ? new Date(req.body.endsAt) : undefined,
+      restaurantId: req.body?.restaurantId || null
+    },
+    include: { orders: true }
+  });
+  res.json(serializePromotion(promotion));
+});
+
+app.post("/api/admin/promotions/:id/update", requireAuth, requireAdmin, async (req, res) => {
   const promotion = await prisma.promotion.update({
     where: { id: req.params.id },
     data: {
@@ -3036,7 +3330,53 @@ app.patch("/api/admin/orders/:id/status", requireAuth, requireAdmin, async (req,
   res.json(serializeOrder(order));
 });
 
+app.post("/api/admin/orders/:id/status/update", requireAuth, requireAdmin, async (req, res) => {
+  const { status, reason } = req.body || {};
+  if (!status) {
+    res.status(400).json({ message: "Statut requis." });
+    return;
+  }
+
+  const existingOrder = await prisma.order.findUnique({
+    where: { id: req.params.id }
+  });
+
+  if (!existingOrder) {
+    res.status(404).json({ message: "Commande introuvable." });
+    return;
+  }
+
+  const noteSuffix = reason ? `Annulation admin: ${String(reason).trim()}` : null;
+  const nextNotes = noteSuffix
+    ? [existingOrder.notes, noteSuffix].filter(Boolean).join(" | ")
+    : existingOrder.notes;
+
+  const order = await prisma.order.update({
+    where: { id: req.params.id },
+    data: {
+      status: normalizeStatus(status),
+      notes: nextNotes
+    },
+    include: { restaurant: true, courier: true }
+  });
+  await emitOrderRealtime(order.id, "order/status-updated");
+  res.json(serializeOrder(order));
+});
+
 app.patch("/api/admin/orders/:id/assign-courier", requireAuth, requireAdmin, async (req, res) => {
+  const order = await prisma.order.update({
+    where: { id: req.params.id },
+    data: { courierId: req.body?.courierId || null },
+    include: { restaurant: true, courier: true }
+  });
+  await emitOrderRealtime(order.id, "order/courier-assigned");
+  if (order.courierId) {
+    await emitCourierRealtime(order.courierId);
+  }
+  res.json(serializeOrder(order));
+});
+
+app.post("/api/admin/orders/:id/assign-courier/update", requireAuth, requireAdmin, async (req, res) => {
   const order = await prisma.order.update({
     where: { id: req.params.id },
     data: { courierId: req.body?.courierId || null },

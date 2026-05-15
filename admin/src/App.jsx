@@ -2017,9 +2017,9 @@ export default function App() {
     try {
       const uploadedImageUrl = await uploadImage(restaurantImageFile);
       await apiRequest(
-        `/api/admin/restaurants/${selectedRestaurant.id}`,
+        `/api/admin/restaurants/${selectedRestaurant.id}/update`,
         {
-          method: "PUT",
+          method: "POST",
           body: JSON.stringify({
             ...selectedRestaurant,
             image: uploadedImageUrl || selectedRestaurant.image,
@@ -2115,9 +2115,9 @@ export default function App() {
     try {
       const uploadedImageUrl = await uploadImage(menuImageFile);
       await apiRequest(
-        `/api/admin/menu-items/${selectedMenuItem.id}`,
+        `/api/admin/menu-items/${selectedMenuItem.id}/update`,
         {
-          method: "PUT",
+          method: "POST",
           body: JSON.stringify({
             ...selectedMenuItem,
             image: uploadedImageUrl || selectedMenuItem.image,
@@ -2157,9 +2157,9 @@ export default function App() {
     setErrorMessage("");
     try {
       await apiRequest(
-        `/api/admin/orders/${orderId}/status`,
+        `/api/admin/orders/${orderId}/status/update`,
         {
-          method: "PATCH",
+          method: "POST",
           body: JSON.stringify({ status }),
         },
         token
@@ -2179,9 +2179,9 @@ export default function App() {
 
     try {
       await apiRequest(
-        `/api/admin/orders/${order.id}/status`,
+        `/api/admin/orders/${order.id}/status/update`,
         {
-          method: "PATCH",
+          method: "POST",
           body: JSON.stringify({ status: "Cancelled", reason }),
         },
         token
@@ -2254,8 +2254,8 @@ export default function App() {
   async function handleMenuStock(itemId, stock) {
     try {
       await apiRequest(
-        `/api/admin/menu-items/${itemId}/stock`,
-        { method: "PATCH", body: JSON.stringify({ stock }) },
+        `/api/admin/menu-items/${itemId}/stock/update`,
+        { method: "POST", body: JSON.stringify({ stock }) },
         token
       );
       await loadAdminData();
@@ -2267,8 +2267,8 @@ export default function App() {
   async function handleMenuAvailability(itemId, isAvailable) {
     try {
       await apiRequest(
-        `/api/admin/menu-items/${itemId}/availability`,
-        { method: "PATCH", body: JSON.stringify({ isAvailable }) },
+        `/api/admin/menu-items/${itemId}/availability/update`,
+        { method: "POST", body: JSON.stringify({ isAvailable }) },
         token
       );
       await loadAdminData();
@@ -2279,7 +2279,7 @@ export default function App() {
 
   async function handleDeleteMenuItem(itemId) {
     try {
-      await apiRequest(`/api/admin/menu-items/${itemId}`, { method: "DELETE" }, token);
+      await apiRequest(`/api/admin/menu-items/${itemId}/delete`, { method: "POST" }, token);
       setStatusMessage("Plat archive.");
       setShowDeleteMenuItemModal(false);
       setDeleteMenuItemTarget(null);
@@ -2292,8 +2292,8 @@ export default function App() {
   async function handleDeleteRestaurant(restaurantId, hard = false) {
     try {
       setIsDeletingRestaurant(true);
-      const url = `/api/admin/restaurants/${restaurantId}${hard ? "?hard=true" : ""}`;
-      await apiRequest(url, { method: "DELETE" }, token);
+      const url = `/api/admin/restaurants/${restaurantId}/delete`;
+      await apiRequest(url, { method: "POST", body: JSON.stringify({ hard }) }, token);
       setShowDeleteRestaurantModal(false);
       setDeleteRestaurantTarget(null);
       setSelectedRestaurantId("");
@@ -2309,9 +2309,9 @@ export default function App() {
   async function handleCustomerToggle(customer) {
     try {
       await apiRequest(
-        `/api/admin/customers/${customer.id}`,
+        `/api/admin/customers/${customer.id}/update`,
         {
-          method: "PATCH",
+          method: "POST",
           body: JSON.stringify({ ...customer, isActive: !customer.isActive }),
         },
         token
@@ -2325,9 +2325,9 @@ export default function App() {
   async function handleCourierStatus(courier, status) {
     try {
       await apiRequest(
-        `/api/admin/couriers/${courier.id}`,
+        `/api/admin/couriers/${courier.id}/update`,
         {
-          method: "PATCH",
+          method: "POST",
           body: JSON.stringify({ ...courier, status }),
         },
         token
@@ -2376,9 +2376,9 @@ export default function App() {
 
     try {
       await apiRequest(
-        `/api/admin/couriers/${selectedCourier.id}`,
+        `/api/admin/couriers/${selectedCourier.id}/update`,
         {
-          method: "PATCH",
+          method: "POST",
           body: JSON.stringify({
             ...selectedCourier,
             currentLat: selectedCourier.currentLat !== "" ? Number(selectedCourier.currentLat) : null,
@@ -2437,9 +2437,9 @@ export default function App() {
     }
     try {
       await apiRequest(
-        `/api/admin/menu-categories/${category.id}`,
+        `/api/admin/menu-categories/${category.id}/update`,
         {
-          method: "PATCH",
+          method: "POST",
           body: JSON.stringify(payload),
         },
         token
@@ -2469,7 +2469,7 @@ export default function App() {
 
   async function handleDeleteMenuCategory(categoryId) {
     try {
-      await apiRequest(`/api/admin/menu-categories/${categoryId}`, { method: "DELETE" }, token);
+      await apiRequest(`/api/admin/menu-categories/${categoryId}/delete`, { method: "POST" }, token);
       setStatusMessage("Categorie supprimee.");
       setDeleteCategoryTarget(null);
       await loadAdminData();
@@ -2481,9 +2481,9 @@ export default function App() {
   async function handleApplicationStatus(applicationId, status) {
     try {
       await apiRequest(
-        `/api/admin/applications/${applicationId}`,
+        `/api/admin/applications/${applicationId}/update`,
         {
-          method: "PATCH",
+          method: "POST",
           body: JSON.stringify({ status }),
         },
         token
@@ -2533,8 +2533,8 @@ export default function App() {
   async function handleAssignCourier(orderId, courierId) {
     try {
       await apiRequest(
-        `/api/admin/orders/${orderId}/assign-courier`,
-        { method: "PATCH", body: JSON.stringify({ courierId }) },
+        `/api/admin/orders/${orderId}/assign-courier/update`,
+        { method: "POST", body: JSON.stringify({ courierId }) },
         token
       );
       await loadAdminData();
@@ -2586,9 +2586,9 @@ export default function App() {
 
     try {
       await apiRequest(
-        `/api/admin/promotions/${selectedPromotion.id}`,
+        `/api/admin/promotions/${selectedPromotion.id}/update`,
         {
-          method: "PATCH",
+          method: "POST",
           body: JSON.stringify({
             ...selectedPromotion,
             value: Number(selectedPromotion.value || 0),
