@@ -425,6 +425,13 @@ const emptyMenuItem = {
   options: [],
 };
 
+function createEmptyMenuItem() {
+  return {
+    ...emptyMenuItem,
+    options: [],
+  };
+}
+
 const orderStatuses = ["Confirmed", "Preparing", "On the way", "Delivered", "Cancelled"];
 const TABLE_PAGE_SIZE = 6;
 const TABLE_PAGE_SIZES = [6, 10, 20];
@@ -967,7 +974,7 @@ export default function App() {
   const [liveInbox, setLiveInbox] = useState({ orders: 0, applications: 0 });
   const [selectedRestaurantId, setSelectedRestaurantId] = useState("");
   const [restaurantForm, setRestaurantForm] = useState(emptyRestaurant);
-  const [menuItemForm, setMenuItemForm] = useState(emptyMenuItem);
+  const [menuItemForm, setMenuItemForm] = useState(() => createEmptyMenuItem());
   const [statusMessage, setStatusMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [activeView, setActiveView] = useState("overview");
@@ -1177,6 +1184,8 @@ export default function App() {
       `${courier.name} ${courier.phone} ${courier.vehicle} ${courier.zoneLabel || ""}`.toLowerCase().includes(query)
     );
   }, [courierQuery, couriers]);
+  const isEditingMenuItem = Boolean(selectedMenuItem);
+  const currentMenuDraft = selectedMenuItem ?? menuItemForm;
 
   const filteredCouriersByStatus = useMemo(() => {
     if (courierStatusFilter === "ALL") return filteredCouriers;
@@ -2044,7 +2053,7 @@ export default function App() {
         },
         token
       );
-      setMenuItemForm(emptyMenuItem);
+      setMenuItemForm(createEmptyMenuItem());
       setMenuImageFile(null);
       setSelectedMenuItem(null);
       setStatusMessage("Plat ajoute.");
@@ -2756,6 +2765,40 @@ export default function App() {
     );
   }
 
+  function resetMenuModal() {
+    setSelectedMenuItem(null);
+    setMenuItemForm(createEmptyMenuItem());
+    setMenuImageFile(null);
+    setMenuItemErrors({});
+  }
+
+  function openCreateMenuModal() {
+    resetMenuModal();
+    setShowMenuModal(true);
+  }
+
+  function openEditMenuModal(item) {
+    setSelectedMenuItem({
+      ...item,
+      options: (item.options || []).map((group) => ({
+        ...group,
+        choices: [...(group.choices || [])],
+      })),
+    });
+    setMenuImageFile(null);
+    setMenuItemErrors({});
+    setShowMenuModal(true);
+  }
+
+  function updateMenuDraft(field, value) {
+    if (selectedMenuItem) {
+      setSelectedMenuItem((current) => (current ? { ...current, [field]: value } : current));
+      return;
+    }
+
+    setMenuItemForm((current) => ({ ...current, [field]: value }));
+  }
+
   if (!token) {
     return (
       <main className="auth-shell" dir={isRTL ? "rtl" : "ltr"}>
@@ -3074,13 +3117,7 @@ export default function App() {
                               <button
                                 type="button"
                                 className="btn-toolbar-accent"
-                                onClick={() => {
-                                  setSelectedMenuItem(null);
-                                  setMenuItemForm(emptyMenuItem);
-                                  setMenuImageFile(null);
-                                  setMenuItemErrors({});
-                                  setShowMenuModal(true);
-                                }}
+                                onClick={openCreateMenuModal}
                               >
                                 <Plus size={14} />
                                 {t("new_dish")}
@@ -3109,18 +3146,7 @@ export default function App() {
                                 <button
                                   type="button"
                                   className="btn-toolbar-ghost"
-                                  onClick={() => {
-                                    setSelectedMenuItem({
-                                      ...item,
-                                      options: (item.options || []).map((group) => ({
-                                        ...group,
-                                        choices: [...(group.choices || [])],
-                                      })),
-                                    });
-                                    setMenuImageFile(null);
-                                    setMenuItemErrors({});
-                                    setShowMenuModal(true);
-                                  }}
+                                  onClick={() => openEditMenuModal(item)}
                                 >
                                   <Edit3 size={14} />
                                   {t("edit")}
@@ -4801,48 +4827,42 @@ export default function App() {
 
       <AdminDialog
         open={showMenuModal}
-        title={selectedMenuItem ? t("edit_dish") : t("new_dish")}
+        title={isEditingMenuItem ? t("edit_dish") : t("new_dish")}
         subtitle="Edition du menu sans quitter la fiche restaurant."
         onClose={() => {
-          setMenuItemErrors({});
+          resetMenuModal();
           setShowMenuModal(false);
         }}
         size="lg"
       >
-            <form id="form-menu-item" onSubmit={selectedMenuItem ? handleUpdateMenuItem : handleAddMenuItem} className="stack compact-stack form-layout">
-              <FormSection title="Informations du plat" hint="Les champs principaux sont regroupes pour une saisie plus fluide.">
+            <form id="form-menu-item" onSubmit={isEditingMenuItem ? handleUpdateMenuItem : handleAddMenuItem} className="stack compact-stack form-layout" autoComplete="off">
+              <FormSection title="Informations du plat" hint="Chaque champ reste independant pour une saisie plus propre.">
                 <FormField label={t("dish_name")} error={menuItemErrors.name}>
                   <input
-                    value={selectedMenuItem ? selectedMenuItem.name : menuItemForm.name}
-                    onChange={(event) =>
-                      selectedMenuItem
-                        ? setSelectedMenuItem({ ...selectedMenuItem, name: event.target.value })
-                        : setMenuItemForm({ ...menuItemForm, name: event.target.value })
-                    }
+                    name="menu_item_name"
+                    autoComplete="off"
+                    value={currentMenuDraft.name}
+                    onChange={(event) => updateMenuDraft("name", event.target.value)}
                     placeholder="Burger signature"
                     required
                   />
                 </FormField>
                 <FormField label={t("description")} hint="Quelques mots pour donner envie et preciser les ingredients.">
                   <textarea
-                    value={selectedMenuItem ? selectedMenuItem.description : menuItemForm.description}
-                    onChange={(event) =>
-                      selectedMenuItem
-                        ? setSelectedMenuItem({ ...selectedMenuItem, description: event.target.value })
-                        : setMenuItemForm({ ...menuItemForm, description: event.target.value })
-                    }
+                    name="menu_item_description"
+                    autoComplete="off"
+                    value={currentMenuDraft.description}
+                    onChange={(event) => updateMenuDraft("description", event.target.value)}
                     placeholder="Pain artisanal, steak grille, cheddar fondu et sauce maison."
                   />
                 </FormField>
                 <div className="split form-grid">
                   <FormField label={t("price")} hint="Exemple: 1250" error={menuItemErrors.price}>
                     <input
-                      value={selectedMenuItem ? selectedMenuItem.price : menuItemForm.price}
-                      onChange={(event) =>
-                        selectedMenuItem
-                          ? setSelectedMenuItem({ ...selectedMenuItem, price: event.target.value })
-                          : setMenuItemForm({ ...menuItemForm, price: event.target.value })
-                      }
+                      name="menu_item_price"
+                      autoComplete="off"
+                      value={currentMenuDraft.price}
+                      onChange={(event) => updateMenuDraft("price", event.target.value)}
                       placeholder="1250"
                       inputMode="decimal"
                       required
@@ -4850,12 +4870,9 @@ export default function App() {
                   </FormField>
                   <FormField label={t("dish_category")} error={menuItemErrors.category}>
                     <select
-                      value={selectedMenuItem ? selectedMenuItem.category : menuItemForm.category}
-                      onChange={(event) =>
-                        selectedMenuItem
-                          ? setSelectedMenuItem({ ...selectedMenuItem, category: event.target.value })
-                          : setMenuItemForm({ ...menuItemForm, category: event.target.value })
-                      }
+                      name="menu_item_category"
+                      value={currentMenuDraft.category}
+                      onChange={(event) => updateMenuDraft("category", event.target.value)}
                     >
                       {availableMealCategories.map((category) => (
                         <option key={category} value={category}>
@@ -4870,23 +4887,19 @@ export default function App() {
                 <div className="split form-grid">
                   <FormField label={t("badge")} hint="Exemple: Best seller">
                     <input
-                      value={selectedMenuItem ? selectedMenuItem.badge || "" : menuItemForm.badge}
-                      onChange={(event) =>
-                        selectedMenuItem
-                          ? setSelectedMenuItem({ ...selectedMenuItem, badge: event.target.value })
-                          : setMenuItemForm({ ...menuItemForm, badge: event.target.value })
-                      }
+                      name="menu_item_badge"
+                      autoComplete="off"
+                      value={currentMenuDraft.badge || ""}
+                      onChange={(event) => updateMenuDraft("badge", event.target.value)}
                       placeholder="Best seller"
                     />
                   </FormField>
                   <FormField label={t("calories")} hint="Optionnel" error={menuItemErrors.calories}>
                     <input
-                      value={selectedMenuItem ? selectedMenuItem.calories || "" : menuItemForm.calories}
-                      onChange={(event) =>
-                        selectedMenuItem
-                          ? setSelectedMenuItem({ ...selectedMenuItem, calories: event.target.value })
-                          : setMenuItemForm({ ...menuItemForm, calories: event.target.value })
-                      }
+                      name="menu_item_calories"
+                      autoComplete="off"
+                      value={currentMenuDraft.calories || ""}
+                      onChange={(event) => updateMenuDraft("calories", event.target.value)}
                       placeholder="780"
                     />
                   </FormField>
@@ -4894,12 +4907,10 @@ export default function App() {
                 <div className="split form-grid">
                   <FormField label={t("in_stock")} error={menuItemErrors.stock}>
                     <input
-                      value={selectedMenuItem ? selectedMenuItem.stock || 0 : menuItemForm.stock}
-                      onChange={(event) =>
-                        selectedMenuItem
-                          ? setSelectedMenuItem({ ...selectedMenuItem, stock: event.target.value })
-                          : setMenuItemForm({ ...menuItemForm, stock: event.target.value })
-                      }
+                      name="menu_item_stock"
+                      autoComplete="off"
+                      value={currentMenuDraft.stock || 0}
+                      onChange={(event) => updateMenuDraft("stock", event.target.value)}
                       placeholder="25"
                       type="number"
                     />
@@ -4908,12 +4919,8 @@ export default function App() {
                     <label className="toggle-inline toggle-card">
                       <input
                         type="checkbox"
-                        checked={selectedMenuItem ? Boolean(selectedMenuItem.isAvailable) : Boolean(menuItemForm.isAvailable)}
-                        onChange={(event) =>
-                          selectedMenuItem
-                            ? setSelectedMenuItem({ ...selectedMenuItem, isAvailable: event.target.checked })
-                            : setMenuItemForm({ ...menuItemForm, isAvailable: event.target.checked })
-                        }
+                        checked={Boolean(currentMenuDraft.isAvailable)}
+                        onChange={(event) => updateMenuDraft("isAvailable", event.target.checked)}
                       />
                       <span>{t("availability")}</span>
                     </label>
@@ -4924,18 +4931,15 @@ export default function App() {
                 </FormField>
                 <FormField label="URL image plat" hint="URL externe ou asset uploadé.">
                   <input
-                    value={selectedMenuItem ? selectedMenuItem.image || "" : menuItemForm.image}
-                    onChange={(event) =>
-                      selectedMenuItem
-                        ? setSelectedMenuItem({ ...selectedMenuItem, image: event.target.value })
-                        : setMenuItemForm({ ...menuItemForm, image: event.target.value })
-                    }
+                    name="menu_item_image"
+                    autoComplete="off"
+                    value={currentMenuDraft.image || ""}
+                    onChange={(event) => updateMenuDraft("image", event.target.value)}
                     placeholder="https://.../dish.jpg"
                   />
                 </FormField>
               </FormSection>
-              {selectedMenuItem?.image ? <img src={selectedMenuItem.image} alt={selectedMenuItem.name} className="menu-preview-image" /> : null}
-              {!selectedMenuItem?.image && menuItemForm.image ? <img src={menuItemForm.image} alt="Apercu plat" className="menu-preview-image" /> : null}
+              {currentMenuDraft.image ? <img src={currentMenuDraft.image} alt={currentMenuDraft.name || "Apercu plat"} className="menu-preview-image" /> : null}
               {menuImageFile ? <p className="upload-hint">{menuImageFile.name}</p> : null}
                 <div className="option-editor">
                   <div className="option-editor-head">
@@ -4949,7 +4953,7 @@ export default function App() {
                     </button>
                   </div>
                   <p className="field-hint">{t("option_config_hint")}</p>
-                  {(selectedMenuItem ? selectedMenuItem.options || [] : menuItemForm.options || []).map((group) => (
+                  {(currentMenuDraft.options || []).map((group) => (
                   <div key={group.id} className="option-group-card">
                     <div className="split">
                       <input
