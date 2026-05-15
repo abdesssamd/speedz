@@ -3,6 +3,7 @@ import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Image, Linking, Platform, SafeAreaView, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppProvider } from "./src/context/AppContext";
 import { AppNavigator } from "./src/navigation/AppNavigator";
 import { api } from "./src/services/api";
@@ -90,38 +91,40 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <AppProvider>
-        <StatusBar style="dark" />
-        {isCheckingUpdate ? (
-          <SafeAreaView style={styles.updateScreen}>
-            <View style={styles.updateCard}>
-              <Image source={brandLogo} style={styles.updateLogo} resizeMode="contain" />
-              <ActivityIndicator size="large" color="#F97316" />
-              <Text style={styles.updateTitle}>Verification de la version</Text>
-              <Text style={styles.updateText}>Nous controlons si une mise a jour Android obligatoire est disponible.</Text>
-            </View>
-          </SafeAreaView>
-        ) : showForceUpdate ? (
-          <SafeAreaView style={styles.updateScreen}>
-            <View style={styles.updateCard}>
-              <Image source={brandLogo} style={styles.updateLogo} resizeMode="contain" />
-              <Text style={styles.updateBadge}>Force Update</Text>
-              <Text style={styles.updateTitle}>Mise a jour obligatoire</Text>
-              <Text style={styles.updateText}>
-                {forceUpdateState?.message ||
-                  `Une version plus recente est disponible sur le Play Store. Version minimum: ${forceUpdateState?.minimumVersion}.`}
-              </Text>
-              <Text style={styles.updateMeta}>Version installee: {getCurrentAppVersion()}</Text>
-              <Text style={styles.updateMeta}>Version requise: {forceUpdateState?.latestVersion}</Text>
-              <Text onPress={() => void handleOpenStore()} style={styles.updateButton}>
-                Mettre a jour maintenant
-              </Text>
-            </View>
-          </SafeAreaView>
-        ) : (
-          <AppNavigator />
-        )}
-      </AppProvider>
+      <SafeAreaProvider>
+        <AppProvider>
+          <StatusBar style="dark" />
+          {isCheckingUpdate ? (
+            <SafeAreaView style={styles.updateScreen}>
+              <View style={styles.updateCard}>
+                <Image source={brandLogo} style={styles.updateLogo} resizeMode="contain" />
+                <ActivityIndicator size="large" color="#F97316" />
+                <Text style={styles.updateTitle}>Verification de la version</Text>
+                <Text style={styles.updateText}>Nous controlons si une mise a jour Android obligatoire est disponible.</Text>
+              </View>
+            </SafeAreaView>
+          ) : showForceUpdate ? (
+            <SafeAreaView style={styles.updateScreen}>
+              <View style={styles.updateCard}>
+                <Image source={brandLogo} style={styles.updateLogo} resizeMode="contain" />
+                <Text style={styles.updateBadge}>Force Update</Text>
+                <Text style={styles.updateTitle}>Mise a jour obligatoire</Text>
+                <Text style={styles.updateText}>
+                  {forceUpdateState?.message ||
+                    `Une version plus recente est disponible sur le Play Store. Version minimum: ${forceUpdateState?.minimumVersion}.`}
+                </Text>
+                <Text style={styles.updateMeta}>Version installee: {getCurrentAppVersion()}</Text>
+                <Text style={styles.updateMeta}>Version requise: {forceUpdateState?.latestVersion}</Text>
+                <Text onPress={() => void handleOpenStore()} style={styles.updateButton}>
+                  Mettre a jour maintenant
+                </Text>
+              </View>
+            </SafeAreaView>
+          ) : (
+            <AppNavigator />
+          )}
+        </AppProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

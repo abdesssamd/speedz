@@ -15,7 +15,7 @@ export default function PanicModeButton({ restaurantId, onToggle = () => {} }) {
   }
 
   return (
-    <button className="danger-outline rounded-xl px-3 py-2 text-sm" onClick={toggle} disabled={loading}>
+    <button type="button" className="danger-outline rounded-xl px-3 py-2 text-sm" onClick={toggle} disabled={loading}>
       {loading ? '...' : 'Panic Mode'}
     </button>
   );

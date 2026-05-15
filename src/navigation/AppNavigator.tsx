@@ -1,9 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
-import { NavigationContainer } from "@react-navigation/native";
+import { NavigationContainer, NavigatorScreenParams } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import React from "react";
-import { Text, View } from "react-native";
+import { Platform, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppNotification } from "../components/AppNotification";
 import { useApp } from "../context/AppContext";
 import { AuthOnboardingScreen } from "../screens/AuthOnboardingScreen";
@@ -27,7 +28,7 @@ import { CheckoutDraft } from "../types";
 
 export type RootStackParamList = {
   AuthOnboarding: undefined;
-  MainTabs: undefined;
+  MainTabs: NavigatorScreenParams<TabParamList> | undefined;
   Restaurant: { restaurantId: string };
   Checkout: undefined;
   ConfirmOrder: { draft: CheckoutDraft };
@@ -54,7 +55,10 @@ const Tabs = createBottomTabNavigator<TabParamList>();
 
 function TabsNavigator() {
   const { cart, t } = useApp();
+  const insets = useSafeAreaInsets();
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const bottomInset = Math.max(insets.bottom, Platform.OS === "android" ? 10 : 0);
+  const tabBarHeight = 64 + bottomInset;
 
   return (
     <Tabs.Navigator
@@ -63,11 +67,12 @@ function TabsNavigator() {
         tabBarActiveTintColor: "#EA580C",
         tabBarInactiveTintColor: "#7C6F64",
         tabBarStyle: {
-          height: 78,
+          height: tabBarHeight,
           borderTopWidth: 0,
           backgroundColor: "#FFFDF9",
-          paddingBottom: 12,
-          paddingTop: 10,
+          paddingBottom: bottomInset,
+          paddingTop: 8,
+          paddingHorizontal: 6,
           borderTopLeftRadius: 24,
           borderTopRightRadius: 24,
           position: "absolute",
@@ -80,6 +85,11 @@ function TabsNavigator() {
         tabBarLabelStyle: {
           fontWeight: "800",
           fontSize: 11,
+          marginTop: 0,
+          marginBottom: 2,
+        },
+        tabBarItemStyle: {
+          paddingVertical: 2,
         },
         tabBarIcon: ({ color, size }) => {
           const iconMap: Record<keyof TabParamList, keyof typeof Ionicons.glyphMap> = {

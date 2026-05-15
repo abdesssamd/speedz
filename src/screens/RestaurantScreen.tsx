@@ -37,7 +37,7 @@ import { useApp } from "../context/AppContext";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { getDeliveryQuote } from "../services/delivery";
 import { formatCurrency } from "../services/format";
-import { MenuItem, SelectedOption } from "../types";
+import { MenuItem, Restaurant, SelectedOption } from "../types";
 
 type RestaurantRoute = RouteProp<RootStackParamList, "Restaurant">;
 
@@ -154,6 +154,10 @@ export function RestaurantScreen() {
   );
 
   const isFav = favorites.includes(restaurant?.id ?? "");
+  const minOrderAmount =
+    typeof (restaurant as Restaurant & { minOrderAmount?: number }).minOrderAmount === "number"
+      ? (restaurant as Restaurant & { minOrderAmount?: number }).minOrderAmount
+      : null;
 
   if (!restaurant || !delivery) {
     return (
@@ -349,10 +353,10 @@ export function RestaurantScreen() {
           <InfoChip icon="card-outline" label="Carte acceptée" />
           <InfoChip icon="star-outline" label="Points fidélité" color="#F59E0B" bg="#FFFBEB" />
           <InfoChip icon="time-outline" label={`Ouvert · Ferme à 23h`} />
-          {restaurant.minOrderAmount ? (
+          {minOrderAmount ? (
             <InfoChip
               icon="cart-outline"
-              label={`Min. ${formatCurrency(restaurant.minOrderAmount)}`}
+              label={`Min. ${formatCurrency(minOrderAmount)}`}
             />
           ) : null}
         </ScrollView>
@@ -413,7 +417,7 @@ export function RestaurantScreen() {
           <TouchableOpacity
             style={s.cartBtn}
             activeOpacity={0.85}
-            onPress={() => navigation.navigate("Cart")}
+            onPress={() => navigation.navigate("MainTabs", { screen: "Cart" })}
           >
             <Text style={s.cartBtnLabel}>Voir mon panier</Text>
             <Text style={s.cartBtnPrice}>{formatCurrency(cartTotal)}</Text>
@@ -424,11 +428,12 @@ export function RestaurantScreen() {
       {/* ── Modale produit ──────────────────────────────────────────────── */}
       {selectedItem && (
         <ProductModal
+          visible={Boolean(selectedItem)}
           item={selectedItem}
           restaurant={restaurant}
           onClose={() => setSelectedItem(null)}
-          onAddToCart={(opts, qty, notes) =>
-            handleAddToCart(selectedItem, opts, qty, notes)
+          onSubmit={(item, opts, qty, notes) =>
+            handleAddToCart(item, opts, qty, notes)
           }
         />
       )}

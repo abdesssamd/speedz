@@ -33,6 +33,7 @@ export default function OmniSearch({ items = [], onSelect = () => {} }) {
     () => (q ? fuse.search(q).map((r) => r.item) : items.slice(0, 8)),
     [q, fuse, items]
   );
+  const highlightedIndex = results.length ? Math.min(activeIndex, results.length - 1) : 0;
 
   const close = useCallback(() => {
     setOpen(false);
@@ -69,15 +70,12 @@ export default function OmniSearch({ items = [], onSelect = () => {} }) {
       setActiveIndex((i) => Math.max(i - 1, 0));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (results[activeIndex]) {
-        onSelect(results[activeIndex]);
+      if (results[highlightedIndex]) {
+        onSelect(results[highlightedIndex]);
         close();
       }
     }
   }
-
-  // Reset l'index actif quand les résultats changent
-  useEffect(() => { setActiveIndex(0); }, [results.length]);
 
   function getIcon(item) {
     if (item.menu !== undefined)   return <Store size={14} />;
@@ -118,14 +116,15 @@ export default function OmniSearch({ items = [], onSelect = () => {} }) {
             placeholder="Rechercher restaurant, client, livreur, téléphone…"
             aria-label="Recherche globale"
             aria-controls="omnisearch-list"
-            aria-activedescendant={results.length ? `os-item-${activeIndex}` : undefined}
+            aria-activedescendant={results.length ? `os-item-${highlightedIndex}` : undefined}
             autoComplete="off"
             spellCheck={false}
           />
           {q && (
             <button
+              type="button"
               className="omnisearch-clear"
-              onClick={() => { setQ(''); inputRef.current?.focus(); }}
+              onClick={() => { setQ(''); setActiveIndex(0); inputRef.current?.focus(); }}
               aria-label="Effacer la recherche"
               tabIndex={0}
             >
@@ -162,8 +161,8 @@ export default function OmniSearch({ items = [], onSelect = () => {} }) {
                 id={`os-item-${index}`}
                 data-index={index}
                 role="option"
-                aria-selected={index === activeIndex}
-                className={`omnisearch-item ${index === activeIndex ? 'active' : ''}`}
+                aria-selected={index === highlightedIndex}
+                className={`omnisearch-item ${index === highlightedIndex ? 'active' : ''}`}
                 onClick={() => { onSelect(item); close(); }}
                 onMouseEnter={() => setActiveIndex(index)}
               >
@@ -178,7 +177,7 @@ export default function OmniSearch({ items = [], onSelect = () => {} }) {
                     <span className="omnisearch-item-sub">{getSubtitle(item)}</span>
                   )}
                 </span>
-                {index === activeIndex && (
+                {index === highlightedIndex && (
                   <span className="omnisearch-item-enter" aria-hidden="true">↵</span>
                 )}
               </div>

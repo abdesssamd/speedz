@@ -50,7 +50,6 @@ export default function AnalyticsDashboard({ orders = [], couriers = [] }) {
       buckets[h].orders += 1;
     });
     // Ne garder que les heures avec au moins 1 commande (+ heures adjacentes pour lisibilité)
-    const maxOrders = Math.max(...buckets.map((b) => b.orders), 1);
     return buckets.filter((b) => b.orders > 0);
   }, [orders]);
 

@@ -3,6 +3,12 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'rec
 import EmptyState from './EmptyState';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
+function DeltaBadge({ value }) {
+  if (value === 0) return <span className="stat-delta neutral"><Minus size={11} /> 0% vs hier</span>;
+  if (value > 0) return <span className="stat-delta up"><TrendingUp size={11} /> +{value}% vs hier</span>;
+  return <span className="stat-delta down"><TrendingDown size={11} /> {value}% vs hier</span>;
+}
+
 /**
  * DashboardCards — statistiques dynamiques réelles
  *
@@ -82,12 +88,6 @@ export default function DashboardCards({ orders = [], couriers = [] }) {
   );
 
   const isEmpty = orders.length === 0;
-
-  function DeltaBadge({ value }) {
-    if (value === 0) return <span className="stat-delta neutral"><Minus size={11} /> 0% vs hier</span>;
-    if (value > 0)   return <span className="stat-delta up"><TrendingUp size={11} /> +{value}% vs hier</span>;
-    return               <span className="stat-delta down"><TrendingDown size={11} /> {value}% vs hier</span>;
-  }
 
   return (
     <div className="stack">

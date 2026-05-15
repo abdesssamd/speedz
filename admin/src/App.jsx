@@ -1345,7 +1345,7 @@ export default function App() {
         accent: "green",
       },
     ];
-  }, [orders, restaurants, couriers]);
+  }, [orders, couriers]);
 
   const operationsModules = useMemo(() => {
     const deliveredCount = orders.filter((order) => order.status === "Delivered").length;
