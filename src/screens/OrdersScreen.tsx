@@ -29,6 +29,7 @@ import { useApp } from "../context/AppContext";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { translateStatus } from "../i18n/mobile";
 import { formatCurrency, formatDateTime } from "../services/format";
+import { Language, Order } from "../types";
 
 const JE = {
   orange: "#F36E26",
@@ -206,7 +207,7 @@ function ActiveOrderCard({ item, index, restaurants, currentLocation, language }
 function DeliveredOrderCard({
   item, index, language, onReorder,
 }: {
-  item: any; index: number; language: string; onReorder: () => void;
+  item: Order; index: number; language: Language; onReorder: () => void;
 }) {
   return (
     <AnimatedCard delay={Math.min(index * 50, 180)} style={s.deliveredCard}>

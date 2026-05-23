@@ -19,7 +19,6 @@ import {
   FlatList,
   Image,
   SafeAreaView,
-  SectionList,
   StyleSheet,
   Text,
   TextInput,
@@ -32,6 +31,7 @@ import { useApp } from "../context/AppContext";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { getDeliveryQuote } from "../services/delivery";
 import { formatCurrency } from "../services/format";
+import { MenuItem, Restaurant } from "../types";
 
 const JE = {
   orange: "#F36E26",
@@ -47,6 +47,11 @@ const JE = {
 
 const HISTORY_KEY = "speedz:search_history";
 const MAX_HISTORY = 8;
+type DishSearchResult = { dish: MenuItem; restaurant: Restaurant };
+type SearchRow =
+  | { type: "section"; key: string; title: string; count: number }
+  | { type: "restaurant"; key: string; restaurant: Restaurant }
+  | { type: "dish"; key: string; result: DishSearchResult };
 
 function normalizeText(v: string) {
   return v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -175,7 +180,7 @@ export function SearchScreen() {
 
   const matchedDishes = useMemo(() => {
     if (!nq) return [];
-    const results: Array<{ dish: any; restaurant: any }> = [];
+    const results: DishSearchResult[] = [];
     for (const restaurant of restaurants) {
       for (const dish of restaurant.menu) {
         if (normalizeText(`${dish.name} ${dish.description} ${dish.category}`).includes(nq)) {
@@ -188,17 +193,34 @@ export function SearchScreen() {
     return results;
   }, [nq, restaurants]);
 
-  // Sections SectionList
-  const sections = useMemo(() => {
-    const secs = [];
-    if (matchedRestaurants.length > 0)
-      secs.push({ title: "Restaurants", data: matchedRestaurants, type: "restaurant" as const });
-    if (matchedDishes.length > 0)
-      secs.push({ title: "Plats", data: matchedDishes, type: "dish" as const });
-    return secs;
+  const resultRows = useMemo(() => {
+    const rows: SearchRow[] = [];
+    if (matchedRestaurants.length > 0) {
+      rows.push({ type: "section", key: "section-restaurants", title: "Restaurants", count: matchedRestaurants.length });
+      rows.push(
+        ...matchedRestaurants.map((restaurant) => ({
+          type: "restaurant" as const,
+          key: `restaurant-${restaurant.id}`,
+          restaurant,
+        }))
+      );
+    }
+
+    if (matchedDishes.length > 0) {
+      rows.push({ type: "section", key: "section-dishes", title: "Plats", count: matchedDishes.length });
+      rows.push(
+        ...matchedDishes.map((result, index) => ({
+          type: "dish" as const,
+          key: `dish-${result.dish.id}-${index}`,
+          result,
+        }))
+      );
+    }
+
+    return rows;
   }, [matchedRestaurants, matchedDishes]);
 
-  const hasResults = sections.length > 0;
+  const hasResults = resultRows.length > 0;
   const showEmpty = nq.length > 0 && !hasResults;
 
   // ── Rendu état vide (suggestions) ─────────────────────────────────────────
@@ -320,23 +342,23 @@ export function SearchScreen() {
         </View>
       ) : (
         // Résultats en sections
-        <SectionList
-          sections={sections}
-          keyExtractor={(item, i) =>
-            "dish" in item ? item.dish.id + i : ("id" in item ? item.id : String(i))
-          }
+        <FlatList
+          data={resultRows}
+          keyExtractor={(item) => item.key}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={s.listPad}
-          stickySectionHeadersEnabled={false}
-          renderSectionHeader={({ section }) => (
-            <View style={s.sectionHeader}>
-              <Text style={s.sectionTitle}>{section.title}</Text>
-              <Text style={s.sectionCount}>{section.data.length}</Text>
-            </View>
-          )}
-          renderItem={({ item, section, index }) => {
-            if (section.type === "restaurant") {
-              const r = item as any;
+          renderItem={({ item, index }) => {
+            if (item.type === "section") {
+              return (
+                <View style={s.sectionHeader}>
+                  <Text style={s.sectionTitle}>{item.title}</Text>
+                  <Text style={s.sectionCount}>{item.count}</Text>
+                </View>
+              );
+            }
+
+            if (item.type === "restaurant") {
+              const r = item.restaurant;
               const dq = getDeliveryQuote(currentLocation.coordinates, r.coordinates);
               return (
                 <AnimatedCard delay={Math.min(index * 40, 160)}>
@@ -354,7 +376,7 @@ export function SearchScreen() {
               );
             }
 
-            const { dish, restaurant } = item as any;
+            const { dish, restaurant } = item.result;
             return (
               <AnimatedCard delay={Math.min(index * 40, 160)}>
                 <DishResult

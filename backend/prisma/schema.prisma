@@ -23,6 +23,7 @@ enum Gender {
 enum AuthProvider {
   WHATSAPP
   SMS
+  EMAIL
 }
 
 enum OrderStatus {
@@ -259,7 +260,7 @@ model UserAddress {
 model AuthChallenge {
   id             String       @id @default(cuid())
   userId         String?
-  phone          String
+  identifier     String
   method         AuthProvider
   code           String
   providerMessageId String?   @unique

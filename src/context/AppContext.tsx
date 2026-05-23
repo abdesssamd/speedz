@@ -97,6 +97,7 @@ type AppContextValue = {
   updateCartItemQuantity: (cartItemId: string, quantity: number) => void;
   removeCartItem: (cartItemId: string) => void;
   clearCart: () => void;
+  reorder: (order: Order) => void;
   requestLocation: () => Promise<void>;
   createCheckoutDraft: (input: Partial<CheckoutDraft>) => CheckoutDraft;
   getCartSummary: () => CartSummary;
@@ -849,6 +850,17 @@ export function AppProvider({ children }: PropsWithChildren) {
 
   const clearCart = () => setCart([]);
 
+  const reorder = (order: Order) => {
+    setCart(order.items);
+    setPromoCode("");
+    setRemoteSummary(null);
+    pushNotification({
+      title: t("article_added"),
+      message: `${order.restaurantName} a ete recharge dans votre panier.`,
+      tone: "success",
+    });
+  };
+
   const applyPromoCode = async (code: string) => {
     if (!cartRestaurant || !cart.length) {
       return false;
@@ -958,7 +970,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       });
 
       setAuthFlow({
-        selectedMethod: "SMS",
+        selectedMethod: "EMAIL",
         phoneNumber: normalizedEmail,
         challengeId: payload.challengeId,
         verificationCode: payload.demoCode ?? null,
@@ -1008,7 +1020,7 @@ export function AppProvider({ children }: PropsWithChildren) {
         setNotificationPreferences(payload.notificationPreferences);
       }
       setAuthFlow({
-        selectedMethod: "SMS",
+        selectedMethod: "EMAIL",
         phoneNumber: input.email.trim().toLowerCase(),
         challengeId: input.challengeId,
         verificationCode: null,
@@ -1504,6 +1516,7 @@ export function AppProvider({ children }: PropsWithChildren) {
         updateCartItemQuantity,
         removeCartItem,
         clearCart,
+        reorder,
         requestLocation,
         createCheckoutDraft,
         getCartSummary,

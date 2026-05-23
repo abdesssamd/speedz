@@ -1,7 +1,6 @@
 require("dotenv").config();
 const express = require("express");
 const rateLimit = require("express-rate-limit");
-const cors = require("cors");
 const http = require("http");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -13,6 +12,13 @@ const crypto = require("crypto");
 const QRCode = require("qrcode");
 const { PrismaClient } = require("@prisma/client");
 const { WebSocketServer } = require("ws");
+const {
+  corsMiddleware,
+  helmetMiddleware,
+  apiRateLimiter,
+  validateBody,
+  Schemas,
+} = require("./security");
 
 const prisma = new PrismaClient();
 const app = express();
@@ -22,6 +28,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "change-me-in-production";
 const DEMO_USER_EMAIL = "nina.morel@demo.app";
 const DEFAULT_QR_WEBAPP_URL = process.env.QR_WEBAPP_URL || `http://localhost:${PORT}`;
 const APP_LOGIN_URL = process.env.APP_LOGIN_URL || "fooddelyvry://auth";
+const AUTH_COOKIE_NAME = process.env.AUTH_COOKIE_NAME || "speedz_admin_session";
 const WHATSAPP_API_VERSION = process.env.WHATSAPP_API_VERSION || "v23.0";
 const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID || "";
 const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN || "";
@@ -48,11 +55,13 @@ const DELIVERY_TIERS = [
   { label: "Zone standard", maxDistanceKm: 8, fee: 4.5 },
   { label: "Zone etendue", maxDistanceKm: Number.POSITIVE_INFINITY, fee: 7 }
 ];
+const ACTIVE_ORDER_STATUSES = ["Confirmed", "Preparing", "OnTheWay"];
 
 const uploadsDir = path.join(__dirname, "uploads");
 fs.mkdirSync(uploadsDir, { recursive: true });
 const dataDir = path.join(__dirname, "data");
 fs.mkdirSync(dataDir, { recursive: true });
+const adminAuditLogFile = path.join(dataDir, "admin-audit-log.jsonl");
 const partnerApplicationsFile = path.join(dataDir, "partner-applications.json");
 if (!fs.existsSync(partnerApplicationsFile)) {
   fs.writeFileSync(partnerApplicationsFile, "[]", "utf8");
@@ -68,11 +77,26 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, callback) => {
+    const allowedMimeTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+    const extension = path.extname(file.originalname || "").toLowerCase();
+    const allowedExtensions = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif"]);
+
+    if (!allowedMimeTypes.has(file.mimetype) || !allowedExtensions.has(extension)) {
+      callback(new Error("Format image non supporte. Utilisez JPG, PNG, WEBP ou GIF."));
+      return;
+    }
+
+    callback(null, true);
+  }
 });
 
-app.use(cors());
-app.use(express.json());
+app.disable("x-powered-by");
+app.use(corsMiddleware);
+app.use(helmetMiddleware);
+app.use(apiRateLimiter);
+app.use(express.json({ limit: "1mb" }));
 app.use("/uploads", express.static(uploadsDir));
 
 // ─── Rate limiters ────────────────────────────────────────────────────────────
@@ -548,6 +572,104 @@ function writeEmailOutbox(items) {
   fs.writeFileSync(outboxFile, JSON.stringify(items, null, 2), "utf8");
 }
 
+class ApiError extends Error {
+  constructor(status, message, code = "API_ERROR", details = undefined) {
+    super(message);
+    this.status = status;
+    this.code = code;
+    this.details = details;
+  }
+}
+
+function ok(res, payload, status = 200) {
+  res.status(status).json(payload);
+}
+
+function errorResponse(res, status, message, code = "API_ERROR", details = undefined) {
+  res.status(status).json({
+    error: {
+      code,
+      message,
+      details: details || undefined,
+    },
+  });
+}
+
+function parsePagination(query, { defaultLimit = 50, maxLimit = 100 } = {}) {
+  const page = Math.max(1, Number.parseInt(String(query.page || "1"), 10) || 1);
+  const limit = Math.min(maxLimit, Math.max(1, Number.parseInt(String(query.limit || defaultLimit), 10) || defaultLimit));
+  const skip = (page - 1) * limit;
+  const search = String(query.search || "").trim();
+  const status = String(query.status || "").trim();
+
+  return { page, limit, skip, search, status };
+}
+
+function paginated(items, total, { page, limit }) {
+  return {
+    items,
+    meta: {
+      page,
+      limit,
+      total,
+      pageCount: Math.max(1, Math.ceil(total / limit)),
+      hasNextPage: page * limit < total,
+      hasPreviousPage: page > 1,
+    },
+  };
+}
+
+function wrapAsync(handler) {
+  return async (req, res, next) => {
+    try {
+      await handler(req, res, next);
+    } catch (error) {
+      next(error);
+    }
+  };
+}
+
+async function logAdminAction(req, action, entityType, entityId, details = {}) {
+  const entry = {
+    id: crypto.randomUUID(),
+    action,
+    entityType,
+    entityId,
+    adminId: req.auth?.sub || null,
+    adminEmail: req.auth?.email || null,
+    ip: req.ip || null,
+    at: new Date().toISOString(),
+    details,
+  };
+
+  fs.appendFileSync(adminAuditLogFile, `${JSON.stringify(entry)}\n`, "utf8");
+}
+
+function detectImageTypeFromFile(filePath) {
+  const buffer = fs.readFileSync(filePath);
+  if (buffer.length >= 8 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
+    return "image/png";
+  }
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return "image/jpeg";
+  }
+  if (buffer.length >= 6 && buffer.subarray(0, 6).toString("ascii") === "GIF87a") {
+    return "image/gif";
+  }
+  if (buffer.length >= 6 && buffer.subarray(0, 6).toString("ascii") === "GIF89a") {
+    return "image/gif";
+  }
+  if (
+    buffer.length >= 12 &&
+    buffer.subarray(0, 4).toString("ascii") === "RIFF" &&
+    buffer.subarray(8, 12).toString("ascii") === "WEBP"
+  ) {
+    return "image/webp";
+  }
+
+  return null;
+}
+
 app.get("/api/mobile-config", (req, res) => {
   const platform = String(req.query?.platform || "").toLowerCase();
   const version = String(req.query?.version || "").trim();
@@ -879,6 +1001,68 @@ function normalizeStatus(status) {
   return status;
 }
 
+function parseCookies(cookieHeader) {
+  return String(cookieHeader || "")
+    .split(";")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .reduce((accumulator, chunk) => {
+      const separatorIndex = chunk.indexOf("=");
+      if (separatorIndex === -1) {
+        return accumulator;
+      }
+
+      const key = chunk.slice(0, separatorIndex).trim();
+      const value = chunk.slice(separatorIndex + 1).trim();
+      accumulator[key] = decodeURIComponent(value);
+      return accumulator;
+    }, {});
+}
+
+function getAuthTokenFromRequest(req) {
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith("Bearer ")) {
+    return authHeader.slice(7);
+  }
+
+  const cookies = parseCookies(req.headers.cookie);
+  return cookies[AUTH_COOKIE_NAME] || null;
+}
+
+function setSessionCookie(res, token) {
+  const secure = process.env.NODE_ENV === "production";
+  const attributes = [
+    `${AUTH_COOKIE_NAME}=${encodeURIComponent(token)}`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    `Max-Age=${7 * 24 * 60 * 60}`,
+  ];
+
+  if (secure) {
+    attributes.push("Secure");
+  }
+
+  res.setHeader("Set-Cookie", attributes.join("; "));
+}
+
+function clearSessionCookie(res) {
+  const secure = process.env.NODE_ENV === "production";
+  const attributes = [
+    `${AUTH_COOKIE_NAME}=`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    "Max-Age=0",
+  ];
+
+  if (secure) {
+    attributes.push("Secure");
+  }
+
+  res.setHeader("Set-Cookie", attributes.join("; "));
+}
+
 function signToken(user) {
   return jwt.sign(
     {
@@ -893,14 +1077,14 @@ function signToken(user) {
 }
 
 function requireAuth(req, res, next) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith("Bearer ")) {
+  const token = getAuthTokenFromRequest(req);
+  if (!token) {
     res.status(401).json({ message: "Token manquant." });
     return;
   }
 
   try {
-    req.auth = jwt.verify(authHeader.slice(7), JWT_SECRET);
+    req.auth = jwt.verify(token, JWT_SECRET);
     next();
   } catch {
     res.status(401).json({ message: "Token invalide." });
@@ -908,14 +1092,14 @@ function requireAuth(req, res, next) {
 }
 
 function optionalAuth(req, _res, next) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith("Bearer ")) {
+  const token = getAuthTokenFromRequest(req);
+  if (!token) {
     next();
     return;
   }
 
   try {
-    req.auth = jwt.verify(authHeader.slice(7), JWT_SECRET);
+    req.auth = jwt.verify(token, JWT_SECRET);
   } catch {
     req.auth = null;
   }
@@ -938,6 +1122,51 @@ function requireCustomer(req, res, next) {
   }
 
   next();
+}
+
+function signCourierToken(courier) {
+  return jwt.sign(
+    {
+      sub: courier.id,
+      role: "COURIER",
+      phone: courier.phone,
+      name: courier.name,
+    },
+    JWT_SECRET,
+    { expiresIn: "12h" }
+  );
+}
+
+async function requireCourierAuth(req, res, next) {
+  const token = getAuthTokenFromRequest(req);
+  if (!token) {
+    res.status(401).json({ message: "Token livreur manquant." });
+    return;
+  }
+
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    if (payload?.role !== "COURIER" || !payload?.sub) {
+      res.status(403).json({ message: "Token livreur invalide." });
+      return;
+    }
+
+    const courier = await prisma.courier.findUnique({
+      where: { id: payload.sub },
+      include: { orders: { include: { restaurant: true, user: { include: { addresses: true } } } } },
+    });
+
+    if (!courier || courier.phone !== payload.phone) {
+      res.status(401).json({ message: "Livreur introuvable ou session expiree." });
+      return;
+    }
+
+    req.courierAuth = courier;
+    req.auth = payload;
+    next();
+  } catch {
+    res.status(401).json({ message: "Session livreur invalide." });
+  }
 }
 
 async function requireRestaurantApiToken(req, res, next) {
@@ -1299,7 +1528,7 @@ app.post("/api/integrations/whatsapp/webhook", async (req, res) => {
   res.status(200).json({ ok: true, processed: statuses.length });
 });
 
-app.post("/api/auth/request-code", requestCodeLimiter, async (req, res) => {
+app.post("/api/auth/request-code", requestCodeLimiter, validateBody(Schemas.requestCode), async (req, res) => {
   const method = req.body?.method === "SMS" ? "SMS" : "WHATSAPP";
   const phone = normalizePhoneNumber(req.body?.phone);
 
@@ -1322,7 +1551,7 @@ app.post("/api/auth/request-code", requestCodeLimiter, async (req, res) => {
     const challenge = await prisma.authChallenge.create({
       data: {
         userId: existingUser?.id || null,
-        phone,
+        identifier: phone,
         method,
         code,
         providerMessageId: delivery.messageId,
@@ -1347,7 +1576,7 @@ app.post("/api/auth/request-code", requestCodeLimiter, async (req, res) => {
   }
 });
 
-app.post("/api/auth/request-email-code", requestCodeLimiter, async (req, res) => {
+app.post("/api/auth/request-email-code", requestCodeLimiter, validateBody(Schemas.requestEmailCode), async (req, res) => {
   const email = normalizeEmail(req.body?.email);
   const fullName = String(req.body?.fullName || "").trim();
 
@@ -1365,8 +1594,8 @@ app.post("/api/auth/request-email-code", requestCodeLimiter, async (req, res) =>
     const challenge = await prisma.authChallenge.create({
       data: {
         userId: existingUser?.id || null,
-        phone: email,
-        method: "SMS",
+        identifier: email,
+        method: "EMAIL",
         code,
         providerMessageId: delivery.messageId,
         deliveryStatus: delivery.status,
@@ -1389,7 +1618,7 @@ app.post("/api/auth/request-email-code", requestCodeLimiter, async (req, res) =>
   }
 });
 
-app.post("/api/auth/verify-code", verifyCodeLimiter, async (req, res) => {
+app.post("/api/auth/verify-code", verifyCodeLimiter, validateBody(Schemas.verifyCode), async (req, res) => {
   const challengeId = String(req.body?.challengeId || "").trim();
   const code = String(req.body?.code || "").trim();
 
@@ -1446,11 +1675,12 @@ app.post("/api/auth/verify-code", verifyCodeLimiter, async (req, res) => {
     challengeId: updatedChallenge.id,
     userExists: Boolean(user),
     isProfileComplete: false,
-    phone: updatedChallenge.phone,
+    phone: updatedChallenge.identifier,
+    identifier: updatedChallenge.identifier,
   });
 });
 
-app.post("/api/auth/verify-email-code", verifyCodeLimiter, async (req, res) => {
+app.post("/api/auth/verify-email-code", verifyCodeLimiter, validateBody(Schemas.verifyEmailCode), async (req, res) => {
   const challengeId = String(req.body?.challengeId || "").trim();
   const code = String(req.body?.code || "").trim();
   const email = normalizeEmail(req.body?.email);
@@ -1472,7 +1702,7 @@ app.post("/api/auth/verify-email-code", verifyCodeLimiter, async (req, res) => {
     return;
   }
 
-  if (challenge.phone !== email) {
+  if (challenge.identifier !== email) {
     res.status(400).json({ message: "Cet email ne correspond pas a la verification en cours." });
     return;
   }
@@ -1561,7 +1791,8 @@ app.get("/api/auth/challenges/:id/status", async (req, res) => {
   res.json({
     id: challenge.id,
     method: challenge.method,
-    phone: challenge.phone,
+    phone: challenge.identifier,
+    identifier: challenge.identifier,
     providerMessageId: challenge.providerMessageId,
     deliveryStatus: challenge.deliveryStatus,
     errorMessage: challenge.errorMessage,
@@ -1574,7 +1805,7 @@ app.get("/api/auth/challenges/:id/status", async (req, res) => {
   });
 });
 
-app.post("/api/auth/register-profile", async (req, res) => {
+app.post("/api/auth/register-profile", validateBody(Schemas.registerProfile), async (req, res) => {
   const challengeId = String(req.body?.challengeId || "").trim();
   const firstName = String(req.body?.firstName || "").trim();
   const lastName = String(req.body?.lastName || "").trim();
@@ -1605,7 +1836,7 @@ app.post("/api/auth/register-profile", async (req, res) => {
     }
   }
 
-  const phone = challenge.phone;
+  const phone = challenge.identifier;
   const fallbackEmail = challenge.user?.email || generateCustomerEmailFromPhone(phone);
   const profileEmail = email || fallbackEmail;
   const passwordHash = challenge.user?.passwordHash || (await bcrypt.hash(generateOpaqueToken("cust"), 8));
@@ -1718,7 +1949,7 @@ app.patch("/api/auth/notification-preferences", optionalAuth, async (req, res) =
   });
 });
 
-app.post("/api/auth/login", loginLimiter, async (req, res) => {
+app.post("/api/auth/login", loginLimiter, validateBody(Schemas.login), async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) {
     res.status(400).json({ message: "Email et mot de passe requis." });
@@ -1737,8 +1968,11 @@ app.post("/api/auth/login", loginLimiter, async (req, res) => {
     return;
   }
 
+  const token = signToken(user);
+  setSessionCookie(res, token);
+
   res.json({
-    token: signToken(user),
+    token,
     user: {
       id: user.id,
       name: user.name,
@@ -1748,22 +1982,43 @@ app.post("/api/auth/login", loginLimiter, async (req, res) => {
   });
 });
 
+app.post("/api/auth/logout", (_req, res) => {
+  clearSessionCookie(res);
+  res.status(204).send();
+});
+
 app.get("/api/bootstrap", optionalAuth, async (req, res) => {
   const user = await getAuthenticatedUser(req);
   res.json(await fetchBootstrapPayload(user?.id));
 });
 
-app.post("/api/admin/upload-image", requireAuth, requireAdmin, upload.single("image"), async (req, res) => {
+app.post("/api/admin/upload-image", requireAuth, requireAdmin, wrapAsync(async (req, res) => {
+  await new Promise((resolve, reject) => {
+    upload.single("image")(req, res, (error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  });
+
   if (!req.file) {
-    res.status(400).json({ message: "Aucun fichier image envoye." });
-    return;
+    throw new ApiError(400, "Aucun fichier image envoye.", "UPLOAD_MISSING_FILE");
   }
 
-  res.status(201).json({
-    url: `http://localhost:${PORT}/uploads/${req.file.filename}`,
+  const detectedMimeType = detectImageTypeFromFile(req.file.path);
+  if (!detectedMimeType || detectedMimeType !== req.file.mimetype) {
+    fs.unlinkSync(req.file.path);
+    throw new ApiError(400, "Le fichier envoye n'est pas une image valide.", "UPLOAD_INVALID_IMAGE");
+  }
+
+  const publicBaseUrl = process.env.PUBLIC_BASE_URL || process.env.API_BASE_URL || `http://localhost:${PORT}`;
+  ok(res, {
+    url: `${publicBaseUrl.replace(/\/$/, "")}/uploads/${req.file.filename}`,
     filename: req.file.filename
-  });
-});
+  }, 201);
+}));
 
 app.get("/api/restaurants", async (_req, res) => {
   const restaurants = await prisma.restaurant.findMany({
@@ -1827,7 +2082,7 @@ app.post("/api/favorites/toggle", optionalAuth, async (req, res) => {
   });
 });
 
-app.post("/api/cart/quote", optionalAuth, async (req, res) => {
+app.post("/api/cart/quote", optionalAuth, validateBody(Schemas.cartQuote), async (req, res) => {
   const { restaurantId, cart, userCoordinates, promoCode, orderChannel } = req.body || {};
   if (!restaurantId || !Array.isArray(cart) || !userCoordinates) {
     res.status(400).json({ message: "Requete invalide pour le devis panier." });
@@ -1844,7 +2099,7 @@ app.post("/api/cart/quote", optionalAuth, async (req, res) => {
   res.json(summary);
 });
 
-app.post("/api/orders", optionalAuth, async (req, res) => {
+app.post("/api/orders", optionalAuth, validateBody(Schemas.createOrder), async (req, res) => {
   const { restaurantId, cart, draft, userCoordinates, promoCode, orderChannel, tableLabel } = req.body || {};
   if (!restaurantId || !Array.isArray(cart) || !cart.length || !draft || !userCoordinates) {
     res.status(400).json({ message: "Impossible de creer la commande." });
@@ -2070,22 +2325,27 @@ app.get("/qr/:qrToken", async (req, res) => {
 </html>`);
 });
 
-app.get("/api/courier/jobs", async (req, res) => {
-  const courierId = String(req.query.courierId || "");
-  if (!courierId) {
-    res.status(400).json({ message: "courierId requis." });
-    return;
-  }
-
-  const courier = await prisma.courier.findUnique({
-    where: { id: courierId },
-    include: { orders: { include: { restaurant: true, user: { include: { addresses: true } } } } }
+app.post("/api/courier/auth", validateBody(Schemas.createCourier.pick({ phone: true })), async (req, res) => {
+  const phone = normalizePhoneNumber(req.body?.phone);
+  const courier = await prisma.courier.findFirst({
+    where: { phone },
+    include: { orders: true },
   });
 
   if (!courier) {
     res.status(404).json({ message: "Livreur introuvable." });
     return;
   }
+
+  res.json({
+    token: signCourierToken(courier),
+    courier: serializeCourier(courier),
+  });
+});
+
+app.get("/api/courier/jobs", requireCourierAuth, async (req, res) => {
+  const courier = req.courierAuth;
+  const courierId = courier.id;
 
   const lat = req.query.lat !== undefined ? Number(req.query.lat) : null;
   const lng = req.query.lng !== undefined ? Number(req.query.lng) : null;
@@ -2173,12 +2433,8 @@ app.get("/api/courier/jobs", async (req, res) => {
   });
 });
 
-app.post("/api/courier/jobs/:id/accept", async (req, res) => {
-  const courierId = String(req.body?.courierId || "");
-  if (!courierId) {
-    res.status(400).json({ message: "courierId requis." });
-    return;
-  }
+app.post("/api/courier/jobs/:id/accept", requireCourierAuth, async (req, res) => {
+  const courierId = req.courierAuth.id;
 
   const [courier, order] = await Promise.all([
     prisma.courier.findUnique({ where: { id: courierId } }),
@@ -2226,13 +2482,13 @@ app.post("/api/courier/jobs/:id/accept", async (req, res) => {
   });
 });
 
-app.post("/api/courier/location", async (req, res) => {
-  const courierId = String(req.body?.courierId || "").trim();
+app.post("/api/courier/location", requireCourierAuth, async (req, res) => {
+  const courierId = String(req.courierAuth.id || "").trim();
   const latitude = Number(req.body?.latitude);
   const longitude = Number(req.body?.longitude);
 
-  if (!courierId || Number.isNaN(latitude) || Number.isNaN(longitude)) {
-    res.status(400).json({ message: "courierId, latitude et longitude requis." });
+  if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
+    res.status(400).json({ message: "latitude et longitude requises." });
     return;
   }
 
@@ -2351,7 +2607,7 @@ app.get("/api/menu-categories", async (_req, res) => {
   res.json(categories.map(serializeMenuCategory));
 });
 
-app.post("/api/applications", async (req, res) => {
+app.post("/api/applications", validateBody(Schemas.createApplication), async (req, res) => {
   const body = req.body || {};
   const type = body.type === "COURIER" ? "COURIER" : "RESTAURANT";
   const applicantName = String(body.applicantName || "").trim();
@@ -2426,6 +2682,218 @@ app.post("/api/applications", async (req, res) => {
 
   res.status(201).json({ ok: true, applicationId: application.id });
 });
+
+async function listAdminApplications(req, res) {
+  const { page, limit, skip, search, status } = parsePagination(req.query, { defaultLimit: 50, maxLimit: 100 });
+  let applications = readPartnerApplications();
+
+  if (status) {
+    applications = applications.filter((item) => String(item.status || "").toLowerCase() === status.toLowerCase());
+  }
+
+  if (search) {
+    const needle = search.toLowerCase();
+    applications = applications.filter((item) =>
+      [item.applicantName, item.email, item.phone, item.city, item.businessName, item.vehicle]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(needle))
+    );
+  }
+
+  applications.sort((left, right) => new Date(right.createdAt || 0) - new Date(left.createdAt || 0));
+  ok(res, paginated(applications.slice(skip, skip + limit), applications.length, { page, limit }));
+}
+
+async function updateAdminApplication(req, res) {
+  const applications = readPartnerApplications();
+  const index = applications.findIndex((item) => item.id === req.params.id);
+
+  if (index === -1) {
+    throw new ApiError(404, "Demande introuvable.", "APPLICATION_NOT_FOUND");
+  }
+
+  const previousApplication = applications[index];
+  const nextStatus = req.body?.status || previousApplication.status;
+  let updatedApplication = {
+    ...previousApplication,
+    status: nextStatus,
+    reviewedAt: new Date().toISOString(),
+  };
+
+  if (nextStatus === "ACCEPTED") {
+    updatedApplication = await ensureApplicationEntity(updatedApplication);
+    if (updatedApplication.linkedEntityType === "RESTAURANT" && updatedApplication.linkedEntityId) {
+      const generatedApiToken = updatedApplication.generatedApiToken || generateOpaqueToken("fdrest");
+      const qrCodeToken = updatedApplication.qrCodeToken || generateOpaqueToken("qr");
+      const restaurant = await prisma.restaurant.update({
+        where: { id: updatedApplication.linkedEntityId },
+        data: {
+          validationStatus: "VALIDATED",
+          ownerName: updatedApplication.applicantName,
+          ownerEmail: updatedApplication.email,
+          ownerPhone: updatedApplication.phone,
+          billingPlanType: updatedApplication.billingPlanType || "FIXED_PER_ORDER",
+          billingFixedFee:
+            updatedApplication.billingFixedFee !== null && updatedApplication.billingFixedFee !== undefined
+              ? Number(updatedApplication.billingFixedFee)
+              : null,
+          billingPercentage:
+            updatedApplication.billingPercentage !== null && updatedApplication.billingPercentage !== undefined
+              ? Number(updatedApplication.billingPercentage)
+              : null,
+          monthlySubscriptionFee:
+            updatedApplication.monthlySubscriptionFee !== null &&
+            updatedApplication.monthlySubscriptionFee !== undefined
+              ? Number(updatedApplication.monthlySubscriptionFee)
+              : null,
+          apiToken: generatedApiToken,
+          qrCodeToken,
+          validatedAt: new Date(),
+        }
+      });
+
+      updatedApplication = {
+        ...updatedApplication,
+        generatedApiToken,
+        qrCodeToken,
+        qrCodeUrl: getRestaurantQrLandingUrl(qrCodeToken),
+        linkedEntityLabel: restaurant.name,
+      };
+    }
+  }
+
+  if (nextStatus === "REJECTED" && updatedApplication.linkedEntityType === "RESTAURANT" && updatedApplication.linkedEntityId) {
+    await prisma.restaurant.update({
+      where: { id: updatedApplication.linkedEntityId },
+      data: { validationStatus: "REJECTED" }
+    });
+  }
+
+  if (previousApplication.status !== nextStatus && (nextStatus === "ACCEPTED" || nextStatus === "REJECTED")) {
+    await queueApplicationEmail(updatedApplication, nextStatus);
+  }
+
+  applications[index] = updatedApplication;
+  writePartnerApplications(applications);
+  await logAdminAction(req, "application.status_updated", "application", updatedApplication.id, {
+    previousStatus: previousApplication.status,
+    nextStatus,
+    linkedEntityId: updatedApplication.linkedEntityId || null,
+  });
+
+  ok(res, updatedApplication);
+}
+
+async function updateAdminCustomer(req, res) {
+  const customer = await prisma.user.update({
+    where: { id: req.params.id },
+    data: {
+      name: req.body?.name,
+      email: req.body?.email,
+      phone: req.body?.phone,
+      defaultAddress: req.body?.defaultAddress,
+      isActive: req.body?.isActive
+    },
+    include: {
+      orders: true,
+      loyaltyEntries: true,
+      favorites: true
+    }
+  });
+  await logAdminAction(req, "customer.updated", "customer", customer.id, { isActive: customer.isActive });
+  ok(res, serializeCustomer(customer));
+}
+
+async function updateAdminCourier(req, res) {
+  const courier = await prisma.courier.update({
+    where: { id: req.params.id },
+    data: {
+      name: req.body?.name,
+      phone: req.body?.phone,
+      vehicle: req.body?.vehicle,
+      status: req.body?.status,
+      payPerDelivery: req.body?.payPerDelivery !== undefined ? Number(req.body.payPerDelivery) : undefined,
+      payPerKm: req.body?.payPerKm !== undefined ? Number(req.body.payPerKm) : undefined,
+      zoneLabel: req.body?.zoneLabel || null,
+      currentLat: req.body?.currentLat !== undefined ? Number(req.body.currentLat) : undefined,
+      currentLng: req.body?.currentLng !== undefined ? Number(req.body.currentLng) : undefined
+    },
+    include: { orders: true }
+  });
+  await logAdminAction(req, "courier.updated", "courier", courier.id, { status: courier.status });
+  ok(res, serializeCourier(courier));
+}
+
+async function updateAdminPromotion(req, res) {
+  const promotion = await prisma.promotion.update({
+    where: { id: req.params.id },
+    data: {
+      code: req.body?.code,
+      title: req.body?.title,
+      description: req.body?.description || null,
+      type: req.body?.type,
+      value: req.body?.value !== undefined ? Number(req.body.value) : undefined,
+      minOrderTotal: req.body?.minOrderTotal !== undefined ? Number(req.body.minOrderTotal) : undefined,
+      isActive: req.body?.isActive,
+      startsAt: req.body?.startsAt ? new Date(req.body.startsAt) : undefined,
+      endsAt: req.body?.endsAt ? new Date(req.body.endsAt) : undefined,
+      restaurantId: req.body?.restaurantId || null
+    },
+    include: { orders: true }
+  });
+  await logAdminAction(req, "promotion.updated", "promotion", promotion.id, { code: promotion.code, isActive: promotion.isActive });
+  ok(res, serializePromotion(promotion));
+}
+
+async function updateAdminOrderStatus(req, res) {
+  const { status, reason } = req.body || {};
+  if (!status) {
+    throw new ApiError(400, "Statut requis.", "ORDER_STATUS_REQUIRED");
+  }
+
+  const existingOrder = await prisma.order.findUnique({
+    where: { id: req.params.id }
+  });
+
+  if (!existingOrder) {
+    throw new ApiError(404, "Commande introuvable.", "ORDER_NOT_FOUND");
+  }
+
+  const noteSuffix = reason ? `Annulation admin: ${String(reason).trim()}` : null;
+  const nextNotes = noteSuffix
+    ? [existingOrder.notes, noteSuffix].filter(Boolean).join(" | ")
+    : existingOrder.notes;
+
+  const order = await prisma.order.update({
+    where: { id: req.params.id },
+    data: {
+      status: normalizeStatus(status),
+      notes: nextNotes
+    },
+    include: { restaurant: true, courier: true }
+  });
+  await emitOrderRealtime(order.id, "order/status-updated");
+  await logAdminAction(req, "order.status_updated", "order", order.id, {
+    previousStatus: existingOrder.status,
+    nextStatus: order.status,
+    reason: reason || null,
+  });
+  ok(res, serializeOrder(order));
+}
+
+async function assignAdminCourier(req, res) {
+  const order = await prisma.order.update({
+    where: { id: req.params.id },
+    data: { courierId: req.body?.courierId || null },
+    include: { restaurant: true, courier: true }
+  });
+  await emitOrderRealtime(order.id, "order/courier-assigned");
+  if (order.courierId) {
+    await emitCourierRealtime(order.courierId);
+  }
+  await logAdminAction(req, "order.courier_assigned", "order", order.id, { courierId: order.courierId || null });
+  ok(res, serializeOrder(order));
+}
 
 app.get("/api/admin/restaurants", requireAuth, requireAdmin, async (_req, res) => {
   const restaurants = await prisma.restaurant.findMany({
@@ -2638,7 +3106,7 @@ app.delete("/api/admin/restaurants/:id", requireAuth, requireAdmin, async (req, 
     const activeOrders = await prisma.order.count({
       where: {
         restaurantId: id,
-        status: { in: ["Pending", "Confirmed", "Preparing", "ReadyForPickup", "OnTheWay"] },
+        status: { in: ACTIVE_ORDER_STATUSES },
       },
     });
 
@@ -2678,7 +3146,7 @@ app.post("/api/admin/restaurants/:id/delete", requireAuth, requireAdmin, async (
     const activeOrders = await prisma.order.count({
       where: {
         restaurantId: id,
-        status: { in: ["Pending", "Confirmed", "Preparing", "ReadyForPickup", "OnTheWay"] },
+        status: { in: ACTIVE_ORDER_STATUSES },
       },
     });
 
@@ -2828,158 +3296,11 @@ app.get("/api/admin/menu-categories", requireAuth, requireAdmin, async (_req, re
   res.json(categories.map(serializeMenuCategory));
 });
 
-app.get("/api/admin/applications", requireAuth, requireAdmin, async (_req, res) => {
-  res.json(readPartnerApplications());
-});
+app.get("/api/admin/applications", requireAuth, requireAdmin, wrapAsync(listAdminApplications));
 
-app.patch("/api/admin/applications/:id", requireAuth, requireAdmin, async (req, res) => {
-  const applications = readPartnerApplications();
-  const index = applications.findIndex((item) => item.id === req.params.id);
+app.patch("/api/admin/applications/:id", requireAuth, requireAdmin, wrapAsync(updateAdminApplication));
 
-  if (index === -1) {
-    res.status(404).json({ message: "Demande introuvable." });
-    return;
-  }
-
-  const nextStatus = req.body?.status || applications[index].status;
-  let updatedApplication = {
-    ...applications[index],
-    status: nextStatus,
-    reviewedAt: new Date().toISOString(),
-  };
-
-  if (nextStatus === "ACCEPTED") {
-    updatedApplication = await ensureApplicationEntity(updatedApplication);
-    if (updatedApplication.linkedEntityType === "RESTAURANT" && updatedApplication.linkedEntityId) {
-      const generatedApiToken = updatedApplication.generatedApiToken || generateOpaqueToken("fdrest");
-      const qrCodeToken = updatedApplication.qrCodeToken || generateOpaqueToken("qr");
-      const restaurant = await prisma.restaurant.update({
-        where: { id: updatedApplication.linkedEntityId },
-        data: {
-          validationStatus: "VALIDATED",
-          ownerName: updatedApplication.applicantName,
-          ownerEmail: updatedApplication.email,
-          ownerPhone: updatedApplication.phone,
-          billingPlanType: updatedApplication.billingPlanType || "FIXED_PER_ORDER",
-          billingFixedFee:
-            updatedApplication.billingFixedFee !== null && updatedApplication.billingFixedFee !== undefined
-              ? Number(updatedApplication.billingFixedFee)
-              : null,
-          billingPercentage:
-            updatedApplication.billingPercentage !== null && updatedApplication.billingPercentage !== undefined
-              ? Number(updatedApplication.billingPercentage)
-              : null,
-          monthlySubscriptionFee:
-            updatedApplication.monthlySubscriptionFee !== null &&
-            updatedApplication.monthlySubscriptionFee !== undefined
-              ? Number(updatedApplication.monthlySubscriptionFee)
-              : null,
-          apiToken: generatedApiToken,
-          qrCodeToken,
-          validatedAt: new Date(),
-        }
-      });
-
-      updatedApplication = {
-        ...updatedApplication,
-        generatedApiToken,
-        qrCodeToken,
-        qrCodeUrl: getRestaurantQrLandingUrl(qrCodeToken),
-        linkedEntityLabel: restaurant.name,
-      };
-    }
-  }
-
-  if (nextStatus === "REJECTED" && updatedApplication.linkedEntityType === "RESTAURANT" && updatedApplication.linkedEntityId) {
-    await prisma.restaurant.update({
-      where: { id: updatedApplication.linkedEntityId },
-      data: { validationStatus: "REJECTED" }
-    });
-  }
-
-  if (applications[index].status !== nextStatus && (nextStatus === "ACCEPTED" || nextStatus === "REJECTED")) {
-    await queueApplicationEmail(updatedApplication, nextStatus);
-  }
-
-  applications[index] = updatedApplication;
-
-  writePartnerApplications(applications);
-  res.json(updatedApplication);
-});
-
-app.post("/api/admin/applications/:id/update", requireAuth, requireAdmin, async (req, res) => {
-  const applications = readPartnerApplications();
-  const index = applications.findIndex((item) => item.id === req.params.id);
-
-  if (index === -1) {
-    res.status(404).json({ message: "Demande introuvable." });
-    return;
-  }
-
-  const nextStatus = req.body?.status || applications[index].status;
-  let updatedApplication = {
-    ...applications[index],
-    status: nextStatus,
-    reviewedAt: new Date().toISOString(),
-  };
-
-  if (nextStatus === "ACCEPTED") {
-    updatedApplication = await ensureApplicationEntity(updatedApplication);
-    if (updatedApplication.linkedEntityType === "RESTAURANT" && updatedApplication.linkedEntityId) {
-      const generatedApiToken = updatedApplication.generatedApiToken || generateOpaqueToken("fdrest");
-      const qrCodeToken = updatedApplication.qrCodeToken || generateOpaqueToken("qr");
-      const restaurant = await prisma.restaurant.update({
-        where: { id: updatedApplication.linkedEntityId },
-        data: {
-          validationStatus: "VALIDATED",
-          ownerName: updatedApplication.applicantName,
-          ownerEmail: updatedApplication.email,
-          ownerPhone: updatedApplication.phone,
-          billingPlanType: updatedApplication.billingPlanType || "FIXED_PER_ORDER",
-          billingFixedFee:
-            updatedApplication.billingFixedFee !== null && updatedApplication.billingFixedFee !== undefined
-              ? Number(updatedApplication.billingFixedFee)
-              : null,
-          billingPercentage:
-            updatedApplication.billingPercentage !== null && updatedApplication.billingPercentage !== undefined
-              ? Number(updatedApplication.billingPercentage)
-              : null,
-          monthlySubscriptionFee:
-            updatedApplication.monthlySubscriptionFee !== null &&
-            updatedApplication.monthlySubscriptionFee !== undefined
-              ? Number(updatedApplication.monthlySubscriptionFee)
-              : null,
-          apiToken: generatedApiToken,
-          qrCodeToken,
-          validatedAt: new Date(),
-        }
-      });
-
-      updatedApplication = {
-        ...updatedApplication,
-        generatedApiToken,
-        qrCodeToken,
-        qrCodeUrl: getRestaurantQrLandingUrl(qrCodeToken),
-        linkedEntityLabel: restaurant.name,
-      };
-    }
-  }
-
-  if (nextStatus === "REJECTED" && updatedApplication.linkedEntityType === "RESTAURANT" && updatedApplication.linkedEntityId) {
-    await prisma.restaurant.update({
-      where: { id: updatedApplication.linkedEntityId },
-      data: { validationStatus: "REJECTED" }
-    });
-  }
-
-  if (applications[index].status !== nextStatus && (nextStatus === "ACCEPTED" || nextStatus === "REJECTED")) {
-    await queueApplicationEmail(updatedApplication, nextStatus);
-  }
-
-  applications[index] = updatedApplication;
-  writePartnerApplications(applications);
-  res.json(updatedApplication);
-});
+app.post("/api/admin/applications/:id/update", requireAuth, requireAdmin, wrapAsync(updateAdminApplication));
 
 app.post("/api/admin/applications/:id/activate-restaurant", requireAuth, requireAdmin, async (req, res) => {
   const applications = readPartnerApplications();
@@ -3099,66 +3420,71 @@ app.post("/api/admin/menu-categories/:id/delete", requireAuth, requireAdmin, asy
   res.status(200).json({ deleted: true });
 });
 
-app.get("/api/admin/customers", requireAuth, requireAdmin, async (_req, res) => {
-  const customers = await prisma.user.findMany({
-    where: { role: "CUSTOMER" },
-    include: {
-      orders: true,
-      loyaltyEntries: true,
-      favorites: true
-    },
-    orderBy: { createdAt: "desc" }
-  });
-  res.json(customers.map(serializeCustomer));
-});
+app.get("/api/admin/customers", requireAuth, requireAdmin, wrapAsync(async (req, res) => {
+  const { page, limit, skip, search, status } = parsePagination(req.query, { defaultLimit: 50, maxLimit: 100 });
+  const where = {
+    role: "CUSTOMER",
+    ...(status ? { isActive: status.toLowerCase() === "active" } : {}),
+    ...(search
+      ? {
+          OR: [
+            { name: { contains: search } },
+            { email: { contains: search } },
+            { phone: { contains: search } },
+          ],
+        }
+      : {}),
+  };
+  const [customers, total] = await Promise.all([
+    prisma.user.findMany({
+      where,
+      include: {
+        orders: true,
+        loyaltyEntries: true,
+        favorites: true
+      },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+    }),
+    prisma.user.count({ where }),
+  ]);
+  ok(res, paginated(customers.map(serializeCustomer), total, { page, limit }));
+}));
 
-app.patch("/api/admin/customers/:id", requireAuth, requireAdmin, async (req, res) => {
-  const customer = await prisma.user.update({
-    where: { id: req.params.id },
-    data: {
-      name: req.body?.name,
-      email: req.body?.email,
-      phone: req.body?.phone,
-      defaultAddress: req.body?.defaultAddress,
-      isActive: req.body?.isActive
-    },
-    include: {
-      orders: true,
-      loyaltyEntries: true,
-      favorites: true
-    }
-  });
-  res.json(serializeCustomer(customer));
-});
+app.patch("/api/admin/customers/:id", requireAuth, requireAdmin, wrapAsync(updateAdminCustomer));
 
-app.post("/api/admin/customers/:id/update", requireAuth, requireAdmin, async (req, res) => {
-  const customer = await prisma.user.update({
-    where: { id: req.params.id },
-    data: {
-      name: req.body?.name,
-      email: req.body?.email,
-      phone: req.body?.phone,
-      defaultAddress: req.body?.defaultAddress,
-      isActive: req.body?.isActive
-    },
-    include: {
-      orders: true,
-      loyaltyEntries: true,
-      favorites: true
-    }
-  });
-  res.json(serializeCustomer(customer));
-});
+app.post("/api/admin/customers/:id/update", requireAuth, requireAdmin, wrapAsync(updateAdminCustomer));
 
-app.get("/api/admin/couriers", requireAuth, requireAdmin, async (_req, res) => {
-  const couriers = await prisma.courier.findMany({
-    include: { orders: true },
-    orderBy: { createdAt: "desc" }
-  });
-  res.json(couriers.map(serializeCourier));
-});
+app.get("/api/admin/couriers", requireAuth, requireAdmin, wrapAsync(async (req, res) => {
+  const { page, limit, skip, search, status } = parsePagination(req.query, { defaultLimit: 50, maxLimit: 100 });
+  const where = {
+    ...(status ? { status } : {}),
+    ...(search
+      ? {
+          OR: [
+            { name: { contains: search } },
+            { phone: { contains: search } },
+            { vehicle: { contains: search } },
+            { zoneLabel: { contains: search } },
+          ],
+        }
+      : {}),
+  };
+  const [couriers, total] = await Promise.all([
+    prisma.courier.findMany({
+      where,
+      include: { orders: true },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+    }),
+    prisma.courier.count({ where }),
+  ]);
+  ok(res, paginated(couriers.map(serializeCourier), total, { page, limit }));
+}));
 
-app.post("/api/admin/couriers", requireAuth, requireAdmin, async (req, res) => {
+app.post("/api/admin/couriers", requireAuth, requireAdmin, validateBody(Schemas.createCourier), async (req, res) => {
   const courier = await prisma.courier.create({
     data: {
       name: req.body?.name,
@@ -3176,43 +3502,9 @@ app.post("/api/admin/couriers", requireAuth, requireAdmin, async (req, res) => {
   res.status(201).json(serializeCourier(courier));
 });
 
-app.patch("/api/admin/couriers/:id", requireAuth, requireAdmin, async (req, res) => {
-  const courier = await prisma.courier.update({
-    where: { id: req.params.id },
-    data: {
-      name: req.body?.name,
-      phone: req.body?.phone,
-      vehicle: req.body?.vehicle,
-      status: req.body?.status,
-      payPerDelivery: req.body?.payPerDelivery !== undefined ? Number(req.body.payPerDelivery) : undefined,
-      payPerKm: req.body?.payPerKm !== undefined ? Number(req.body.payPerKm) : undefined,
-      zoneLabel: req.body?.zoneLabel || null,
-      currentLat: req.body?.currentLat !== undefined ? Number(req.body.currentLat) : undefined,
-      currentLng: req.body?.currentLng !== undefined ? Number(req.body.currentLng) : undefined
-    },
-    include: { orders: true }
-  });
-  res.json(serializeCourier(courier));
-});
+app.patch("/api/admin/couriers/:id", requireAuth, requireAdmin, wrapAsync(updateAdminCourier));
 
-app.post("/api/admin/couriers/:id/update", requireAuth, requireAdmin, async (req, res) => {
-  const courier = await prisma.courier.update({
-    where: { id: req.params.id },
-    data: {
-      name: req.body?.name,
-      phone: req.body?.phone,
-      vehicle: req.body?.vehicle,
-      status: req.body?.status,
-      payPerDelivery: req.body?.payPerDelivery !== undefined ? Number(req.body.payPerDelivery) : undefined,
-      payPerKm: req.body?.payPerKm !== undefined ? Number(req.body.payPerKm) : undefined,
-      zoneLabel: req.body?.zoneLabel || null,
-      currentLat: req.body?.currentLat !== undefined ? Number(req.body.currentLat) : undefined,
-      currentLng: req.body?.currentLng !== undefined ? Number(req.body.currentLng) : undefined
-    },
-    include: { orders: true }
-  });
-  res.json(serializeCourier(courier));
-});
+app.post("/api/admin/couriers/:id/update", requireAuth, requireAdmin, wrapAsync(updateAdminCourier));
 
 app.get("/api/admin/promotions", requireAuth, requireAdmin, async (_req, res) => {
   const promotions = await prisma.promotion.findMany({
@@ -3222,7 +3514,7 @@ app.get("/api/admin/promotions", requireAuth, requireAdmin, async (_req, res) =>
   res.json(promotions.map(serializePromotion));
 });
 
-app.post("/api/admin/promotions", requireAuth, requireAdmin, async (req, res) => {
+app.post("/api/admin/promotions", requireAuth, requireAdmin, validateBody(Schemas.createPromotion), wrapAsync(async (req, res) => {
   const promotion = await prisma.promotion.create({
     data: {
       code: req.body?.code,
@@ -3238,156 +3530,66 @@ app.post("/api/admin/promotions", requireAuth, requireAdmin, async (req, res) =>
     },
     include: { orders: true }
   });
-  res.status(201).json(serializePromotion(promotion));
-});
+  await logAdminAction(req, "promotion.created", "promotion", promotion.id, { code: promotion.code });
+  ok(res, serializePromotion(promotion), 201);
+}));
 
-app.patch("/api/admin/promotions/:id", requireAuth, requireAdmin, async (req, res) => {
-  const promotion = await prisma.promotion.update({
-    where: { id: req.params.id },
-    data: {
-      code: req.body?.code,
-      title: req.body?.title,
-      description: req.body?.description || null,
-      type: req.body?.type,
-      value: req.body?.value !== undefined ? Number(req.body.value) : undefined,
-      minOrderTotal: req.body?.minOrderTotal !== undefined ? Number(req.body.minOrderTotal) : undefined,
-      isActive: req.body?.isActive,
-      startsAt: req.body?.startsAt ? new Date(req.body.startsAt) : undefined,
-      endsAt: req.body?.endsAt ? new Date(req.body.endsAt) : undefined,
-      restaurantId: req.body?.restaurantId || null
-    },
-    include: { orders: true }
-  });
-  res.json(serializePromotion(promotion));
-});
+app.patch("/api/admin/promotions/:id", requireAuth, requireAdmin, wrapAsync(updateAdminPromotion));
 
-app.post("/api/admin/promotions/:id/update", requireAuth, requireAdmin, async (req, res) => {
-  const promotion = await prisma.promotion.update({
-    where: { id: req.params.id },
-    data: {
-      code: req.body?.code,
-      title: req.body?.title,
-      description: req.body?.description || null,
-      type: req.body?.type,
-      value: req.body?.value !== undefined ? Number(req.body.value) : undefined,
-      minOrderTotal: req.body?.minOrderTotal !== undefined ? Number(req.body.minOrderTotal) : undefined,
-      isActive: req.body?.isActive,
-      startsAt: req.body?.startsAt ? new Date(req.body.startsAt) : undefined,
-      endsAt: req.body?.endsAt ? new Date(req.body.endsAt) : undefined,
-      restaurantId: req.body?.restaurantId || null
-    },
-    include: { orders: true }
-  });
-  res.json(serializePromotion(promotion));
-});
+app.post("/api/admin/promotions/:id/update", requireAuth, requireAdmin, wrapAsync(updateAdminPromotion));
 
-app.get("/api/admin/orders", requireAuth, requireAdmin, async (_req, res) => {
-  const orders = await prisma.order.findMany({
-    include: { restaurant: true, user: true, courier: true, promotion: true },
-    orderBy: { createdAt: "desc" }
-  });
-  res.json(
-    orders.map((item) => ({
-      ...serializeOrder(item),
-      customerName: item.user.name,
-      customerPhone: item.user.phone,
-      customerEmail: item.user.email,
-      promotionCode: item.promotion?.code || null
-    }))
+app.get("/api/admin/orders", requireAuth, requireAdmin, wrapAsync(async (req, res) => {
+  const { page, limit, skip, search, status } = parsePagination(req.query, { defaultLimit: 50, maxLimit: 100 });
+  const where = {
+    ...(status && status !== "All"
+      ? { status: normalizeStatus(status) }
+      : {}),
+    ...(search
+      ? {
+          OR: [
+            { id: { contains: search } },
+            { address: { contains: search } },
+            { notes: { contains: search } },
+            { restaurant: { name: { contains: search } } },
+            { user: { name: { contains: search } } },
+            { user: { email: { contains: search } } },
+          ],
+        }
+      : {}),
+  };
+  const [orders, total] = await Promise.all([
+    prisma.order.findMany({
+      where,
+      include: { restaurant: true, user: true, courier: true, promotion: true },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+    }),
+    prisma.order.count({ where }),
+  ]);
+  ok(
+    res,
+    paginated(
+      orders.map((item) => ({
+        ...serializeOrder(item),
+        customerName: item.user.name,
+        customerPhone: item.user.phone,
+        customerEmail: item.user.email,
+        promotionCode: item.promotion?.code || null
+      })),
+      total,
+      { page, limit }
+    )
   );
-});
+}));
 
-app.patch("/api/admin/orders/:id/status", requireAuth, requireAdmin, async (req, res) => {
-  const { status, reason } = req.body || {};
-  if (!status) {
-    res.status(400).json({ message: "Statut requis." });
-    return;
-  }
+app.patch("/api/admin/orders/:id/status", requireAuth, requireAdmin, wrapAsync(updateAdminOrderStatus));
 
-  const existingOrder = await prisma.order.findUnique({
-    where: { id: req.params.id }
-  });
+app.post("/api/admin/orders/:id/status/update", requireAuth, requireAdmin, wrapAsync(updateAdminOrderStatus));
 
-  if (!existingOrder) {
-    res.status(404).json({ message: "Commande introuvable." });
-    return;
-  }
+app.patch("/api/admin/orders/:id/assign-courier", requireAuth, requireAdmin, wrapAsync(assignAdminCourier));
 
-  const noteSuffix = reason ? `Annulation admin: ${String(reason).trim()}` : null;
-  const nextNotes = noteSuffix
-    ? [existingOrder.notes, noteSuffix].filter(Boolean).join(" | ")
-    : existingOrder.notes;
-
-  const order = await prisma.order.update({
-    where: { id: req.params.id },
-    data: {
-      status: normalizeStatus(status),
-      notes: nextNotes
-    },
-    include: { restaurant: true, courier: true }
-  });
-  await emitOrderRealtime(order.id, "order/status-updated");
-  res.json(serializeOrder(order));
-});
-
-app.post("/api/admin/orders/:id/status/update", requireAuth, requireAdmin, async (req, res) => {
-  const { status, reason } = req.body || {};
-  if (!status) {
-    res.status(400).json({ message: "Statut requis." });
-    return;
-  }
-
-  const existingOrder = await prisma.order.findUnique({
-    where: { id: req.params.id }
-  });
-
-  if (!existingOrder) {
-    res.status(404).json({ message: "Commande introuvable." });
-    return;
-  }
-
-  const noteSuffix = reason ? `Annulation admin: ${String(reason).trim()}` : null;
-  const nextNotes = noteSuffix
-    ? [existingOrder.notes, noteSuffix].filter(Boolean).join(" | ")
-    : existingOrder.notes;
-
-  const order = await prisma.order.update({
-    where: { id: req.params.id },
-    data: {
-      status: normalizeStatus(status),
-      notes: nextNotes
-    },
-    include: { restaurant: true, courier: true }
-  });
-  await emitOrderRealtime(order.id, "order/status-updated");
-  res.json(serializeOrder(order));
-});
-
-app.patch("/api/admin/orders/:id/assign-courier", requireAuth, requireAdmin, async (req, res) => {
-  const order = await prisma.order.update({
-    where: { id: req.params.id },
-    data: { courierId: req.body?.courierId || null },
-    include: { restaurant: true, courier: true }
-  });
-  await emitOrderRealtime(order.id, "order/courier-assigned");
-  if (order.courierId) {
-    await emitCourierRealtime(order.courierId);
-  }
-  res.json(serializeOrder(order));
-});
-
-app.post("/api/admin/orders/:id/assign-courier/update", requireAuth, requireAdmin, async (req, res) => {
-  const order = await prisma.order.update({
-    where: { id: req.params.id },
-    data: { courierId: req.body?.courierId || null },
-    include: { restaurant: true, courier: true }
-  });
-  await emitOrderRealtime(order.id, "order/courier-assigned");
-  if (order.courierId) {
-    await emitCourierRealtime(order.courierId);
-  }
-  res.json(serializeOrder(order));
-});
+app.post("/api/admin/orders/:id/assign-courier/update", requireAuth, requireAdmin, wrapAsync(assignAdminCourier));
 
 app.get("/api/admin/reports/summary", requireAuth, requireAdmin, async (_req, res) => {
   const [orders, customers, couriers, promotions, menuItems] = await Promise.all([

@@ -6,6 +6,7 @@ import {
   CartSummary,
   CheckoutDraft,
   CourierDashboard,
+  CourierSession,
   Gender,
   LoyaltyEntry,
   Order,
@@ -87,9 +88,14 @@ function getApiBaseUrl() {
 const API_BASE_URL = getApiBaseUrl();
 export const WS_BASE_URL = API_BASE_URL.replace(/^http/i, "ws");
 let authToken: string | null = null;
+let courierToken: string | null = null;
 
 export function setApiAuthToken(token: string | null) {
   authToken = token;
+}
+
+export function setCourierAuthToken(token: string | null) {
+  courierToken = token;
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -103,8 +109,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new Error(errorBody?.message ?? "Erreur reseau");
+    const errorBody = (await response.json().catch(() => null)) as
+      | { message?: string; error?: { message?: string } }
+      | null;
+    throw new Error(errorBody?.error?.message ?? errorBody?.message ?? "Erreur reseau");
   }
 
   return response.json() as Promise<T>;
@@ -114,6 +122,7 @@ export const api = {
   baseUrl: API_BASE_URL,
   wsBaseUrl: WS_BASE_URL,
   setAuthToken: setApiAuthToken,
+  setCourierToken: setCourierAuthToken,
   bootstrap() {
     return request<BootstrapResponse>("/api/bootstrap");
   },
@@ -282,24 +291,39 @@ export const api = {
       body: JSON.stringify(input),
     });
   },
-  getCourierJobs(input: { courierId: string; lat?: number; lng?: number }) {
-    const params = new URLSearchParams({ courierId: input.courierId });
+  authenticateCourier(phone: string) {
+    return request<CourierSession>("/api/courier/auth", {
+      method: "POST",
+      body: JSON.stringify({ phone }),
+    }).then((payload) => {
+      setCourierAuthToken(payload.token);
+      return payload;
+    });
+  },
+  logoutCourier() {
+    setCourierAuthToken(null);
+  },
+  getCourierJobs(input: { lat?: number; lng?: number }) {
+    const params = new URLSearchParams();
     if (input.lat !== undefined) params.set("lat", String(input.lat));
     if (input.lng !== undefined) params.set("lng", String(input.lng));
-    return request<CourierDashboard>(`/api/courier/jobs?${params.toString()}`);
+    return request<CourierDashboard>(`/api/courier/jobs?${params.toString()}`, {
+      headers: courierToken ? { Authorization: `Bearer ${courierToken}` } : {},
+    });
   },
-  acceptCourierJob(orderId: string, courierId: string) {
+  acceptCourierJob(orderId: string) {
     return request<{ job: Order & { customerName?: string; customerPhone?: string; destinationAddress?: string } }>(
       `/api/courier/jobs/${orderId}/accept`,
       {
         method: "POST",
-        body: JSON.stringify({ courierId }),
+        headers: courierToken ? { Authorization: `Bearer ${courierToken}` } : {},
       }
     );
   },
-  updateCourierLocation(input: { courierId: string; latitude: number; longitude: number }) {
+  updateCourierLocation(input: { latitude: number; longitude: number }) {
     return request<{ ok: boolean }>("/api/courier/location", {
       method: "POST",
+      headers: courierToken ? { Authorization: `Bearer ${courierToken}` } : {},
       body: JSON.stringify(input),
     });
   },

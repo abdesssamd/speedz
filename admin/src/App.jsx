@@ -27,10 +27,9 @@ import {
 import { AdminDialog } from "./components/AdminDialog";
 import OmniSearch from "./components/OmniSearch";
 import AnalyticsDashboard from "./components/AnalyticsDashboard";
+import { API_URL, WS_URL, apiRequest } from "./lib/api";
 import "./index.css";
 
-const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:4100").replace(/\/$/, "");
-const WS_URL = API_URL.replace(/^http/i, "ws");
 const brandLogoUrl = "/logo.png";
 const translations = {
   fr: {
@@ -584,58 +583,6 @@ function buildSparkline(values, width = 120, height = 32) {
     .join(" ");
 }
 
-async function apiRequest(path, options = {}, token) {
-  let response;
-  try {
-    response = await fetch(`${API_URL}${path}`, {
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(options.headers || {}),
-      },
-      ...options,
-    });
-  } catch (error) {
-    const networkError = new Error(`Impossible de joindre l'API (${API_URL}). Verifiez que le backend est accessible.`);
-    networkError.cause = error;
-    throw networkError;
-  }
-
-  const rawBody = await response.text();
-  let payload = {};
-  try {
-    payload = rawBody ? JSON.parse(rawBody) : {};
-  } catch {
-    payload = {};
-  }
-
-  if (!response.ok) {
-    const message =
-      payload.message ||
-      payload.error ||
-      (rawBody && !/^<!doctype html/i.test(rawBody.trim()) ? rawBody.trim() : "") ||
-      `Erreur API (${response.status})`;
-    if (
-      typeof window !== "undefined" &&
-      (response.status === 401 ||
-        response.status === 403 ||
-        String(message).toLowerCase().includes("token"))
-    ) {
-      window.dispatchEvent(
-        new CustomEvent("admin-auth-invalid", {
-          detail: { message: "Session admin invalide ou expiree. Merci de vous reconnecter." },
-        })
-      );
-    }
-
-    const error = new Error(message);
-    error.status = response.status;
-    throw error;
-  }
-
-  return payload;
-}
-
 function formatMoney(value) {
   return `${Number(value || 0).toFixed(2)} Da`;
 }
@@ -968,11 +915,9 @@ function ApplicationActionMenu({ application, onStatusChange, onOpenRestaurant, 
 export default function App() {
   const [language, setLanguage] = useState(localStorage.getItem("admin_language") || "fr");
   const [theme, setTheme] = useState(localStorage.getItem("admin_theme") || "light");
-  const [token, setToken] = useState(localStorage.getItem("admin_token") || "");
-  const [user, setUser] = useState(() => {
-    const raw = localStorage.getItem("admin_user");
-    return raw ? JSON.parse(raw) : null;
-  });
+  const [token, setToken] = useState("");
+  const [user, setUser] = useState(null);
+  const [isRestoringSession, setIsRestoringSession] = useState(true);
   const [email, setEmail] = useState("admin@fooddelyvry.app");
   const [password, setPassword] = useState("admin1234");
   const [loginErrors, setLoginErrors] = useState({});
@@ -1661,14 +1606,43 @@ export default function App() {
       previousOrdersRef.current = [];
       previousApplicationsRef.current = [];
       hasHydratedLiveFeedRef.current = false;
-      localStorage.removeItem("admin_token");
-      localStorage.removeItem("admin_user");
       setStatusMessage("");
       setErrorMessage(event.detail?.message || "Session admin invalide ou expiree. Merci de vous reconnecter.");
     }
 
     window.addEventListener("admin-auth-invalid", handleInvalidAuth);
     return () => window.removeEventListener("admin-auth-invalid", handleInvalidAuth);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function restoreSession() {
+      try {
+        const payload = await apiRequest("/api/auth/me");
+        if (cancelled) {
+          return;
+        }
+
+        setUser(payload.user);
+        setToken("__cookie_session__");
+      } catch {
+        if (!cancelled) {
+          setToken("");
+          setUser(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsRestoringSession(false);
+        }
+      }
+    }
+
+    restoreSession();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -1885,8 +1859,9 @@ export default function App() {
 
     const response = await fetch(`${API_URL}/api/admin/upload-image`, {
       method: "POST",
+      credentials: "include",
       headers: {
-        Authorization: `Bearer ${token}`,
+        ...(token && token !== "__cookie_session__" ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: formData,
     });
@@ -1930,8 +1905,6 @@ export default function App() {
 
       setToken(payload.token);
       setUser(payload.user);
-      localStorage.setItem("admin_token", payload.token);
-      localStorage.setItem("admin_user", JSON.stringify(payload.user));
       setStatusMessage("Connexion admin reussie.");
       setLoginErrors({});
     } catch (error) {
@@ -1939,11 +1912,14 @@ export default function App() {
     }
   }
 
-  function handleLogout() {
+  async function handleLogout() {
+    try {
+      await apiRequest("/api/auth/logout", { method: "POST" }, token);
+    } catch {
+      // On réinitialise quand même l'interface locale si le backend est indisponible.
+    }
     setToken("");
     setUser(null);
-    localStorage.removeItem("admin_token");
-    localStorage.removeItem("admin_user");
   }
 
   async function handleCreateRestaurant(event) {
@@ -2834,6 +2810,19 @@ export default function App() {
     }
 
     setMenuItemForm((current) => ({ ...current, [field]: value }));
+  }
+
+  if (isRestoringSession) {
+    return (
+      <main className="auth-shell" dir={isRTL ? "rtl" : "ltr"}>
+        <section className="auth-card">
+          <div className="auth-glow" />
+          <img className="brand-logo auth-brand-logo" src={brandLogoUrl} alt="SpeedZ" />
+          <h1>{t("login_title")}</h1>
+          <p className="muted">Restauration de la session admin...</p>
+        </section>
+      </main>
+    );
   }
 
   if (!token) {

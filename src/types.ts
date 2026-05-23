@@ -1,7 +1,7 @@
 export type Category = string;
 export type Language = "fr" | "ar";
 export type Gender = "FEMALE" | "MALE" | "OTHER" | "UNSPECIFIED";
-export type AuthMethod = "WHATSAPP" | "SMS";
+export type AuthMethod = "WHATSAPP" | "SMS" | "EMAIL";
 
 export type Coordinates = {
   latitude: number;
@@ -337,4 +337,9 @@ export type CourierDashboard = {
   availableJobs: CourierJob[];
   activeJobs: CourierJob[];
   history: CourierJob[];
+};
+
+export type CourierSession = {
+  token: string;
+  courier: CourierDashboard["courier"];
 };

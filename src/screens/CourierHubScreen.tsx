@@ -12,25 +12,55 @@ import { CourierDashboard } from "../types";
 
 export function CourierHubScreen() {
   const { currentLocation, language, t, isRTL, pushNotification } = useApp();
-  const [courierId, setCourierId] = useState("");
+  const [courierPhone, setCourierPhone] = useState("");
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [dashboard, setDashboard] = useState<CourierDashboard | null>(null);
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState(false);
 
-  const loadJobs = async () => {
-    if (!courierId.trim()) { pushNotification({ title: t("application_error"), message: t("courier_id"), tone: "error" }); return; }
+  const loadJobs = async (authenticatedOverride = isAuthenticated) => {
+    if (!authenticatedOverride) {
+      pushNotification({ title: t("application_error"), message: "Connectez-vous d'abord avec votre numéro livreur.", tone: "error" });
+      return;
+    }
     setLoading(true);
     try {
-      const payload = await api.getCourierJobs({ courierId: courierId.trim(), lat: currentLocation.coordinates.latitude, lng: currentLocation.coordinates.longitude });
+      const payload = await api.getCourierJobs({ lat: currentLocation.coordinates.latitude, lng: currentLocation.coordinates.longitude });
       setDashboard(payload);
     } catch (error) {
       pushNotification({ title: t("application_error"), message: error instanceof Error ? error.message : t("application_error_msg"), tone: "error" });
     } finally { setLoading(false); }
   };
 
+  const authenticateCourier = async () => {
+    const normalizedPhone = courierPhone.trim();
+    if (!normalizedPhone) {
+      pushNotification({ title: t("application_error"), message: "Entrez le téléphone du compte livreur.", tone: "error" });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const payload = await api.authenticateCourier(normalizedPhone);
+      setDashboard((current) =>
+        current
+          ? { ...current, courier: payload.courier }
+          : { courier: payload.courier, availableJobs: [], activeJobs: [], history: [] }
+      );
+      setIsAuthenticated(true);
+      pushNotification({ title: "Connexion livreur", message: `${payload.courier.name} est connecté.`, tone: "success" });
+      await loadJobs(true);
+    } catch (error) {
+      setIsAuthenticated(false);
+      pushNotification({ title: t("application_error"), message: error instanceof Error ? error.message : t("application_error_msg"), tone: "error" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const acceptJob = async (orderId: string) => {
     try {
-      await api.acceptCourierJob(orderId, courierId.trim());
+      await api.acceptCourierJob(orderId);
       pushNotification({ title: t("courier_accept"), message: "Course affectée avec succès.", tone: "success" });
       await loadJobs();
     } catch (error) {
@@ -39,13 +69,13 @@ export function CourierHubScreen() {
   };
 
   useEffect(() => {
-    if (!courierId.trim()) return;
+    if (!isAuthenticated) return;
     const id = setInterval(() => {
       loadJobs().catch(() => {});
-      api.updateCourierLocation({ courierId: courierId.trim(), latitude: currentLocation.coordinates.latitude, longitude: currentLocation.coordinates.longitude }).catch(() => {});
+      api.updateCourierLocation({ latitude: currentLocation.coordinates.latitude, longitude: currentLocation.coordinates.longitude }).catch(() => {});
     }, 6000);
     return () => clearInterval(id);
-  }, [courierId, currentLocation.coordinates.latitude, currentLocation.coordinates.longitude]);
+  }, [isAuthenticated, currentLocation.coordinates.latitude, currentLocation.coordinates.longitude]);
 
   return (
     <SafeAreaView style={s.safe}>
@@ -61,16 +91,21 @@ export function CourierHubScreen() {
 
         {/* Login card */}
         <View style={s.loginCard}>
-          <Text style={s.loginLabel}>Identifiant livreur</Text>
+          <Text style={s.loginLabel}>Téléphone livreur</Text>
           <View style={[s.inputWrap, focused && s.inputFocused]}>
-            <Ionicons name="id-card-outline" size={18} color={focused ? "#FF7622" : "#A0A5BA"} />
-            <TextInput value={courierId} onChangeText={setCourierId} placeholder={t("courier_id")}
+            <Ionicons name="call-outline" size={18} color={focused ? "#FF7622" : "#A0A5BA"} />
+            <TextInput value={courierPhone} onChangeText={setCourierPhone} placeholder="+213555123456"
               placeholderTextColor="#C4C4C4" style={[s.input, { textAlign: isRTL ? "right" : "left" }]}
+              keyboardType="phone-pad"
               onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} />
           </View>
-          <ScalePressable containerStyle={[s.refreshBtn, loading && s.btnDisabled]} onPress={loadJobs} disabled={loading}>
-            <Ionicons name={loading ? "hourglass-outline" : "refresh-outline"} size={16} color="#FFF" />
-            <Text style={s.refreshBtnText}>{loading ? "Chargement…" : t("courier_refresh")}</Text>
+          <ScalePressable
+            containerStyle={[s.refreshBtn, loading && s.btnDisabled]}
+            onPress={() => void (isAuthenticated ? loadJobs() : authenticateCourier())}
+            disabled={loading}
+          >
+            <Ionicons name={loading ? "hourglass-outline" : isAuthenticated ? "refresh-outline" : "log-in-outline"} size={16} color="#FFF" />
+            <Text style={s.refreshBtnText}>{loading ? "Chargement…" : isAuthenticated ? t("courier_refresh") : "Se connecter"}</Text>
           </ScalePressable>
         </View>
 

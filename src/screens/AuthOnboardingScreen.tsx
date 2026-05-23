@@ -38,7 +38,7 @@ export function AuthOnboardingScreen({ navigation }: Props) {
     const e: Record<string, string> = {};
     if (fullName.trim().length < 4 || !fullName.trim().includes(" ")) e.fullName = "Entrez votre nom et prénom.";
     if (phoneNumber.replace(/\D/g, "").length < 9) e.phoneNumber = "Numéro invalide.";
-    if (!/^[^\s@]+@gmail\.com$/i.test(email.trim())) e.email = "Gmail requis (exemple@gmail.com).";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(email.trim())) e.email = "Email invalide (exemple@domaine.com).";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -116,10 +116,10 @@ export function AuthOnboardingScreen({ navigation }: Props) {
 
             {/* Email */}
             <View style={s.fieldGroup}>
-              <Text style={s.label}>Email Gmail</Text>
+              <Text style={s.label}>Email</Text>
               <View style={[s.inputWrap, focused === "email" && s.inputFocused, errors.email && s.inputError]}>
                 <Ionicons name="mail-outline" size={18} color={focused === "email" ? "#FF7622" : "#A0A5BA"} />
-                <TextInput value={email} onChangeText={setEmail} placeholder="exemple@gmail.com"
+                <TextInput value={email} onChangeText={setEmail} placeholder="exemple@domaine.com"
                   placeholderTextColor="#C4C4C4" keyboardType="email-address" autoCapitalize="none"
                   onFocus={() => setFocused("email")} onBlur={() => setFocused(null)} style={s.input} />
               </View>
@@ -130,7 +130,7 @@ export function AuthOnboardingScreen({ navigation }: Props) {
               {isSubmitting ? <ActivityIndicator color="#FFF" /> : <Text style={s.primaryBtnText}>Continuer →</Text>}
             </Pressable>
 
-            <Text style={s.termsText}>En continuant, vous acceptez nos <Text style={s.termsLink}>CGU</Text> et notre <Text style={s.termsLink}>Politique de confidentialité</Text>.</Text>
+            <Text style={s.termsText}>Votre téléphone sert au profil et au suivi. Le code de connexion est envoyé par email.</Text>
           </View>
         </ScrollView>
 
@@ -158,7 +158,7 @@ export function AuthOnboardingScreen({ navigation }: Props) {
             <Pressable style={s.sheet} onPress={() => null}>
               <View style={s.sheetHandle} />
               <View style={s.otpIconWrap}><Ionicons name="shield-checkmark" size={28} color="#FF7622" /></View>
-              <Text style={s.sheetTitle}>Vérification</Text>
+              <Text style={s.sheetTitle}>Vérification par email</Text>
               <Text style={s.otpSub}>Code envoyé à <Text style={{ color: "#FF7622", fontWeight: "700" }}>{email}</Text></Text>
               <View style={s.otpBoxRow}>
                 {otpDigits.map((d, i) => (
@@ -171,7 +171,7 @@ export function AuthOnboardingScreen({ navigation }: Props) {
                 placeholder="000000" placeholderTextColor="#C4C4C4" keyboardType="number-pad" maxLength={6}
                 style={[s.otpInput, errors.otp && s.inputError]} />
               {errors.otp ? <Text style={s.errorMsg}>{errors.otp}</Text> : null}
-              <Text style={s.otpNote}>📧 Code gratuit par email, pas par SMS.</Text>
+              <Text style={s.otpNote}>📧 Entrez le code reçu par email pour activer votre compte.</Text>
               <Pressable style={[s.primaryBtn, isVerifying && s.btnDisabled]} onPress={() => void handleOtpSubmit()} disabled={isVerifying}>
                 {isVerifying ? <ActivityIndicator color="#FFF" /> : <Text style={s.primaryBtnText}>Valider mon compte</Text>}
               </Pressable>
