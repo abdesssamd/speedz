@@ -8,6 +8,7 @@ import { ScalePressable } from "../components/ScalePressable";
 import { useApp } from "../context/AppContext";
 import { api } from "../services/api";
 import { formatCurrency, formatDateTime } from "../services/format";
+import { alignStart, mobileTheme, rowDirection } from "../theme/mobile";
 import { CourierDashboard } from "../types";
 
 export function CourierHubScreen() {
@@ -20,7 +21,7 @@ export function CourierHubScreen() {
 
   const loadJobs = async (authenticatedOverride = isAuthenticated) => {
     if (!authenticatedOverride) {
-      pushNotification({ title: t("application_error"), message: "Connectez-vous d'abord avec votre numéro livreur.", tone: "error" });
+      pushNotification({ title: t("application_error"), message: t("courier_connect_prompt"), tone: "error" });
       return;
     }
     setLoading(true);
@@ -35,7 +36,7 @@ export function CourierHubScreen() {
   const authenticateCourier = async () => {
     const normalizedPhone = courierPhone.trim();
     if (!normalizedPhone) {
-      pushNotification({ title: t("application_error"), message: "Entrez le téléphone du compte livreur.", tone: "error" });
+      pushNotification({ title: t("application_error"), message: t("courier_phone_required"), tone: "error" });
       return;
     }
 
@@ -48,7 +49,7 @@ export function CourierHubScreen() {
           : { courier: payload.courier, availableJobs: [], activeJobs: [], history: [] }
       );
       setIsAuthenticated(true);
-      pushNotification({ title: "Connexion livreur", message: `${payload.courier.name} est connecté.`, tone: "success" });
+      pushNotification({ title: t("courier_connected_title"), message: `${payload.courier.name} ${t("courier_connected_message")}`, tone: "success" });
       await loadJobs(true);
     } catch (error) {
       setIsAuthenticated(false);
@@ -61,7 +62,7 @@ export function CourierHubScreen() {
   const acceptJob = async (orderId: string) => {
     try {
       await api.acceptCourierJob(orderId);
-      pushNotification({ title: t("courier_accept"), message: "Course affectée avec succès.", tone: "success" });
+      pushNotification({ title: t("courier_accept"), message: t("courier_assigned_success"), tone: "success" });
       await loadJobs();
     } catch (error) {
       pushNotification({ title: t("application_error"), message: error instanceof Error ? error.message : t("application_error_msg"), tone: "error" });
@@ -84,15 +85,15 @@ export function CourierHubScreen() {
         <View style={s.header}>
           <View style={s.headerIconWrap}><Ionicons name="bicycle" size={26} color="#FF7622" /></View>
           <View style={{ flex: 1 }}>
-            <Text style={s.pageTitle}>{t("courier_hub")}</Text>
-            <Text style={s.pageSubtitle}>{t("courier_hub_subtitle")}</Text>
+            <Text style={[s.pageTitle, alignStart(isRTL)]}>{t("courier_hub")}</Text>
+            <Text style={[s.pageSubtitle, alignStart(isRTL)]}>{t("courier_hub_subtitle")}</Text>
           </View>
         </View>
 
         {/* Login card */}
         <View style={s.loginCard}>
-          <Text style={s.loginLabel}>Téléphone livreur</Text>
-          <View style={[s.inputWrap, focused && s.inputFocused]}>
+          <Text style={[s.loginLabel, alignStart(isRTL)]}>{t("courier_phone")}</Text>
+          <View style={[s.inputWrap, rowDirection(isRTL), focused && s.inputFocused]}>
             <Ionicons name="call-outline" size={18} color={focused ? "#FF7622" : "#A0A5BA"} />
             <TextInput value={courierPhone} onChangeText={setCourierPhone} placeholder="+213555123456"
               placeholderTextColor="#C4C4C4" style={[s.input, { textAlign: isRTL ? "right" : "left" }]}
@@ -105,21 +106,21 @@ export function CourierHubScreen() {
             disabled={loading}
           >
             <Ionicons name={loading ? "hourglass-outline" : isAuthenticated ? "refresh-outline" : "log-in-outline"} size={16} color="#FFF" />
-            <Text style={s.refreshBtnText}>{loading ? "Chargement…" : isAuthenticated ? t("courier_refresh") : "Se connecter"}</Text>
+            <Text style={s.refreshBtnText}>{loading ? t("courier_loading") : isAuthenticated ? t("courier_refresh") : t("courier_connect")}</Text>
           </ScalePressable>
         </View>
 
         {/* Available jobs */}
         <View style={s.sectionHeader}>
-          <Text style={s.sectionTitle}>{t("courier_available_jobs")}</Text>
+          <Text style={[s.sectionTitle, alignStart(isRTL)]}>{t("courier_available_jobs")}</Text>
           {dashboard?.availableJobs.length ? (
             <View style={s.countPill}><Text style={s.countPillText}>{dashboard.availableJobs.length}</Text></View>
           ) : null}
         </View>
         {dashboard?.availableJobs.length ? dashboard.availableJobs.map((job, index) => (
-          <AnimatedCard key={job.id} delay={Math.min(index * 60, 240)} style={s.jobCard}>
-            <View style={s.jobCardHeader}>
-              <View style={s.jobAvailableBadge}><Text style={s.jobAvailableText}>Disponible</Text></View>
+            <AnimatedCard key={job.id} delay={Math.min(index * 60, 240)} style={s.jobCard}>
+            <View style={[s.jobCardHeader, rowDirection(isRTL)]}>
+              <View style={s.jobAvailableBadge}><Text style={s.jobAvailableText}>{t("courier_available_status")}</Text></View>
               <Text style={s.jobRestaurant}>{job.restaurantName}</Text>
             </View>
             {[
@@ -135,7 +136,7 @@ export function CourierHubScreen() {
             ))}
             <View style={s.jobFooter}>
               <View>
-                <Text style={s.gainLabel}>Gain estimé</Text>
+                <Text style={s.gainLabel}>{t("courier_gain")}</Text>
                 <Text style={s.gainVal}>{formatCurrency(job.compensation.estimatedTotal)}</Text>
               </View>
               <ScalePressable containerStyle={s.acceptBtn} onPress={() => acceptJob(job.id)}>
@@ -149,17 +150,17 @@ export function CourierHubScreen() {
         {/* Active jobs */}
         {(dashboard?.activeJobs || []).length > 0 && (
           <>
-            <Text style={s.sectionTitle}>{t("courier_active_jobs")}</Text>
+            <Text style={[s.sectionTitle, alignStart(isRTL)]}>{t("courier_active_jobs")}</Text>
             {(dashboard?.activeJobs || []).map((job, index) => (
               <AnimatedCard key={job.id} delay={Math.min(index * 60, 240)} style={s.jobCard}>
-                <View style={s.jobActiveBadge}><Text style={s.jobActiveText}>En cours</Text></View>
+                <View style={s.jobActiveBadge}><Text style={s.jobActiveText}>{t("courier_active_status")}</Text></View>
                 <Text style={s.jobRestaurant}>{job.restaurantName}</Text>
                 <Text style={s.jobInfoVal}>{job.customer?.name} · {job.customer?.phone}</Text>
                 <Text style={s.gainVal}>{formatCurrency(job.compensation.estimatedTotal)}</Text>
                 {dashboard?.courier.currentLat != null && dashboard?.courier.currentLng != null && job.pickupCoordinates && job.destinationCoordinates && (
                   <LiveDeliveryMap pickup={job.pickupCoordinates} destination={job.destinationCoordinates}
                     courier={{ latitude: dashboard.courier.currentLat, longitude: dashboard.courier.currentLng }}
-                    title="Position live" subtitle="Synchronisée en temps réel." />
+                    title={t("courier_live_position")} subtitle={t("courier_live_sync")} />
                 )}
               </AnimatedCard>
             ))}
@@ -169,7 +170,7 @@ export function CourierHubScreen() {
         {/* History */}
         {(dashboard?.history || []).length > 0 && (
           <>
-            <Text style={s.sectionTitle}>{t("courier_history")}</Text>
+            <Text style={[s.sectionTitle, alignStart(isRTL)]}>{t("courier_history")}</Text>
             {(dashboard?.history || []).map((job, index) => (
               <AnimatedCard key={job.id} delay={Math.min(index * 50, 200)} style={s.histCard}>
                 <View style={s.histLeft}>
@@ -187,46 +188,46 @@ export function CourierHubScreen() {
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#F5F5F5" },
+  safe: { flex: 1, backgroundColor: mobileTheme.colors.background },
   content: { padding: 16, gap: 14, paddingBottom: 44 },
   header: { flexDirection: "row", alignItems: "center", gap: 12 },
   headerIconWrap: { width: 52, height: 52, borderRadius: 26, backgroundColor: "#FFF3EC", alignItems: "center", justifyContent: "center", shadowColor: "#FF7622", shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
-  pageTitle: { color: "#181C2E", fontSize: 22, fontWeight: "900" },
-  pageSubtitle: { color: "#898989", fontSize: 12, lineHeight: 18 },
+  pageTitle: { color: mobileTheme.colors.ink, fontSize: 22, fontWeight: "900" },
+  pageSubtitle: { color: mobileTheme.colors.textSoft, fontSize: 12, lineHeight: 18 },
 
-  loginCard: { backgroundColor: "#FFF", borderRadius: 22, padding: 16, gap: 12, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
-  loginLabel: { color: "#181C2E", fontWeight: "800", fontSize: 13 },
-  inputWrap: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 50, borderRadius: 14, borderWidth: 1.5, borderColor: "#EFEFEF", backgroundColor: "#FAFAFA", paddingHorizontal: 12 },
+  loginCard: { backgroundColor: mobileTheme.colors.surface, borderRadius: 22, padding: 16, gap: 12, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
+  loginLabel: { color: mobileTheme.colors.ink, fontWeight: "800", fontSize: 13 },
+  inputWrap: { alignItems: "center", gap: 10, minHeight: 50, borderRadius: 14, borderWidth: 1.5, borderColor: mobileTheme.colors.borderSoft, backgroundColor: mobileTheme.colors.surfaceMuted, paddingHorizontal: 12 },
   inputFocused: { borderColor: "#FF7622", backgroundColor: "#FFF9F5" },
-  input: { flex: 1, color: "#181C2E", fontSize: 13, paddingVertical: 3 },
+  input: { flex: 1, color: mobileTheme.colors.ink, fontSize: 13, paddingVertical: 3 },
   refreshBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#FF7622", borderRadius: 14, paddingVertical: 13, shadowColor: "#FF7622", shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4 },
   btnDisabled: { opacity: 0.6 },
   refreshBtnText: { color: "#FFF", fontWeight: "900", fontSize: 13 },
 
   sectionHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
-  sectionTitle: { color: "#181C2E", fontSize: 18, fontWeight: "900", flex: 1 },
+  sectionTitle: { color: mobileTheme.colors.ink, fontSize: 18, fontWeight: "900", flex: 1 },
   countPill: { backgroundColor: "#FF7622", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   countPillText: { color: "#FFF", fontWeight: "900", fontSize: 12 },
 
-  jobCard: { backgroundColor: "#FFF", borderRadius: 20, padding: 14, gap: 10, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-  jobCardHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+  jobCard: { backgroundColor: mobileTheme.colors.surface, borderRadius: 20, padding: 14, gap: 10, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+  jobCardHeader: { alignItems: "center", gap: 10 },
   jobAvailableBadge: { backgroundColor: "#DCFCE7", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: "#BBF7D0" },
   jobAvailableText: { color: "#16A34A", fontWeight: "800", fontSize: 10 },
   jobActiveBadge: { alignSelf: "flex-start", backgroundColor: "#FFF3EC", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: "#FFD5B8" },
   jobActiveText: { color: "#FF7622", fontWeight: "800", fontSize: 10 },
-  jobRestaurant: { color: "#181C2E", fontSize: 15, fontWeight: "900", flex: 1 },
+  jobRestaurant: { color: mobileTheme.colors.ink, fontSize: 15, fontWeight: "900", flex: 1 },
   jobInfoRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  jobInfoLabel: { color: "#898989", fontSize: 11, fontWeight: "700" },
-  jobInfoVal: { flex: 1, color: "#181C2E", fontSize: 12, fontWeight: "600" },
+  jobInfoLabel: { color: mobileTheme.colors.textSoft, fontSize: 11, fontWeight: "700" },
+  jobInfoVal: { flex: 1, color: mobileTheme.colors.ink, fontSize: 12, fontWeight: "600" },
   jobFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 10, borderTopWidth: 1, borderTopColor: "#F5F5F5" },
   gainLabel: { color: "#898989", fontSize: 10, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
   gainVal: { color: "#22C55E", fontWeight: "900", fontSize: 18, marginTop: 2 },
   acceptBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#181C2E", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11, minWidth: 100 },
   acceptBtnText: { color: "#FFF", fontWeight: "800", fontSize: 12 },
 
-  histCard: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "#FFF", borderRadius: 16, padding: 14, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
+  histCard: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: mobileTheme.colors.surface, borderRadius: 16, padding: 14, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
   histLeft: { gap: 3 },
-  histName: { color: "#181C2E", fontWeight: "800", fontSize: 13 },
-  histDate: { color: "#898989", fontSize: 11 },
+  histName: { color: mobileTheme.colors.ink, fontWeight: "800", fontSize: 13 },
+  histDate: { color: mobileTheme.colors.textSoft, fontSize: 11 },
   histGain: { color: "#22C55E", fontWeight: "900", fontSize: 15 },
 });

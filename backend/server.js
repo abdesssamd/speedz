@@ -595,6 +595,49 @@ function errorResponse(res, status, message, code = "API_ERROR", details = undef
   });
 }
 
+function getPublicError(error) {
+  if (error instanceof ApiError) {
+    return {
+      status: error.status,
+      message: error.message,
+      code: error.code,
+      details: error.details,
+    };
+  }
+
+  if (error?.code === "P2002") {
+    return {
+      status: 409,
+      message: "Une valeur unique existe deja en base.",
+      code: "UNIQUE_CONSTRAINT",
+      details: error.meta || undefined,
+    };
+  }
+
+  if (error?.code === "P2022") {
+    return {
+      status: 500,
+      message: "La base de donnees n'est pas a jour. Lancez npm run prisma:push puis redemarrez l'application Node.js.",
+      code: "DATABASE_SCHEMA_OUT_OF_SYNC",
+      details: error.meta || undefined,
+    };
+  }
+
+  if (error?.name === "PrismaClientValidationError") {
+    return {
+      status: 400,
+      message: "Donnees envoyees invalides pour cette operation.",
+      code: "INVALID_DATABASE_PAYLOAD",
+    };
+  }
+
+  return {
+    status: 500,
+    message: "Erreur serveur interne.",
+    code: "INTERNAL_SERVER_ERROR",
+  };
+}
+
 function parsePagination(query, { defaultLimit = 50, maxLimit = 100 } = {}) {
   const page = Math.max(1, Number.parseInt(String(query.page || "1"), 10) || 1);
   const limit = Math.min(maxLimit, Math.max(1, Number.parseInt(String(query.limit || defaultLimit), 10) || defaultLimit));
@@ -2923,22 +2966,32 @@ app.get("/api/admin/restaurants/:id/qr-code", requireAuth, requireAdmin, async (
   res.json({ qrCodeToken, qrUrl, qrDataUrl });
 });
 
-app.post("/api/admin/restaurants", requireAuth, requireAdmin, async (req, res) => {
+app.post("/api/admin/restaurants", requireAuth, requireAdmin, wrapAsync(async (req, res) => {
   const body = req.body || {};
+  const requiredFields = ["name", "category", "shortDescription", "address"];
+  const missingFields = requiredFields.filter((field) => !String(body[field] || "").trim());
+  if (missingFields.length) {
+    throw new ApiError(400, "Champs restaurant obligatoires manquants.", "RESTAURANT_REQUIRED_FIELDS", {
+      fields: missingFields,
+    });
+  }
+
   const ownerEmail = String(body.ownerEmail || "").trim().toLowerCase();
 
   if (ownerEmail) {
     const existingUser = await prisma.user.findUnique({ where: { email: ownerEmail } });
     if (existingUser) {
-      res.status(400).json({ message: "Un compte existe deja avec cet email restaurant." });
-      return;
+      throw new ApiError(409, "Un compte existe deja avec cet email restaurant.", "RESTAURANT_OWNER_EMAIL_EXISTS");
     }
   }
 
-  const restaurantId = body.id || `r${Date.now()}`;
+  const restaurantId = String(body.id || `r${Date.now()}`).trim();
   const generatedApiToken = body.apiToken || generateOpaqueToken("fdrest");
   const generatedQrCodeToken = body.qrCodeToken || generateOpaqueToken("qr");
   const temporaryPassword = `resto-${crypto.randomBytes(4).toString("hex")}`;
+  const fallbackImage =
+    body.image ||
+    "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80";
 
   const restaurant = await prisma.$transaction(async (tx) => {
     const createdRestaurant = await tx.restaurant.create({
@@ -2948,11 +3001,11 @@ app.post("/api/admin/restaurants", requireAuth, requireAdmin, async (req, res) =
         category: body.category,
         shortDescription: body.shortDescription,
         address: body.address,
-        openingHours: body.openingHours,
-        deliveryTime: body.deliveryTime,
+        openingHours: body.openingHours || "11:00 - 23:00",
+        deliveryTime: body.deliveryTime || "25-35 min",
         rating: Number(body.rating || 4.5),
         reviewCount: Number(body.reviewCount || 0),
-        image: body.image,
+        image: fallbackImage,
         heroColor: body.heroColor || "#EA580C",
         latitude: Number(body.coordinates?.latitude || 0),
         longitude: Number(body.coordinates?.longitude || 0),
@@ -3016,9 +3069,9 @@ app.post("/api/admin/restaurants", requireAuth, requireAdmin, async (req, res) =
         }
       : null,
   });
-});
+}));
 
-app.put("/api/admin/restaurants/:id", requireAuth, requireAdmin, async (req, res) => {
+app.put("/api/admin/restaurants/:id", requireAuth, requireAdmin, wrapAsync(async (req, res) => {
   const body = req.body || {};
   const restaurant = await prisma.restaurant.update({
     where: { id: req.params.id },
@@ -3054,9 +3107,9 @@ app.put("/api/admin/restaurants/:id", requireAuth, requireAdmin, async (req, res
     include: { menuItems: true }
   });
   res.json(serializeRestaurant(restaurant));
-});
+}));
 
-app.post("/api/admin/restaurants/:id/update", requireAuth, requireAdmin, async (req, res) => {
+app.post("/api/admin/restaurants/:id/update", requireAuth, requireAdmin, wrapAsync(async (req, res) => {
   const body = req.body || {};
   const restaurant = await prisma.restaurant.update({
     where: { id: req.params.id },
@@ -3092,7 +3145,7 @@ app.post("/api/admin/restaurants/:id/update", requireAuth, requireAdmin, async (
     include: { menuItems: true }
   });
   res.json(serializeRestaurant(restaurant));
-});
+}));
 
 // ─── Suppression restaurant ────────────────────────────────────────────────────
 // Soft-delete : marque le restaurant comme inactif ET supprimé
@@ -3636,7 +3689,12 @@ app.get("/api/admin/reports/summary", requireAuth, requireAdmin, async (_req, re
 
 app.use((error, _req, res, _next) => {
   console.error(error);
-  res.status(500).json({ message: "Erreur serveur interne." });
+  if (res.headersSent) {
+    return;
+  }
+
+  const publicError = getPublicError(error);
+  errorResponse(res, publicError.status, publicError.message, publicError.code, publicError.details);
 });
 
 server.listen(PORT, () => {

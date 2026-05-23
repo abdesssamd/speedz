@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import { useApp } from "../context/AppContext";
 import { RootStackParamList } from "../navigation/AppNavigator";
+import { alignStart, mobileTheme, rowDirection } from "../theme/mobile";
 
 type Props = NativeStackScreenProps<RootStackParamList, "AuthOnboarding">;
 type CountryOption = { code: string; flag: string; label: string };
@@ -19,7 +20,7 @@ const countryOptions: CountryOption[] = [
 ];
 
 export function AuthOnboardingScreen({ navigation }: Props) {
-  const { authFlow, requestEmailAuthCode, verifyEmailAuthCode } = useApp();
+  const { authFlow, requestEmailAuthCode, verifyEmailAuthCode, t, isRTL } = useApp();
   const [fullName, setFullName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [email, setEmail] = useState("");
@@ -73,35 +74,35 @@ export function AuthOnboardingScreen({ navigation }: Props) {
           <View style={s.illustrationArea}>
             <View style={s.logoCircle}><Ionicons name="fast-food" size={34} color="#FF7622" /></View>
             <Text style={s.brandName}>Speedz</Text>
-            <Text style={s.brandTagline}>Livraison rapide en Algérie 🇩🇿</Text>
+            <Text style={s.brandTagline}>{t("auth_brand_tagline")} 🇩🇿</Text>
           </View>
 
           {/* Title */}
           <View style={s.titleBlock}>
-            <Text style={s.title}>Créer un compte</Text>
-            <Text style={s.subtitle}>Rejoignez des milliers de clients satisfaits</Text>
+            <Text style={[s.title, alignStart(isRTL)]}>{t("auth_create_account")}</Text>
+            <Text style={[s.subtitle, alignStart(isRTL)]}>{t("auth_subtitle")}</Text>
           </View>
 
           {/* Form */}
           <View style={s.form}>
             {/* Full name */}
             <View style={s.fieldGroup}>
-              <Text style={s.label}>Nom complet</Text>
+              <Text style={[s.label, alignStart(isRTL)]}>{t("auth_full_name")}</Text>
               <View style={[s.inputWrap, focused === "name" && s.inputFocused, errors.fullName && s.inputError]}>
                 <Ionicons name="person-outline" size={18} color={focused === "name" ? "#FF7622" : "#A0A5BA"} />
                 <TextInput value={fullName} onChangeText={setFullName} placeholder="Ex: Amira Benali"
                   placeholderTextColor="#C4C4C4" autoCapitalize="words"
-                  onFocus={() => setFocused("name")} onBlur={() => setFocused(null)} style={s.input} />
+                  onFocus={() => setFocused("name")} onBlur={() => setFocused(null)} style={[s.input, alignStart(isRTL)]} />
               </View>
               {errors.fullName && <Text style={s.errorMsg}><Ionicons name="alert-circle-outline" size={12} color="#F44" /> {errors.fullName}</Text>}
             </View>
 
             {/* Phone */}
             <View style={s.fieldGroup}>
-              <Text style={s.label}>Téléphone</Text>
-              <View style={[s.inputWrap, focused === "phone" && s.inputFocused, errors.phoneNumber && s.inputError]}>
+              <Text style={[s.label, alignStart(isRTL)]}>{t("auth_phone")}</Text>
+              <View style={[s.inputWrap, rowDirection(isRTL), focused === "phone" && s.inputFocused, errors.phoneNumber && s.inputError]}>
                 <Ionicons name="call-outline" size={18} color={focused === "phone" ? "#FF7622" : "#A0A5BA"} />
-                <Pressable style={s.countrySelector} onPress={() => setCountryPickerVisible(true)}>
+                <Pressable style={[s.countrySelector, rowDirection(isRTL)]} onPress={() => setCountryPickerVisible(true)}>
                   <Text style={s.countryFlag}>{selectedCountry.flag}</Text>
                   <Text style={s.countryCode}>{selectedCountry.code}</Text>
                   <Ionicons name="chevron-down" size={12} color="#A0A5BA" />
@@ -109,28 +110,28 @@ export function AuthOnboardingScreen({ navigation }: Props) {
                 <View style={s.inputDivider} />
                 <TextInput value={phoneNumber} onChangeText={(v) => setPhoneNumber(v.replace(/[^\d\s-]/g, ""))}
                   placeholder="0555 12 34 56" placeholderTextColor="#C4C4C4" keyboardType="phone-pad"
-                  onFocus={() => setFocused("phone")} onBlur={() => setFocused(null)} style={s.input} />
+                  onFocus={() => setFocused("phone")} onBlur={() => setFocused(null)} style={[s.input, alignStart(isRTL)]} />
               </View>
               {errors.phoneNumber && <Text style={s.errorMsg}>{errors.phoneNumber}</Text>}
             </View>
 
             {/* Email */}
             <View style={s.fieldGroup}>
-              <Text style={s.label}>Email</Text>
+              <Text style={[s.label, alignStart(isRTL)]}>{t("auth_email")}</Text>
               <View style={[s.inputWrap, focused === "email" && s.inputFocused, errors.email && s.inputError]}>
                 <Ionicons name="mail-outline" size={18} color={focused === "email" ? "#FF7622" : "#A0A5BA"} />
                 <TextInput value={email} onChangeText={setEmail} placeholder="exemple@domaine.com"
                   placeholderTextColor="#C4C4C4" keyboardType="email-address" autoCapitalize="none"
-                  onFocus={() => setFocused("email")} onBlur={() => setFocused(null)} style={s.input} />
+                  onFocus={() => setFocused("email")} onBlur={() => setFocused(null)} style={[s.input, alignStart(isRTL)]} />
               </View>
               {errors.email && <Text style={s.errorMsg}>{errors.email}</Text>}
             </View>
 
             <Pressable style={[s.primaryBtn, isSubmitting && s.btnDisabled]} onPress={() => void handleNext()} disabled={isSubmitting}>
-              {isSubmitting ? <ActivityIndicator color="#FFF" /> : <Text style={s.primaryBtnText}>Continuer →</Text>}
+              {isSubmitting ? <ActivityIndicator color="#FFF" /> : <Text style={s.primaryBtnText}>{t("auth_continue")} →</Text>}
             </Pressable>
 
-            <Text style={s.termsText}>Votre téléphone sert au profil et au suivi. Le code de connexion est envoyé par email.</Text>
+            <Text style={s.termsText}>{t("auth_phone_notice")}</Text>
           </View>
         </ScrollView>
 
@@ -139,11 +140,11 @@ export function AuthOnboardingScreen({ navigation }: Props) {
           <Pressable style={s.overlay} onPress={() => setCountryPickerVisible(false)}>
             <Pressable style={s.sheet} onPress={() => null}>
               <View style={s.sheetHandle} />
-              <Text style={s.sheetTitle}>Choisir un indicatif</Text>
+              <Text style={[s.sheetTitle, alignStart(isRTL)]}>{t("auth_choose_country_code")}</Text>
               {countryOptions.map((c) => (
-                <Pressable key={c.code} style={s.sheetRow} onPress={() => { setSelectedCountry(c); setCountryPickerVisible(false); }}>
+                <Pressable key={c.code} style={[s.sheetRow, rowDirection(isRTL)]} onPress={() => { setSelectedCountry(c); setCountryPickerVisible(false); }}>
                   <Text style={s.sheetFlag}>{c.flag}</Text>
-                  <Text style={s.sheetCountry}>{c.label}</Text>
+                  <Text style={[s.sheetCountry, alignStart(isRTL)]}>{c.label}</Text>
                   <Text style={s.sheetCode}>{c.code}</Text>
                   {selectedCountry.code === c.code && <Ionicons name="checkmark-circle" size={20} color="#FF7622" />}
                 </Pressable>
@@ -158,8 +159,8 @@ export function AuthOnboardingScreen({ navigation }: Props) {
             <Pressable style={s.sheet} onPress={() => null}>
               <View style={s.sheetHandle} />
               <View style={s.otpIconWrap}><Ionicons name="shield-checkmark" size={28} color="#FF7622" /></View>
-              <Text style={s.sheetTitle}>Vérification par email</Text>
-              <Text style={s.otpSub}>Code envoyé à <Text style={{ color: "#FF7622", fontWeight: "700" }}>{email}</Text></Text>
+              <Text style={[s.sheetTitle, alignStart(isRTL)]}>{t("auth_email_verification")}</Text>
+              <Text style={[s.otpSub, alignStart(isRTL)]}>{t("auth_code_sent_to")} <Text style={{ color: "#FF7622", fontWeight: "700" }}>{email}</Text></Text>
               <View style={s.otpBoxRow}>
                 {otpDigits.map((d, i) => (
                   <View key={i} style={[s.otpBox, d.trim() && s.otpBoxFilled]}>
@@ -171,9 +172,9 @@ export function AuthOnboardingScreen({ navigation }: Props) {
                 placeholder="000000" placeholderTextColor="#C4C4C4" keyboardType="number-pad" maxLength={6}
                 style={[s.otpInput, errors.otp && s.inputError]} />
               {errors.otp ? <Text style={s.errorMsg}>{errors.otp}</Text> : null}
-              <Text style={s.otpNote}>📧 Entrez le code reçu par email pour activer votre compte.</Text>
+              <Text style={s.otpNote}>📧 {t("auth_email_code_notice")}</Text>
               <Pressable style={[s.primaryBtn, isVerifying && s.btnDisabled]} onPress={() => void handleOtpSubmit()} disabled={isVerifying}>
-                {isVerifying ? <ActivityIndicator color="#FFF" /> : <Text style={s.primaryBtnText}>Valider mon compte</Text>}
+                {isVerifying ? <ActivityIndicator color="#FFF" /> : <Text style={s.primaryBtnText}>{t("auth_validate_account")}</Text>}
               </Pressable>
             </Pressable>
           </Pressable>
@@ -184,27 +185,27 @@ export function AuthOnboardingScreen({ navigation }: Props) {
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#F5F5F5" },
+  safe: { flex: 1, backgroundColor: mobileTheme.colors.background },
   content: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 20, paddingBottom: 32, gap: 24 },
 
   illustrationArea: { alignItems: "center", gap: 12, paddingVertical: 20 },
   logoCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: "#FFF3EC", alignItems: "center", justifyContent: "center", shadowColor: "#FF7622", shadowOpacity: 0.2, shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 5 },
-  brandName: { color: "#181C2E", fontSize: 28, fontWeight: "900" },
-  brandTagline: { color: "#898989", fontSize: 14, fontWeight: "500" },
+  brandName: { color: mobileTheme.colors.ink, fontSize: 28, fontWeight: "900" },
+  brandTagline: { color: mobileTheme.colors.textSoft, fontSize: 14, fontWeight: "500" },
 
   titleBlock: { gap: 6 },
-  title: { color: "#181C2E", fontSize: 26, fontWeight: "900" },
-  subtitle: { color: "#898989", fontSize: 14, lineHeight: 20 },
+  title: { color: mobileTheme.colors.ink, fontSize: 26, fontWeight: "900" },
+  subtitle: { color: mobileTheme.colors.textSoft, fontSize: 14, lineHeight: 20 },
 
-  form: { backgroundColor: "#FFF", borderRadius: 28, padding: 24, gap: 18, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 20, shadowOffset: { width: 0, height: 6 }, elevation: 4 },
+  form: { backgroundColor: mobileTheme.colors.surface, borderRadius: 28, padding: 24, gap: 18, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 20, shadowOffset: { width: 0, height: 6 }, elevation: 4 },
   fieldGroup: { gap: 8 },
-  label: { color: "#181C2E", fontSize: 14, fontWeight: "700" },
-  inputWrap: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 54, borderRadius: 16, borderWidth: 1.5, borderColor: "#EFEFEF", backgroundColor: "#FAFAFA", paddingHorizontal: 14 },
+  label: { color: mobileTheme.colors.ink, fontSize: 14, fontWeight: "700" },
+  inputWrap: { alignItems: "center", gap: 10, minHeight: 54, borderRadius: 16, borderWidth: 1.5, borderColor: mobileTheme.colors.borderSoft, backgroundColor: mobileTheme.colors.surfaceMuted, paddingHorizontal: 14 },
   inputFocused: { borderColor: "#FF7622", backgroundColor: "#FFF9F5" },
   inputError: { borderColor: "#F44336" },
-  input: { flex: 1, color: "#181C2E", fontSize: 15, paddingVertical: 8 },
-  inputDivider: { width: 1, height: 22, backgroundColor: "#EFEFEF", marginHorizontal: 2 },
-  countrySelector: { flexDirection: "row", alignItems: "center", gap: 4 },
+  input: { flex: 1, color: mobileTheme.colors.ink, fontSize: 15, paddingVertical: 8 },
+  inputDivider: { width: 1, height: 22, backgroundColor: mobileTheme.colors.borderSoft, marginHorizontal: 2 },
+  countrySelector: { alignItems: "center", gap: 4 },
   countryFlag: { fontSize: 18 },
   countryCode: { color: "#181C2E", fontWeight: "700", fontSize: 13 },
   errorMsg: { color: "#F44336", fontSize: 12, fontWeight: "600" },
@@ -215,17 +216,17 @@ const s = StyleSheet.create({
   termsText: { color: "#A0A5BA", fontSize: 12, textAlign: "center", lineHeight: 18 },
   termsLink: { color: "#FF7622", fontWeight: "700" },
 
-  overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(24,28,46,0.5)" },
-  sheet: { backgroundColor: "#FFF", borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 36, gap: 16 },
+  overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: mobileTheme.colors.overlay },
+  sheet: { backgroundColor: mobileTheme.colors.surface, borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 36, gap: 16 },
   sheetHandle: { width: 44, height: 4, borderRadius: 2, backgroundColor: "#E5E5E5", alignSelf: "center", marginBottom: 8 },
-  sheetTitle: { color: "#181C2E", fontSize: 22, fontWeight: "900" },
-  sheetRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#F5F5F5" },
+  sheetTitle: { color: mobileTheme.colors.ink, fontSize: 22, fontWeight: "900" },
+  sheetRow: { alignItems: "center", gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: mobileTheme.colors.background },
   sheetFlag: { fontSize: 24 },
-  sheetCountry: { flex: 1, color: "#181C2E", fontWeight: "700", fontSize: 16 },
-  sheetCode: { color: "#898989", fontWeight: "600" },
+  sheetCountry: { flex: 1, color: mobileTheme.colors.ink, fontWeight: "700", fontSize: 16 },
+  sheetCode: { color: mobileTheme.colors.textSoft, fontWeight: "600" },
 
   otpIconWrap: { width: 60, height: 60, borderRadius: 30, backgroundColor: "#FFF3EC", alignItems: "center", justifyContent: "center", alignSelf: "center" },
-  otpSub: { color: "#898989", fontSize: 14, lineHeight: 20 },
+  otpSub: { color: mobileTheme.colors.textSoft, fontSize: 14, lineHeight: 20 },
   otpBoxRow: { flexDirection: "row", gap: 10, justifyContent: "center" },
   otpBox: { width: 46, height: 54, borderRadius: 14, borderWidth: 1.5, borderColor: "#EFEFEF", backgroundColor: "#FAFAFA", alignItems: "center", justifyContent: "center" },
   otpBoxFilled: { borderColor: "#FF7622", backgroundColor: "#FFF9F5" },

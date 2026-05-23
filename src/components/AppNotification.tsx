@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { useApp } from "../context/AppContext";
+import { alignStart, rowDirection, mobileTheme } from "../theme/mobile";
 
 export function AppNotification() {
   const { notification, dismissNotification, t, isRTL } = useApp();
@@ -28,9 +29,9 @@ export function AppNotification() {
 
   const accent =
     notification.tone === "success"
-      ? "#15803D"
+      ? mobileTheme.colors.successDark
       : notification.tone === "error"
-        ? "#B91C1C"
+        ? mobileTheme.colors.dangerDark
         : "#0F766E";
 
   return (
@@ -44,10 +45,10 @@ export function AppNotification() {
         },
       ]}
     >
-      <Pressable onPress={dismissNotification} style={[styles.card, { borderLeftColor: accent }]}>
+      <Pressable onPress={dismissNotification} style={[styles.card, rowDirection(isRTL), { borderLeftColor: accent }]}>
         <View style={styles.textBlock}>
-          <Text style={[styles.title, { textAlign: isRTL ? "right" : "left" }]}>{notification.title}</Text>
-          <Text style={[styles.message, { textAlign: isRTL ? "right" : "left" }]}>{notification.message}</Text>
+          <Text style={[styles.title, alignStart(isRTL)]}>{notification.title}</Text>
+          <Text style={[styles.message, alignStart(isRTL)]}>{notification.message}</Text>
         </View>
         <Text style={[styles.close, { color: accent }]}>{t("close")}</Text>
       </Pressable>
@@ -65,21 +66,20 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: "#FFFBF5",
-    borderRadius: 18,
+    borderRadius: mobileTheme.radius.lg,
     borderLeftWidth: 5,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    shadowColor: "#111827",
+    shadowColor: mobileTheme.colors.text,
     shadowOpacity: 0.12,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 10 },
     elevation: 10,
   },
   textBlock: { flex: 1, gap: 2 },
-  title: { color: "#111827", fontSize: 15, fontWeight: "800" },
-  message: { color: "#475569", fontSize: 13, lineHeight: 18 },
+  title: { color: mobileTheme.colors.text, fontSize: 15, fontWeight: "800" },
+  message: { color: mobileTheme.colors.textMuted, fontSize: 13, lineHeight: 18 },
   close: { fontWeight: "700", fontSize: 12 },
 });

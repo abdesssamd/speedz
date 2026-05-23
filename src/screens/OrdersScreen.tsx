@@ -11,8 +11,6 @@
  */
 
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React from "react";
 import {
   FlatList,
@@ -26,32 +24,24 @@ import { AnimatedCard } from "../components/AnimatedCard";
 import { EmptyState } from "../components/EmptyState";
 import { LiveDeliveryMap } from "../components/LiveDeliveryMap";
 import { useApp } from "../context/AppContext";
-import { RootStackParamList } from "../navigation/AppNavigator";
+import { alignStart, mobileTheme, rowDirection } from "../theme/mobile";
 import { translateStatus } from "../i18n/mobile";
 import { formatCurrency, formatDateTime } from "../services/format";
 import { Language, Order } from "../types";
 
 const JE = {
-  orange: "#F36E26",
+  orange: mobileTheme.colors.brandStrong,
   orangeLight: "#FFF0E8",
-  dark: "#181C2E",
-  grey: "#898989",
-  greyLight: "#F5F5F5",
-  white: "#FFFFFF",
-  green: "#22C55E",
+  dark: mobileTheme.colors.ink,
+  grey: mobileTheme.colors.textSoft,
+  greyLight: mobileTheme.colors.background,
+  white: mobileTheme.colors.white,
+  green: mobileTheme.colors.success,
   greenLight: "#F0FFF4",
-  blue: "#3B82F6",
-  blueLight: "#EFF6FF",
+  blue: mobileTheme.colors.info,
+  blueLight: mobileTheme.colors.infoSoft,
   border: "#F0F0F0",
 };
-
-// ─── Étapes du tracker JE ─────────────────────────────────────────────────────
-const STEPS = [
-  { key: "Confirmed",    label: "Confirmée",  icon: "checkmark-circle-outline" as const },
-  { key: "Preparing",   label: "En prépa",   icon: "restaurant-outline" as const },
-  { key: "On the way",  label: "En route",   icon: "bicycle-outline" as const },
-  { key: "Delivered",   label: "Livrée",     icon: "home-outline" as const },
-];
 
 const STEP_ORDER = ["Confirmed", "Preparing", "On the way", "Delivered"];
 
@@ -60,11 +50,17 @@ function stepIndex(status: string) {
 }
 
 // ─── Tracker horizontal (signature JE) ───────────────────────────────────────
-function JETracker({ status }: { status: string }) {
+function JETracker({ status, language, isRTL }: { status: string; language: Language; isRTL: boolean }) {
   const currentIdx = stepIndex(status);
+  const steps = [
+    { key: "Confirmed", label: translateStatus(language, "Confirmed"), icon: "checkmark-circle-outline" as const },
+    { key: "Preparing", label: translateStatus(language, "Preparing"), icon: "restaurant-outline" as const },
+    { key: "On the way", label: translateStatus(language, "On the way"), icon: "bicycle-outline" as const },
+    { key: "Delivered", label: translateStatus(language, "Delivered"), icon: "home-outline" as const },
+  ];
   return (
-    <View style={t.wrap}>
-      {STEPS.map((step, i) => {
+    <View style={[t.wrap, rowDirection(isRTL)]}>
+      {steps.map((step, i) => {
         const done = i <= currentIdx;
         const active = i === currentIdx;
         return (
@@ -83,7 +79,7 @@ function JETracker({ status }: { status: string }) {
               </Text>
             </View>
             {/* Connecteur */}
-            {i < STEPS.length - 1 && (
+            {i < steps.length - 1 && (
               <View style={[t.line, i < currentIdx && t.lineDone]} />
             )}
           </React.Fragment>
@@ -116,7 +112,7 @@ const t = StyleSheet.create({
 });
 
 // ─── Carte commande active ────────────────────────────────────────────────────
-function ActiveOrderCard({ item, index, restaurants, currentLocation, language }: any) {
+function ActiveOrderCard({ item, index, restaurants, currentLocation, language, isRTL, translate }: any) {
   const restaurant = restaurants.find((r: any) => r.id === item.restaurantId);
   const courierCoords =
     item.courier?.currentLat != null && item.courier?.currentLng != null
@@ -128,7 +124,7 @@ function ActiveOrderCard({ item, index, restaurants, currentLocation, language }
       {/* Bandeau ETA orange */}
       <View style={s.etaBanner}>
         <View>
-          <Text style={s.etaLabel}>Livraison estimée</Text>
+          <Text style={s.etaLabel}>{translate("eta_label")}</Text>
           <Text style={s.etaTime}>{item.estimatedDeliveryLabel}</Text>
         </View>
         <View style={s.etaRight}>
@@ -148,7 +144,7 @@ function ActiveOrderCard({ item, index, restaurants, currentLocation, language }
       </View>
 
       {/* Tracker JE */}
-      <JETracker status={item.status} />
+      <JETracker status={item.status} language={language} isRTL={isRTL} />
 
       {/* Carte livreur */}
       {item.courier && (
@@ -173,7 +169,7 @@ function ActiveOrderCard({ item, index, restaurants, currentLocation, language }
       <View style={s.chips}>
         <View style={s.chip}>
           <Ionicons name="receipt-outline" size={11} color={JE.orange} />
-          <Text style={s.chipTxt}>{item.items.length} article{item.items.length > 1 ? "s" : ""}</Text>
+          <Text style={s.chipTxt}>{item.items.length} {translate("articles")}</Text>
         </View>
         <View style={s.chip}>
           <Ionicons name="cash-outline" size={11} color={JE.orange} />
@@ -191,7 +187,7 @@ function ActiveOrderCard({ item, index, restaurants, currentLocation, language }
           pickup={restaurant.coordinates}
           destination={currentLocation.coordinates}
           courier={courierCoords}
-          title={item.courier ? "Suivi en direct 🛵" : "En attente de livreur"}
+          title={item.courier ? `${translate("live_tracking")} 🛵` : translate("waiting_courier")}
           subtitle={
             item.courier
               ? `${item.courier.name} est en route vers vous.`
@@ -205,9 +201,9 @@ function ActiveOrderCard({ item, index, restaurants, currentLocation, language }
 
 // ─── Carte commande livrée ────────────────────────────────────────────────────
 function DeliveredOrderCard({
-  item, index, language, onReorder,
+  item, index, language, translate, onReorder,
 }: {
-  item: Order; index: number; language: Language; onReorder: () => void;
+  item: Order; index: number; language: Language; translate: (key: any) => string; onReorder: () => void;
 }) {
   return (
     <AnimatedCard delay={Math.min(index * 50, 180)} style={s.deliveredCard}>
@@ -219,7 +215,7 @@ function DeliveredOrderCard({
         {/* Badge livré */}
         <View style={s.deliveredBadge}>
           <Ionicons name="checkmark-circle" size={13} color={JE.green} />
-          <Text style={s.deliveredBadgeTxt}>Livrée</Text>
+          <Text style={s.deliveredBadgeTxt}>{translate("delivered")}</Text>
         </View>
       </View>
 
@@ -229,7 +225,7 @@ function DeliveredOrderCard({
           {formatDateTime(item.createdAt, language)} · {item.deliveryDistanceKm} km
         </Text>
         <Text style={s.deliveredItems}>
-          {item.items.length} article{item.items.length > 1 ? "s" : ""} · {formatCurrency(item.total)}
+          {item.items.length} {translate("articles")} · {formatCurrency(item.total)}
         </Text>
         <View style={s.pointsRow}>
           <Ionicons name="star" size={12} color={JE.green} />
@@ -240,7 +236,7 @@ function DeliveredOrderCard({
       {/* Bouton Recommander — CTA JE signature */}
       <TouchableOpacity style={s.reorderBtn} onPress={onReorder} activeOpacity={0.82}>
         <Ionicons name="refresh" size={15} color={JE.white} />
-        <Text style={s.reorderTxt}>Recommander</Text>
+        <Text style={s.reorderTxt}>{translate("reorder")}</Text>
         <Text style={s.reorderPrice}>{formatCurrency(item.total)}</Text>
       </TouchableOpacity>
     </AnimatedCard>
@@ -249,7 +245,6 @@ function DeliveredOrderCard({
 
 // ─────────────────────────────────────────────────────────────────────────────
 export function OrdersScreen() {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { orders, restaurants, currentLocation, reorder, t, language, isRTL } = useApp();
 
   const activeOrders = orders.filter((o) => o.status !== "Delivered");
@@ -297,10 +292,10 @@ export function OrdersScreen() {
 
         ListHeaderComponent={
           <View style={s.pageHeader}>
-            <Text style={[s.pageTitle, { textAlign: isRTL ? "right" : "left" }]}>
+            <Text style={[s.pageTitle, alignStart(isRTL)]}>
               {t("my_orders")}
             </Text>
-            <Text style={[s.pageSubtitle, { textAlign: isRTL ? "right" : "left" }]}>
+            <Text style={[s.pageSubtitle, alignStart(isRTL)]}>
               {t("orders_subtitle")}
             </Text>
           </View>
@@ -311,9 +306,9 @@ export function OrdersScreen() {
             return (
               <View style={s.statsRow}>
                 {[
-                  { val: orders.length,          lbl: "Total",    icon: "receipt-outline" as const,          color: JE.orange, bg: JE.orangeLight },
-                  { val: activeOrders.length,    lbl: "En cours", icon: "bicycle-outline" as const,          color: JE.blue,   bg: JE.blueLight },
-                  { val: deliveredOrders.length, lbl: "Livrées",  icon: "checkmark-circle-outline" as const, color: JE.green,  bg: JE.greenLight },
+                  { val: orders.length,          lbl: t("orders_total"),    icon: "receipt-outline" as const,          color: JE.orange, bg: JE.orangeLight },
+                  { val: activeOrders.length,    lbl: t("orders_active"), icon: "bicycle-outline" as const,          color: JE.blue,   bg: JE.blueLight },
+                  { val: deliveredOrders.length, lbl: t("orders_delivered"),  icon: "checkmark-circle-outline" as const, color: JE.green,  bg: JE.greenLight },
                 ].map((stat) => (
                   <View key={stat.lbl} style={s.statCard}>
                     <View style={[s.statIcon, { backgroundColor: stat.bg }]}>
@@ -331,7 +326,7 @@ export function OrdersScreen() {
             return (
               <View style={s.sectionHeader}>
                 <View style={s.sectionDot} />
-                <Text style={s.sectionTitle}>En cours · {activeOrders.length}</Text>
+                <Text style={s.sectionTitle}>{t("orders_active")} · {activeOrders.length}</Text>
               </View>
             );
           }
@@ -339,7 +334,7 @@ export function OrdersScreen() {
           if (item.type === "header_history") {
             return (
               <View style={s.sectionHeader}>
-                <Text style={s.sectionTitle}>Historique</Text>
+                <Text style={s.sectionTitle}>{t("orders_history")}</Text>
               </View>
             );
           }
@@ -352,6 +347,8 @@ export function OrdersScreen() {
                 restaurants={restaurants}
                 currentLocation={currentLocation}
                 language={language}
+                isRTL={isRTL}
+                translate={t}
               />
             );
           }
@@ -362,6 +359,7 @@ export function OrdersScreen() {
                 item={item.data}
                 index={item.idx}
                 language={language}
+                translate={t}
                 onReorder={() => reorder?.(item.data)}
               />
             );

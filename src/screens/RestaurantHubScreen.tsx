@@ -8,6 +8,7 @@ import { OrderStatusTimeline } from "../components/OrderStatusTimeline";
 import { ScalePressable } from "../components/ScalePressable";
 import { useApp } from "../context/AppContext";
 import { formatCurrency, formatDateTime } from "../services/format";
+import { alignStart, mobileTheme, rowDirection } from "../theme/mobile";
 
 export function RestaurantHubScreen() {
   const {
@@ -22,6 +23,7 @@ export function RestaurantHubScreen() {
     updateRestaurantIngredientStatus,
     addRestaurantTable,
     pushNotification,
+    t,
   } = useApp();
 
   const [draftName, setDraftName] = useState("");
@@ -42,8 +44,8 @@ export function RestaurantHubScreen() {
       <SafeAreaView style={styles.safe}>
         <View style={styles.emptyWrap}>
           <EmptyState
-            title="Aucun compte restaurant"
-            message="Ajoutez un restaurant valide avec des informations proprietaire pour ouvrir cet espace."
+            title={t("no_restaurant_account")}
+            message={t("no_restaurant_account_msg")}
           />
         </View>
       </SafeAreaView>
@@ -56,8 +58,8 @@ export function RestaurantHubScreen() {
     const price = Number(draftPrice);
     if (!draftName.trim() || !draftDescription.trim() || !draftCategory.trim() || !price) {
       pushNotification({
-        title: "Informations manquantes",
-        message: "Remplissez le nom, la description, la categorie et le prix du nouveau plat.",
+        title: t("missing_information"),
+        message: t("missing_dish_info"),
         tone: "error",
       });
       return;
@@ -85,8 +87,8 @@ export function RestaurantHubScreen() {
     const seats = Number(tableSeats);
     if (!tableLabel.trim() || !seats) {
       pushNotification({
-        title: "Informations manquantes",
-        message: "Ajoutez un nom de table et le nombre de places.",
+        title: t("missing_information"),
+        message: t("missing_table_info"),
         tone: "error",
       });
       return;
@@ -101,21 +103,19 @@ export function RestaurantHubScreen() {
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <AnimatedCard style={[styles.hero, { backgroundColor: currentRestaurant.heroColor }]}>
-          <Text style={[styles.heroEyebrow, { textAlign: isRTL ? "right" : "left" }]}>Compte restaurant</Text>
+          <Text style={[styles.heroEyebrow, alignStart(isRTL)]}>{t("courier_heading")}</Text>
           <Text style={[styles.heroTitle, { textAlign: isRTL ? "right" : "left" }]}>{currentRestaurant.name}</Text>
-          <Text style={[styles.heroSubtitle, { textAlign: isRTL ? "right" : "left" }]}>
-            Modifiez le menu, suivez les commandes, les frais dus et les QR codes de votre salle.
-          </Text>
+          <Text style={[styles.heroSubtitle, alignStart(isRTL)]}>{t("restaurant_hub_subtitle")}</Text>
         </AnimatedCard>
 
         <View style={styles.statsRow}>
           <AnimatedCard style={styles.statCard}>
             <Text style={styles.statValue}>{currentRestaurant.menu.length}</Text>
-            <Text style={styles.statLabel}>Plats au menu</Text>
+            <Text style={styles.statLabel}>{t("menu_items_count")}</Text>
           </AnimatedCard>
           <AnimatedCard style={[styles.statCard, styles.statCardAlert]}>
             <Text style={[styles.statValue, styles.statValueLight]}>{unavailableCount}</Text>
-            <Text style={[styles.statLabel, styles.statLabelLight]}>Indisponibles auto</Text>
+            <Text style={[styles.statLabel, styles.statLabelLight]}>{t("unavailable_auto")}</Text>
           </AnimatedCard>
           <AnimatedCard style={styles.statCard}>
             <Text style={styles.statValue}>{restaurantOrders.length}</Text>
@@ -124,7 +124,7 @@ export function RestaurantHubScreen() {
         </View>
 
         <AnimatedCard style={styles.billingCard}>
-          <Text style={styles.sectionTitle}>Facturation</Text>
+          <Text style={styles.sectionTitle}>{t("billing")}</Text>
           <Text style={styles.billingAmount}>{formatCurrency(currentRestaurantAccount.billing.amountDue)}</Text>
           <Text style={styles.billingMeta}>{currentRestaurantAccount.billing.planLabel}</Text>
           <Text style={styles.billingMeta}>{currentRestaurantAccount.billing.periodLabel}</Text>
@@ -132,20 +132,20 @@ export function RestaurantHubScreen() {
             {currentRestaurantAccount.billing.ordersCount} commande(s) prises en compte
           </Text>
           <Text style={styles.billingHint}>
-            Prochaine echeance estimee: {formatCurrency(currentRestaurantAccount.billing.projectedNextDue)}
+            {t("next_due_estimate")}: {formatCurrency(currentRestaurantAccount.billing.projectedNextDue)}
           </Text>
         </AnimatedCard>
 
         <AnimatedCard style={styles.qrCard}>
-          <Text style={styles.sectionTitle}>QR code restaurant</Text>
-          <View style={styles.qrRow}>
+          <Text style={styles.sectionTitle}>{t("restaurant_qr")}</Text>
+          <View style={[styles.qrRow, rowDirection(isRTL)]}>
             <View style={styles.qrBox}>
               <QRCode value={currentRestaurantAccount.menuQrValue} size={124} />
             </View>
             <View style={styles.qrDetails}>
-              <Text style={styles.qrTitle}>Menu client</Text>
+              <Text style={styles.qrTitle}>{t("customer_menu")}</Text>
               <Text style={styles.qrText}>{currentRestaurantAccount.menuQrValue}</Text>
-              <Text style={styles.qrTitle}>Contact</Text>
+              <Text style={styles.qrTitle}>{t("contact")}</Text>
               <Text style={styles.qrText}>{currentRestaurantAccount.contactName}</Text>
               <Text style={styles.qrText}>{currentRestaurantAccount.contactEmail}</Text>
             </View>
@@ -153,30 +153,30 @@ export function RestaurantHubScreen() {
         </AnimatedCard>
 
         <AnimatedCard style={styles.formCard}>
-          <Text style={styles.sectionTitle}>Ajouter un plat</Text>
+          <Text style={styles.sectionTitle}>{t("add_dish")}</Text>
           <TextInput
             value={draftName}
             onChangeText={setDraftName}
-            placeholder="Nom du plat"
+            placeholder={t("dish_name")}
             style={[styles.input, { textAlign: isRTL ? "right" : "left" }]}
           />
           <TextInput
             value={draftDescription}
             onChangeText={setDraftDescription}
-            placeholder="Description"
+            placeholder={t("description")}
             style={[styles.input, { textAlign: isRTL ? "right" : "left" }]}
           />
           <View style={styles.inlineInputs}>
             <TextInput
               value={draftCategory}
               onChangeText={setDraftCategory}
-              placeholder="Categorie"
+              placeholder={t("category")}
               style={[styles.input, styles.inlineInput, { textAlign: isRTL ? "right" : "left" }]}
             />
             <TextInput
               value={draftPrice}
               onChangeText={setDraftPrice}
-              placeholder="Prix"
+              placeholder={t("price")}
               keyboardType="decimal-pad"
               style={[styles.input, styles.inlineInput, { textAlign: isRTL ? "right" : "left" }]}
             />
@@ -184,15 +184,15 @@ export function RestaurantHubScreen() {
           <TextInput
             value={draftIngredients}
             onChangeText={setDraftIngredients}
-            placeholder="Ingredients separes par des virgules"
+            placeholder={t("ingredients_csv")}
             style={[styles.input, { textAlign: isRTL ? "right" : "left" }]}
           />
           <ScalePressable containerStyle={styles.primaryButton} onPress={submitMenuItem}>
-            <Text style={styles.primaryButtonText}>Publier le plat</Text>
+            <Text style={styles.primaryButtonText}>{t("publish_dish")}</Text>
           </ScalePressable>
         </AnimatedCard>
 
-        <Text style={[styles.sectionTitle, { textAlign: isRTL ? "right" : "left" }]}>Menu et disponibilite</Text>
+        <Text style={[styles.sectionTitle, alignStart(isRTL)]}>{t("menu_availability")}</Text>
         {currentRestaurant.menu.map((item, index) => (
           <AnimatedCard key={item.id} delay={Math.min(index * 60, 220)} style={styles.menuCard}>
             <View style={styles.menuHeader}>
@@ -201,14 +201,14 @@ export function RestaurantHubScreen() {
                 <Text style={styles.menuDescription}>{item.description}</Text>
                 <Text style={styles.menuPrice}>{formatCurrency(item.price)}</Text>
                 <Text style={[styles.statusBadge, item.isAvailable === false ? styles.statusOff : styles.statusOn]}>
-                  {item.isAvailable === false ? "Indispo" : "Disponible"}
+                  {item.isAvailable === false ? t("unavailable_short") : t("available")}
                 </Text>
               </View>
               <ScalePressable
                 containerStyle={styles.secondaryButton}
                 onPress={() => toggleRestaurantMenuItemAvailability(item.id)}
               >
-                <Text style={styles.secondaryButtonText}>Basculer</Text>
+                <Text style={styles.secondaryButtonText}>{t("toggle")}</Text>
               </ScalePressable>
             </View>
             <View style={styles.quickActions}>
@@ -230,16 +230,16 @@ export function RestaurantHubScreen() {
                   })
                 }
               >
-                <Text style={styles.chipButtonText}>Edition rapide</Text>
+                <Text style={styles.chipButtonText}>{t("quick_edit")}</Text>
               </ScalePressable>
             </View>
             {!!item.ingredientIds?.length && (
-              <Text style={styles.ingredientsLine}>Ingredients: {item.ingredientIds.join(", ")}</Text>
+              <Text style={styles.ingredientsLine}>{t("ingredients")}: {item.ingredientIds.join(", ")}</Text>
             )}
           </AnimatedCard>
         ))}
 
-        <Text style={[styles.sectionTitle, { textAlign: isRTL ? "right" : "left" }]}>Stocks ingredients</Text>
+        <Text style={[styles.sectionTitle, alignStart(isRTL)]}>{t("ingredient_stock")}</Text>
         {currentRestaurantAccount.ingredients.map((ingredient, index) => (
           <AnimatedCard key={ingredient.id} delay={Math.min(index * 50, 200)} style={styles.stockCard}>
             <View style={styles.stockTop}>
@@ -254,25 +254,25 @@ export function RestaurantHubScreen() {
                 containerStyle={[styles.stockButton, styles.stockButtonGood]}
                 onPress={() => updateRestaurantIngredientStatus(ingredient.id, "IN_STOCK")}
               >
-                <Text style={styles.stockButtonText}>Disponible</Text>
+                <Text style={styles.stockButtonText}>{t("available")}</Text>
               </ScalePressable>
               <ScalePressable
                 containerStyle={[styles.stockButton, styles.stockButtonWarn]}
                 onPress={() => updateRestaurantIngredientStatus(ingredient.id, "LOW_STOCK")}
               >
-                <Text style={styles.stockButtonText}>Faible</Text>
+                <Text style={styles.stockButtonText}>{t("low_stock")}</Text>
               </ScalePressable>
               <ScalePressable
                 containerStyle={[styles.stockButton, styles.stockButtonBad]}
                 onPress={() => updateRestaurantIngredientStatus(ingredient.id, "OUT_OF_STOCK")}
               >
-                <Text style={styles.stockButtonText}>Rupture</Text>
+                <Text style={styles.stockButtonText}>{t("out_of_stock")}</Text>
               </ScalePressable>
             </View>
           </AnimatedCard>
         ))}
 
-        <Text style={[styles.sectionTitle, { textAlign: isRTL ? "right" : "left" }]}>Commandes restaurant</Text>
+        <Text style={[styles.sectionTitle, alignStart(isRTL)]}>{t("restaurant_orders")}</Text>
         {restaurantOrders.length ? (
           restaurantOrders.map((order, index) => (
             <AnimatedCard key={order.id} delay={Math.min(index * 60, 220)} style={styles.orderCard}>
@@ -295,22 +295,22 @@ export function RestaurantHubScreen() {
                     latitude: order.courier.currentLat,
                     longitude: order.courier.currentLng,
                   }}
-                  title="Livreur en direct"
-                  subtitle={`${order.courier.name} est visible en direct pour l'equipe restaurant.`}
+                  title={t("live_courier_restaurant")}
+                  subtitle={`${order.courier.name} ${t("live_courier_restaurant_subtitle")}`}
                 />
               ) : null}
             </AnimatedCard>
           ))
         ) : (
           <EmptyState
-            title="Aucune commande"
-            message="Les commandes du restaurant apparaitront ici pour le suivi interne."
+            title={t("delivered_orders")}
+            message={t("restaurant_order_empty")}
           />
         )}
 
         <AnimatedCard style={styles.formCard}>
-          <Text style={styles.sectionTitle}>QR codes des tables</Text>
-          <View style={styles.inlineInputs}>
+          <Text style={styles.sectionTitle}>{t("table_qr_codes")}</Text>
+          <View style={[styles.inlineInputs, rowDirection(isRTL)]}>
             <TextInput
               value={tableLabel}
               onChangeText={setTableLabel}
@@ -320,13 +320,13 @@ export function RestaurantHubScreen() {
             <TextInput
               value={tableSeats}
               onChangeText={setTableSeats}
-              placeholder="Places"
+              placeholder={t("seats")}
               keyboardType="number-pad"
               style={[styles.input, styles.inlineInput, { textAlign: isRTL ? "right" : "left" }]}
             />
           </View>
           <ScalePressable containerStyle={styles.primaryButton} onPress={submitTable}>
-            <Text style={styles.primaryButtonText}>Generer un QR de table</Text>
+            <Text style={styles.primaryButtonText}>{t("generate_table_qr")}</Text>
           </ScalePressable>
 
           {currentRestaurantAccount.tables.map((table) => (
@@ -348,7 +348,7 @@ export function RestaurantHubScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#FFF9F1" },
+  safe: { flex: 1, backgroundColor: mobileTheme.colors.brandSurface },
   emptyWrap: { flex: 1, padding: 20, justifyContent: "center" },
   content: { padding: 14, gap: 12, paddingBottom: 36 },
   hero: { borderRadius: 26, padding: 18, gap: 6 },

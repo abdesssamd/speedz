@@ -9,6 +9,7 @@ import { ScalePressable } from "../components/ScalePressable";
 import { useApp } from "../context/AppContext";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { formatCurrency, formatDateTime } from "../services/format";
+import { alignStart, mobileTheme, rowDirection } from "../theme/mobile";
 
 export function ProfileScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -130,11 +131,11 @@ export function ProfileScreen() {
             <Ionicons name="chevron-forward" size={18} color="#C4C4C4" />
           </ScalePressable>
         ))}
-        <ScalePressable containerStyle={s.menuRow} onPress={() => logout()}>
+          <ScalePressable containerStyle={s.menuRow} onPress={() => logout()}>
           <View style={[s.menuIconWrap, { backgroundColor: "#FEF2F2" }]}>
             <Ionicons name="log-out-outline" size={18} color="#EF4444" />
           </View>
-          <Text style={[s.menuLabel, { color: "#EF4444" }]}>Se déconnecter</Text>
+          <Text style={[s.menuLabel, { color: "#EF4444" }]}>{t("profile_logout")}</Text>
           <Ionicons name="chevron-forward" size={18} color="#C4C4C4" />
         </ScalePressable>
       </View>
@@ -191,7 +192,7 @@ export function ProfileScreen() {
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#F5F5F5" },
+  safe: { flex: 1, backgroundColor: mobileTheme.colors.background },
   content: { paddingBottom: 32 },
   headerBlock: { padding: 20, gap: 18, paddingBottom: 8 },
 
