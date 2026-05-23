@@ -2940,19 +2940,18 @@ async function assignAdminCourier(req, res) {
   ok(res, serializeOrder(order));
 }
 
-app.get("/api/admin/restaurants", requireAuth, requireAdmin, async (_req, res) => {
+app.get("/api/admin/restaurants", requireAuth, requireAdmin, wrapAsync(async (_req, res) => {
   const restaurants = await prisma.restaurant.findMany({
     include: { menuItems: true },
     orderBy: { name: "asc" }
   });
   res.json(restaurants.map(serializeRestaurant));
-});
+}));
 
-app.get("/api/admin/restaurants/:id/qr-code", requireAuth, requireAdmin, async (req, res) => {
+app.get("/api/admin/restaurants/:id/qr-code", requireAuth, requireAdmin, wrapAsync(async (req, res) => {
   const restaurant = await prisma.restaurant.findUnique({ where: { id: req.params.id } });
   if (!restaurant) {
-    res.status(404).json({ message: "Restaurant introuvable." });
-    return;
+    throw new ApiError(404, "Restaurant introuvable.", "RESTAURANT_NOT_FOUND");
   }
 
   const qrCodeToken = restaurant.qrCodeToken || generateOpaqueToken("qr");
@@ -2966,7 +2965,7 @@ app.get("/api/admin/restaurants/:id/qr-code", requireAuth, requireAdmin, async (
   const qrUrl = getRestaurantQrLandingUrl(qrCodeToken);
   const qrDataUrl = await QRCode.toDataURL(qrUrl, { margin: 1, width: 320 });
   res.json({ qrCodeToken, qrUrl, qrDataUrl });
-});
+}));
 
 app.post("/api/admin/restaurants", requireAuth, requireAdmin, wrapAsync(async (req, res) => {
   const body = req.body || {};
@@ -3375,9 +3374,9 @@ app.post("/api/admin/applications/:id/activate-restaurant", requireAuth, require
   res.json(serializeRestaurant(restaurant));
 });
 
-app.get("/api/admin/email-outbox", requireAuth, requireAdmin, async (_req, res) => {
+app.get("/api/admin/email-outbox", requireAuth, requireAdmin, wrapAsync(async (_req, res) => {
   res.json(readEmailOutbox());
-});
+}));
 
 app.post("/api/admin/menu-categories", requireAuth, requireAdmin, async (req, res) => {
   const body = req.body || {};
@@ -3646,7 +3645,7 @@ app.patch("/api/admin/orders/:id/assign-courier", requireAuth, requireAdmin, wra
 
 app.post("/api/admin/orders/:id/assign-courier/update", requireAuth, requireAdmin, wrapAsync(assignAdminCourier));
 
-app.get("/api/admin/reports/summary", requireAuth, requireAdmin, async (_req, res) => {
+app.get("/api/admin/reports/summary", requireAuth, requireAdmin, wrapAsync(async (_req, res) => {
   const [orders, customers, couriers, promotions, menuItems] = await Promise.all([
     prisma.order.findMany({ include: { restaurant: true, courier: true, promotion: true } }),
     prisma.user.findMany({ where: { role: "CUSTOMER" } }),
@@ -3687,7 +3686,7 @@ app.get("/api/admin/reports/summary", requireAuth, requireAdmin, async (_req, re
     courierPerformance: couriers.map(serializeCourier),
     promotionUsage: promotions.map(serializePromotion)
   });
-});
+}));
 
 app.use((error, _req, res, _next) => {
   console.error(error);

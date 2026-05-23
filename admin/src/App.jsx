@@ -1763,18 +1763,58 @@ export default function App() {
       setIsRefreshing(true);
     }
 
+    const loadResource = async (label, path, fallback) => {
+      try {
+        return { label, data: await apiRequest(path, {}, token), error: null };
+      } catch (error) {
+        return { label, data: fallback, error };
+      }
+    };
+
     try {
-      const [restaurantData, orderData, customerData, courierData, applicationData, emailData, categoryData, promotionData, reportData] = await Promise.all([
-        apiRequest("/api/admin/restaurants", {}, token),
-        apiRequest("/api/admin/orders", {}, token),
-        apiRequest("/api/admin/customers", {}, token),
-        apiRequest("/api/admin/couriers", {}, token),
-        apiRequest("/api/admin/applications", {}, token),
-        apiRequest("/api/admin/email-outbox", {}, token),
-        apiRequest("/api/admin/menu-categories", {}, token),
-        apiRequest("/api/admin/promotions", {}, token),
-        apiRequest("/api/admin/reports/summary", {}, token),
+      const [
+        restaurantResult,
+        orderResult,
+        customerResult,
+        courierResult,
+        applicationResult,
+        emailResult,
+        categoryResult,
+        promotionResult,
+        reportResult,
+      ] = await Promise.all([
+        loadResource("restaurants", "/api/admin/restaurants", []),
+        loadResource("commandes", "/api/admin/orders", []),
+        loadResource("clients", "/api/admin/customers", []),
+        loadResource("livreurs", "/api/admin/couriers", []),
+        loadResource("demandes", "/api/admin/applications", []),
+        loadResource("emails", "/api/admin/email-outbox", []),
+        loadResource("categories", "/api/admin/menu-categories", []),
+        loadResource("promotions", "/api/admin/promotions", []),
+        loadResource("rapports", "/api/admin/reports/summary", null),
       ]);
+
+      const failedResults = [
+        restaurantResult,
+        orderResult,
+        customerResult,
+        courierResult,
+        applicationResult,
+        emailResult,
+        categoryResult,
+        promotionResult,
+        reportResult,
+      ].filter((result) => result.error);
+
+      const restaurantData = restaurantResult.data;
+      const orderData = orderResult.data;
+      const customerData = customerResult.data;
+      const courierData = courierResult.data;
+      const applicationData = applicationResult.data;
+      const emailData = emailResult.data;
+      const categoryData = categoryResult.data;
+      const promotionData = promotionResult.data;
+      const reportData = reportResult.data;
 
       const restaurantItems = asList(restaurantData);
       const orderItems = asList(orderData);
@@ -1849,7 +1889,15 @@ export default function App() {
         setSelectedRestaurantId("");
       }
       if (!silent) {
-        setErrorMessage("");
+        if (failedResults.length) {
+          setErrorMessage(
+            `Chargement partiel: ${failedResults
+              .map((result) => `${result.label}: ${result.error?.message || "erreur API"}`)
+              .join(" | ")}`
+          );
+        } else {
+          setErrorMessage("");
+        }
       }
     } catch (error) {
       if (!silent) {
