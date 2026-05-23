@@ -765,6 +765,14 @@ function sameErrors(left, right) {
   return leftKeys.every((key) => left[key] === right[key]);
 }
 
+function asList(payload) {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  return payload?.items || payload?.data || [];
+}
+
 function ApplicationActionMenu({ application, onStatusChange, onOpenRestaurant, onActivateRestaurant, translations }) {
   const [isOpen, setIsOpen] = useState(false);
   const [menuStyle, setMenuStyle] = useState(null);
@@ -1619,7 +1627,7 @@ export default function App() {
 
     async function restoreSession() {
       try {
-        const payload = await apiRequest("/api/auth/me");
+        const payload = await apiRequest("/api/auth/me", {}, undefined, { suppressAuthInvalid: true });
         if (cancelled) {
           return;
         }
@@ -1768,29 +1776,35 @@ export default function App() {
         apiRequest("/api/admin/reports/summary", {}, token),
       ]);
 
+      const restaurantItems = asList(restaurantData);
+      const orderItems = asList(orderData);
+      const customerItems = asList(customerData);
+      const courierItems = asList(courierData);
+      const applicationItems = asList(applicationData);
+      const promotionItems = asList(promotionData);
       const previousOrders = previousOrdersRef.current;
       const previousApplications = previousApplicationsRef.current;
-      const freshOrders = orderData.filter((order) => !previousOrders.some((entry) => entry.id === order.id)).length;
-      const freshPendingOrders = orderData.filter(
+      const freshOrders = orderItems.filter((order) => !previousOrders.some((entry) => entry.id === order.id)).length;
+      const freshPendingOrders = orderItems.filter(
         (order) =>
           !previousOrders.some((entry) => entry.id === order.id) &&
           !["Delivered", "Cancelled"].includes(order.status)
       ).length;
-      const freshApplications = applicationData.filter(
+      const freshApplications = applicationItems.filter(
         (application) => !previousApplications.some((entry) => entry.id === application.id)
       ).length;
 
-      setRestaurants(restaurantData);
-      setOrders(orderData);
-      setCustomers(customerData);
-      setCouriers(courierData);
-      setApplications(applicationData);
+      setRestaurants(restaurantItems);
+      setOrders(orderItems);
+      setCustomers(customerItems);
+      setCouriers(courierItems);
+      setApplications(applicationItems);
       setEmailOutbox(emailData);
       setMenuCategories(categoryData);
-      setPromotions(promotionData);
+      setPromotions(promotionItems);
       setReports(reportData);
-      previousOrdersRef.current = orderData;
-      previousApplicationsRef.current = applicationData;
+      previousOrdersRef.current = orderItems;
+      previousApplicationsRef.current = applicationItems;
       setLastSyncAt(new Date().toLocaleTimeString(language === "ar" ? "ar-DZ" : "fr-FR", {
         hour: "2-digit",
         minute: "2-digit",
@@ -1823,13 +1837,13 @@ export default function App() {
       }
 
       const nextSelectedRestaurantId = selectedRestaurantIdRef.current;
-      if (restaurantData.length) {
+      if (restaurantItems.length) {
         const hasSelectedRestaurant = nextSelectedRestaurantId
-          ? restaurantData.some((restaurant) => restaurant.id === nextSelectedRestaurantId)
+          ? restaurantItems.some((restaurant) => restaurant.id === nextSelectedRestaurantId)
           : false;
 
         if (!hasSelectedRestaurant) {
-          setSelectedRestaurantId(restaurantData[0].id);
+          setSelectedRestaurantId(restaurantItems[0].id);
         }
       } else if (nextSelectedRestaurantId) {
         setSelectedRestaurantId("");
