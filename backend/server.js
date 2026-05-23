@@ -587,6 +587,8 @@ function ok(res, payload, status = 200) {
 
 function errorResponse(res, status, message, code = "API_ERROR", details = undefined) {
   res.status(status).json({
+    message,
+    code,
     error: {
       code,
       message,
