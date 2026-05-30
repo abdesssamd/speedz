@@ -1,4 +1,4 @@
-require("dotenv").config();
+﻿require("dotenv").config();
 const express = require("express");
 const rateLimit = require("express-rate-limit");
 const http = require("http");
@@ -19,12 +19,17 @@ const {
   validateBody,
   Schemas,
 } = require("./security");
+const { z } = require("zod");
 
 const prisma = new PrismaClient();
 const app = express();
 const server = http.createServer(app);
 const PORT = Number(process.env.PORT || 4000);
-const JWT_SECRET = process.env.JWT_SECRET || "change-me-in-production";
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET || JWT_SECRET === "change-me-in-production") {
+  console.error("JWT_SECRET is missing or still set to the default placeholder. Set a strong value in your .env file.");
+  process.exit(1);
+}
 const DEMO_USER_EMAIL = "nina.morel@demo.app";
 const DEFAULT_QR_WEBAPP_URL = process.env.QR_WEBAPP_URL || `http://localhost:${PORT}`;
 const APP_LOGIN_URL = process.env.APP_LOGIN_URL || "fooddelyvry://auth";
@@ -98,6 +103,9 @@ app.use(helmetMiddleware);
 app.use(apiRateLimiter);
 app.use(express.json({ limit: "1mb" }));
 app.use("/uploads", express.static(uploadsDir));
+
+// CSRF protection disabled - using SameSite=Lax cookies for protection
+// TODO: Implement proper double-submit cookie pattern if needed
 
 // ─── Rate limiters ────────────────────────────────────────────────────────────
 // Limite les requêtes OTP pour éviter le brute-force et le SMS flooding
@@ -1114,7 +1122,7 @@ function signToken(user) {
       sub: user.id,
       email: user.email,
       role: user.role,
-      name: user.name
+      name: user.name,
     },
     JWT_SECRET,
     { expiresIn: "7d" }
@@ -1159,6 +1167,8 @@ function requireAdmin(req, res, next) {
 
   next();
 }
+
+
 
 function requireCustomer(req, res, next) {
   if (req.auth?.role !== "CUSTOMER") {
@@ -1281,7 +1291,6 @@ async function computeSummary({ restaurantId, cart, userCoordinates, promoCode, 
         },
       })
     : null;
-  const freeDeliveryUnlocked = orderChannel === "DELIVERY" && Boolean(customer?.notificationsPromotions);
   const delivery =
     orderChannel === "QR_ONSITE"
       ? {
@@ -1295,7 +1304,7 @@ async function computeSummary({ restaurantId, cart, userCoordinates, promoCode, 
           latitude: restaurant.latitude,
           longitude: restaurant.longitude
         });
-  const appliedDelivery = freeDeliveryUnlocked ? { ...delivery, fee: 0, tierLabel: "Livraison offerte" } : delivery;
+  const appliedDelivery = delivery;
   const serviceFee = orderChannel === "QR_ONSITE" ? 0 : calculateServiceFee(subtotal);
   const discountAmount = calculatePromotionDiscount({ promotion, subtotal });
   const total = Number((subtotal + appliedDelivery.fee + serviceFee - discountAmount).toFixed(2));
@@ -1317,22 +1326,7 @@ async function computeSummary({ restaurantId, cart, userCoordinates, promoCode, 
   };
 }
 
-async function scheduleOrderProgress(orderId) {
-  const steps = ["Preparing", "OnTheWay", "Delivered"];
-  steps.forEach((status, index) => {
-    setTimeout(async () => {
-      try {
-        await prisma.order.update({
-          where: { id: orderId },
-          data: { status }
-        });
-        await emitOrderRealtime(orderId, "order/status-updated");
-      } catch {
-        return;
-      }
-    }, (index + 1) * 9000);
-  });
-}
+
 
 async function emitOrderRealtime(orderId, eventType = "order/updated") {
   const order = await prisma.order.findUnique({
@@ -1470,7 +1464,7 @@ async function findOrCreateGuestCustomer({ name, phone, restaurantId }) {
   }
 
   const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId } });
-  const passwordHash = await bcrypt.hash(generateOpaqueToken("guest"), 4);
+  const passwordHash = await bcrypt.hash(generateOpaqueToken("guest"), 12);
   return prisma.user.create({
     data: {
       email: generatedEmail,
@@ -1539,7 +1533,6 @@ async function createOrderRecord({
     }
   });
 
-  await scheduleOrderProgress(order.id);
   await emitOrderRealtime(order.id, "order/created");
   return order;
 }
@@ -1770,7 +1763,7 @@ app.post("/api/auth/verify-email-code", verifyCodeLimiter, validateBody(Schemas.
   }
 
   const user = await prisma.$transaction(async (tx) => {
-    const passwordHash = challenge.user?.passwordHash || (await bcrypt.hash(generateOpaqueToken("cust"), 8));
+    const passwordHash = challenge.user?.passwordHash || (await bcrypt.hash(generateOpaqueToken("cust"), 12));
     const upsertedUser = challenge.userId
       ? await tx.user.update({
           where: { id: challenge.userId },
@@ -3030,7 +3023,7 @@ app.post("/api/admin/restaurants", requireAuth, requireAdmin, wrapAsync(async (r
     });
 
     if (ownerEmail) {
-      const passwordHash = await bcrypt.hash(temporaryPassword, 10);
+      const passwordHash = await bcrypt.hash(temporaryPassword, 12);
       await tx.user.create({
         data: {
           email: ownerEmail,
@@ -3110,44 +3103,6 @@ app.put("/api/admin/restaurants/:id", requireAuth, requireAdmin, wrapAsync(async
   res.json(serializeRestaurant(restaurant));
 }));
 
-app.post("/api/admin/restaurants/:id/update", requireAuth, requireAdmin, wrapAsync(async (req, res) => {
-  const body = req.body || {};
-  const restaurant = await prisma.restaurant.update({
-    where: { id: req.params.id },
-    data: {
-      name: body.name,
-      category: body.category,
-      shortDescription: body.shortDescription,
-      address: body.address,
-      openingHours: body.openingHours,
-      deliveryTime: body.deliveryTime,
-      rating: Number(body.rating || 4.5),
-      reviewCount: Number(body.reviewCount || 0),
-      image: body.image,
-      heroColor: body.heroColor || "#EA580C",
-      latitude: Number(body.coordinates?.latitude || 0),
-      longitude: Number(body.coordinates?.longitude || 0),
-      tags: body.tags || [],
-      pointsPerEuro: Number(body.pointsPerEuro || 10),
-      isActive: body.isActive ?? true,
-      ownerName: body.ownerName || null,
-      ownerEmail: body.ownerEmail || null,
-      ownerPhone: body.ownerPhone || null,
-      validationStatus: body.validationStatus || undefined,
-      billingPlanType: body.billingPlanType || undefined,
-      billingFixedFee: body.billingFixedFee !== undefined ? Number(body.billingFixedFee) : undefined,
-      billingPercentage: body.billingPercentage !== undefined ? Number(body.billingPercentage) : undefined,
-      monthlySubscriptionFee:
-        body.monthlySubscriptionFee !== undefined ? Number(body.monthlySubscriptionFee) : undefined,
-      apiToken: body.apiToken || undefined,
-      qrCodeToken: body.qrCodeToken || undefined,
-      validatedAt: body.validatedAt ? new Date(body.validatedAt) : undefined,
-    },
-    include: { menuItems: true }
-  });
-  res.json(serializeRestaurant(restaurant));
-}));
-
 // ─── Suppression restaurant ────────────────────────────────────────────────────
 // Soft-delete : marque le restaurant comme inactif ET supprimé
 // (garde l'historique des commandes intact via Cascade défini dans Prisma)
@@ -3172,7 +3127,13 @@ app.delete("/api/admin/restaurants/:id", requireAuth, requireAdmin, async (req, 
     }
 
     if (hard === "true") {
-      // Suppression physique — cascade Prisma gère les menuItems, favoris, etc.
+      const totalOrders = await prisma.order.count({ where: { restaurantId: id } });
+      if (totalOrders > 0) {
+        return res.status(409).json({
+          error: `Impossible de supprimer definitivement : ${totalOrders} commande(s) associee(s). Supprimez d'abord les commandes.`,
+          totalOrders,
+        });
+      }
       await prisma.restaurant.delete({ where: { id } });
       return res.status(200).json({ deleted: true, hard: true });
     }
@@ -3189,44 +3150,6 @@ app.delete("/api/admin/restaurants/:id", requireAuth, requireAdmin, async (req, 
     return res.status(200).json({ deleted: true, hard: false, id: updated.id });
   } catch (error) {
     console.error("DELETE /api/admin/restaurants/:id", error);
-    return res.status(500).json({ error: "Erreur lors de la suppression." });
-  }
-});
-
-app.post("/api/admin/restaurants/:id/delete", requireAuth, requireAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const hard = req.body?.hard === true;
-    const activeOrders = await prisma.order.count({
-      where: {
-        restaurantId: id,
-        status: { in: ACTIVE_ORDER_STATUSES },
-      },
-    });
-
-    if (activeOrders > 0) {
-      return res.status(409).json({
-        error: `Impossible de supprimer : ${activeOrders} commande(s) active(s) en cours.`,
-        activeOrders,
-      });
-    }
-
-    if (hard) {
-      await prisma.restaurant.delete({ where: { id } });
-      return res.status(200).json({ deleted: true, hard: true });
-    }
-
-    const updated = await prisma.restaurant.update({
-      where: { id },
-      data: {
-        isActive: false,
-        validationStatus: "REJECTED",
-      },
-    });
-
-    return res.status(200).json({ deleted: true, hard: false, id: updated.id });
-  } catch (error) {
-    console.error("POST /api/admin/restaurants/:id/delete", error);
     return res.status(500).json({ error: "Erreur lors de la suppression." });
   }
 });
@@ -3255,7 +3178,7 @@ app.post("/api/admin/restaurants/:id/menu-items", requireAuth, requireAdmin, asy
   res.status(201).json(item);
 });
 
-app.put("/api/admin/menu-items/:id", requireAuth, requireAdmin, async (req, res) => {
+app.put("/api/admin/menu-items/:id", requireAuth, requireAdmin, validateBody(Schemas.updateMenuItem), async (req, res) => {
   const body = req.body || {};
   const item = await prisma.menuItem.update({
     where: { id: req.params.id },
@@ -3275,27 +3198,7 @@ app.put("/api/admin/menu-items/:id", requireAuth, requireAdmin, async (req, res)
   res.json(item);
 });
 
-app.post("/api/admin/menu-items/:id/update", requireAuth, requireAdmin, async (req, res) => {
-  const body = req.body || {};
-  const item = await prisma.menuItem.update({
-    where: { id: req.params.id },
-    data: {
-      name: body.name,
-      description: body.description,
-      price: Number(body.price),
-      category: body.category,
-      image: body.image,
-      badge: body.badge || null,
-      calories: body.calories ? Number(body.calories) : null,
-      stock: Number(body.stock || 0),
-      isAvailable: body.isAvailable ?? true,
-      options: body.options || []
-    }
-  });
-  res.json(item);
-});
-
-app.patch("/api/admin/menu-items/:id/stock", requireAuth, requireAdmin, async (req, res) => {
+app.patch("/api/admin/menu-items/:id/stock", requireAuth, requireAdmin, validateBody(z.object({ stock: z.number().int().min(0) })), async (req, res) => {
   const item = await prisma.menuItem.update({
     where: { id: req.params.id },
     data: { stock: Number(req.body?.stock || 0) }
@@ -3303,23 +3206,7 @@ app.patch("/api/admin/menu-items/:id/stock", requireAuth, requireAdmin, async (r
   res.json(item);
 });
 
-app.post("/api/admin/menu-items/:id/stock/update", requireAuth, requireAdmin, async (req, res) => {
-  const item = await prisma.menuItem.update({
-    where: { id: req.params.id },
-    data: { stock: Number(req.body?.stock || 0) }
-  });
-  res.json(item);
-});
-
-app.patch("/api/admin/menu-items/:id/availability", requireAuth, requireAdmin, async (req, res) => {
-  const item = await prisma.menuItem.update({
-    where: { id: req.params.id },
-    data: { isAvailable: Boolean(req.body?.isAvailable) }
-  });
-  res.json(item);
-});
-
-app.post("/api/admin/menu-items/:id/availability/update", requireAuth, requireAdmin, async (req, res) => {
+app.patch("/api/admin/menu-items/:id/availability", requireAuth, requireAdmin, validateBody(z.object({ isAvailable: z.boolean() })), async (req, res) => {
   const item = await prisma.menuItem.update({
     where: { id: req.params.id },
     data: { isAvailable: Boolean(req.body?.isAvailable) }
@@ -3335,14 +3222,6 @@ app.delete("/api/admin/menu-items/:id", requireAuth, requireAdmin, async (req, r
   res.status(204).send();
 });
 
-app.post("/api/admin/menu-items/:id/delete", requireAuth, requireAdmin, async (req, res) => {
-  await prisma.menuItem.update({
-    where: { id: req.params.id },
-    data: { deletedAt: new Date() }
-  });
-  res.status(200).json({ deleted: true });
-});
-
 app.get("/api/admin/menu-categories", requireAuth, requireAdmin, async (_req, res) => {
   const categories = await prisma.menuCategory.findMany({
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }]
@@ -3353,8 +3232,6 @@ app.get("/api/admin/menu-categories", requireAuth, requireAdmin, async (_req, re
 app.get("/api/admin/applications", requireAuth, requireAdmin, wrapAsync(listAdminApplications));
 
 app.patch("/api/admin/applications/:id", requireAuth, requireAdmin, wrapAsync(updateAdminApplication));
-
-app.post("/api/admin/applications/:id/update", requireAuth, requireAdmin, wrapAsync(updateAdminApplication));
 
 app.post("/api/admin/applications/:id/activate-restaurant", requireAuth, requireAdmin, async (req, res) => {
   const applications = readPartnerApplications();
@@ -3378,7 +3255,7 @@ app.get("/api/admin/email-outbox", requireAuth, requireAdmin, wrapAsync(async (_
   res.json(readEmailOutbox());
 }));
 
-app.post("/api/admin/menu-categories", requireAuth, requireAdmin, async (req, res) => {
+app.post("/api/admin/menu-categories", requireAuth, requireAdmin, validateBody(Schemas.createMenuCategory), async (req, res) => {
   const body = req.body || {};
   const category = await prisma.menuCategory.create({
     data: {
@@ -3390,20 +3267,7 @@ app.post("/api/admin/menu-categories", requireAuth, requireAdmin, async (req, re
   res.status(201).json(serializeMenuCategory(category));
 });
 
-app.patch("/api/admin/menu-categories/:id", requireAuth, requireAdmin, async (req, res) => {
-  const body = req.body || {};
-  const category = await prisma.menuCategory.update({
-    where: { id: req.params.id },
-    data: {
-      name: body.name,
-      sortOrder: Number(body.sortOrder || 0),
-      isActive: body.isActive ?? true,
-    }
-  });
-  res.json(serializeMenuCategory(category));
-});
-
-app.post("/api/admin/menu-categories/:id/update", requireAuth, requireAdmin, async (req, res) => {
+app.patch("/api/admin/menu-categories/:id", requireAuth, requireAdmin, validateBody(Schemas.updateMenuCategory), async (req, res) => {
   const body = req.body || {};
   const category = await prisma.menuCategory.update({
     where: { id: req.params.id },
@@ -3445,35 +3309,6 @@ app.delete("/api/admin/menu-categories/:id", requireAuth, requireAdmin, async (r
   res.status(204).send();
 });
 
-app.post("/api/admin/menu-categories/:id/delete", requireAuth, requireAdmin, async (req, res) => {
-  const category = await prisma.menuCategory.findUnique({
-    where: { id: req.params.id }
-  });
-
-  if (!category) {
-    res.status(404).json({ message: "Categorie introuvable." });
-    return;
-  }
-
-  const linkedItems = await prisma.menuItem.count({
-    where: {
-      category: category.name,
-      deletedAt: null,
-    }
-  });
-
-  if (linkedItems > 0) {
-    res.status(400).json({ message: "Impossible de supprimer une categorie utilisee par des plats." });
-    return;
-  }
-
-  await prisma.menuCategory.delete({
-    where: { id: req.params.id }
-  });
-
-  res.status(200).json({ deleted: true });
-});
-
 app.get("/api/admin/customers", requireAuth, requireAdmin, wrapAsync(async (req, res) => {
   const { page, limit, skip, search, status } = parsePagination(req.query, { defaultLimit: 50, maxLimit: 100 });
   const where = {
@@ -3506,9 +3341,7 @@ app.get("/api/admin/customers", requireAuth, requireAdmin, wrapAsync(async (req,
   ok(res, paginated(customers.map(serializeCustomer), total, { page, limit }));
 }));
 
-app.patch("/api/admin/customers/:id", requireAuth, requireAdmin, wrapAsync(updateAdminCustomer));
-
-app.post("/api/admin/customers/:id/update", requireAuth, requireAdmin, wrapAsync(updateAdminCustomer));
+app.patch("/api/admin/customers/:id", requireAuth, requireAdmin, validateBody(Schemas.updateCustomer), wrapAsync(updateAdminCustomer));
 
 app.get("/api/admin/couriers", requireAuth, requireAdmin, wrapAsync(async (req, res) => {
   const { page, limit, skip, search, status } = parsePagination(req.query, { defaultLimit: 50, maxLimit: 100 });
@@ -3556,9 +3389,7 @@ app.post("/api/admin/couriers", requireAuth, requireAdmin, validateBody(Schemas.
   res.status(201).json(serializeCourier(courier));
 });
 
-app.patch("/api/admin/couriers/:id", requireAuth, requireAdmin, wrapAsync(updateAdminCourier));
-
-app.post("/api/admin/couriers/:id/update", requireAuth, requireAdmin, wrapAsync(updateAdminCourier));
+app.patch("/api/admin/couriers/:id", requireAuth, requireAdmin, validateBody(Schemas.updateCourier), wrapAsync(updateAdminCourier));
 
 app.get("/api/admin/promotions", requireAuth, requireAdmin, async (_req, res) => {
   const promotions = await prisma.promotion.findMany({
@@ -3588,9 +3419,7 @@ app.post("/api/admin/promotions", requireAuth, requireAdmin, validateBody(Schema
   ok(res, serializePromotion(promotion), 201);
 }));
 
-app.patch("/api/admin/promotions/:id", requireAuth, requireAdmin, wrapAsync(updateAdminPromotion));
-
-app.post("/api/admin/promotions/:id/update", requireAuth, requireAdmin, wrapAsync(updateAdminPromotion));
+app.patch("/api/admin/promotions/:id", requireAuth, requireAdmin, validateBody(Schemas.updatePromotion), wrapAsync(updateAdminPromotion));
 
 app.get("/api/admin/orders", requireAuth, requireAdmin, wrapAsync(async (req, res) => {
   const { page, limit, skip, search, status } = parsePagination(req.query, { defaultLimit: 50, maxLimit: 100 });
@@ -3637,13 +3466,9 @@ app.get("/api/admin/orders", requireAuth, requireAdmin, wrapAsync(async (req, re
   );
 }));
 
-app.patch("/api/admin/orders/:id/status", requireAuth, requireAdmin, wrapAsync(updateAdminOrderStatus));
+app.patch("/api/admin/orders/:id/status", requireAuth, requireAdmin, validateBody(Schemas.updateOrderStatus), wrapAsync(updateAdminOrderStatus));
 
-app.post("/api/admin/orders/:id/status/update", requireAuth, requireAdmin, wrapAsync(updateAdminOrderStatus));
-
-app.patch("/api/admin/orders/:id/assign-courier", requireAuth, requireAdmin, wrapAsync(assignAdminCourier));
-
-app.post("/api/admin/orders/:id/assign-courier/update", requireAuth, requireAdmin, wrapAsync(assignAdminCourier));
+app.patch("/api/admin/orders/:id/assign-courier", requireAuth, requireAdmin, validateBody(Schemas.assignCourier), wrapAsync(assignAdminCourier));
 
 app.get("/api/admin/reports/summary", requireAuth, requireAdmin, wrapAsync(async (_req, res) => {
   const [orders, customers, couriers, promotions, menuItems] = await Promise.all([

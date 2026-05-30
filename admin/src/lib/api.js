@@ -8,12 +8,22 @@ function resolveApiUrl() {
     return window.location.origin.replace(/\/$/, "");
   }
 
-  return "http://localhost:4100";
+  return "http://localhost:4000";
 }
 
 export const API_URL = resolveApiUrl();
 export const WS_URL = API_URL.replace(/^http/i, "ws");
 const COOKIE_SESSION_SENTINEL = "__cookie_session__";
+
+let csrfToken = null;
+
+export function setCsrfToken(value) {
+  csrfToken = value;
+}
+
+export function clearCsrfToken() {
+  csrfToken = null;
+}
 
 export async function apiRequest(path, options = {}, token, requestOptions = {}) {
   let response;
@@ -22,6 +32,7 @@ export async function apiRequest(path, options = {}, token, requestOptions = {})
       credentials: "include",
       headers: {
         "Content-Type": "application/json",
+        ...(csrfToken ? { "X-Csrf-Token": csrfToken } : {}),
         ...(token && token !== COOKIE_SESSION_SENTINEL ? { Authorization: `Bearer ${token}` } : {}),
         ...(options.headers || {}),
       },

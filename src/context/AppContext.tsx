@@ -1217,7 +1217,7 @@ export function AppProvider({ children }: PropsWithChildren) {
     }
 
     const delivery = getDeliveryQuote(currentLocation.coordinates, cartRestaurant.coordinates);
-    const deliveryFee = notificationPreferences.promotions ? 0 : delivery.fee;
+    const deliveryFee = delivery.fee;
     const serviceFee = calculateServiceFee(subtotal);
     const total = Number((subtotal + deliveryFee + serviceFee).toFixed(2));
     const pointsToEarn = Math.round(subtotal * cartRestaurant.pointsPerEuro);

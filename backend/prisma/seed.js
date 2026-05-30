@@ -205,8 +205,8 @@ const restaurants = [
 ];
 
 async function main() {
-  const adminPasswordHash = await bcrypt.hash("admin1234", 10);
-  const customerPasswordHash = await bcrypt.hash("client1234", 10);
+  const adminPasswordHash = await bcrypt.hash("admin1234", 12);
+  const customerPasswordHash = await bcrypt.hash("client1234", 12);
 
   await prisma.loyaltyEntry.deleteMany();
   await prisma.authChallenge.deleteMany();

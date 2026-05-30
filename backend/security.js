@@ -55,7 +55,7 @@ const corsOptions = {
     }
   },
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Api-Token"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Api-Token", "X-Csrf-Token"],
   credentials: true,
   maxAge: 86400, // 24h — cache la réponse preflight
 };
@@ -326,6 +326,80 @@ const Schemas = {
     payPerDelivery: z.number().min(0).optional(),
     payPerKm: z.number().min(0).optional(),
     zoneLabel: z.string().max(100).optional(),
+  }),
+
+  // Admin: update menu item
+  updateMenuItem: z.object({
+    name: z.string().min(1).max(200).trim().optional(),
+    description: z.string().max(1000).optional(),
+    price: z.number().min(0).max(100000).optional(),
+    category: z.string().max(100).optional(),
+    image: z.string().max(2000).optional(),
+    badge: z.string().max(50).nullable().optional(),
+    calories: z.number().int().nullable().optional(),
+    stock: z.number().int().min(0).optional(),
+    isAvailable: z.boolean().optional(),
+    options: z.array(z.unknown()).optional(),
+  }),
+
+  // Admin: create/update menu category
+  createMenuCategory: z.object({
+    name: z.string().min(1).max(100).trim(),
+    sortOrder: z.number().int().min(0).optional().default(0),
+    isActive: z.boolean().optional().default(true),
+  }),
+
+  updateMenuCategory: z.object({
+    name: z.string().min(1).max(100).trim().optional(),
+    sortOrder: z.number().int().min(0).optional(),
+    isActive: z.boolean().optional(),
+  }),
+
+  // Admin: update courier
+  updateCourier: z.object({
+    name: z.string().min(2).max(100).trim().optional(),
+    phone: Shared.phone.optional(),
+    vehicle: z.string().min(2).max(100).optional(),
+    status: z.enum(["AVAILABLE", "ON_DELIVERY", "OFFLINE"]).optional(),
+    payPerDelivery: z.number().min(0).optional(),
+    payPerKm: z.number().min(0).optional(),
+    zoneLabel: z.string().max(100).nullable().optional(),
+    currentLat: z.number().nullable().optional(),
+    currentLng: z.number().nullable().optional(),
+  }),
+
+  // Admin: update customer
+  updateCustomer: z.object({
+    name: z.string().min(1).max(200).trim().optional(),
+    email: Shared.email.optional(),
+    phone: Shared.phone.optional(),
+    defaultAddress: z.string().max(500).optional(),
+    isActive: z.boolean().optional(),
+  }),
+
+  // Admin: update promotion
+  updatePromotion: z.object({
+    code: z.string().min(3).max(30).trim().toUpperCase().optional(),
+    title: z.string().min(3).max(100).trim().optional(),
+    description: z.string().max(300).nullable().optional(),
+    type: z.enum(["PERCENTAGE", "FIXED"]).optional(),
+    value: z.number().min(0).max(100000).optional(),
+    minOrderTotal: z.number().min(0).optional(),
+    isActive: z.boolean().optional(),
+    startsAt: z.string().datetime({ message: "Date de debut invalide" }).optional(),
+    endsAt: z.string().datetime({ message: "Date de fin invalide" }).optional(),
+    restaurantId: z.string().nullable().optional(),
+  }),
+
+  // Admin: update order status
+  updateOrderStatus: z.object({
+    status: z.string().min(1, "Statut requis"),
+    reason: z.string().max(500).optional(),
+  }),
+
+  // Admin: assign courier to order
+  assignCourier: z.object({
+    courierId: z.string().nullable(),
   }),
 };
 

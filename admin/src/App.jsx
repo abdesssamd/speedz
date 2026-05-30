@@ -27,7 +27,7 @@ import {
 import { AdminDialog } from "./components/AdminDialog";
 import OmniSearch from "./components/OmniSearch";
 import AnalyticsDashboard from "./components/AnalyticsDashboard";
-import { API_URL, WS_URL, apiRequest } from "./lib/api";
+import { API_URL, WS_URL, apiRequest, setCsrfToken, clearCsrfToken } from "./lib/api";
 import "./index.css";
 
 const brandLogoUrl = "/logo.png";
@@ -752,6 +752,11 @@ function validatePromotionFormData(data) {
   if (!String(data.title || "").trim()) errors.title = "Le titre est obligatoire.";
   if (!isNumeric(data.value) || Number(data.value) <= 0) errors.value = "La valeur doit etre superieure a 0.";
   if (data.minOrderTotal !== "" && Number(data.minOrderTotal) < 0) errors.minOrderTotal = "Le minimum de commande est invalide.";
+  if (!String(data.startsAt || "").trim()) errors.startsAt = "La date de debut est obligatoire.";
+  if (!String(data.endsAt || "").trim()) errors.endsAt = "La date de fin est obligatoire.";
+  if (data.startsAt && data.endsAt && new Date(data.endsAt) <= new Date(data.startsAt)) {
+    errors.endsAt = "La date de fin doit etre posterieure a la date de debut.";
+  }
   return errors;
 }
 
@@ -927,7 +932,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [isRestoringSession, setIsRestoringSession] = useState(true);
   const [email, setEmail] = useState("admin@fooddelyvry.app");
-  const [password, setPassword] = useState("admin1234");
+  const [password, setPassword] = useState("");
   const [loginErrors, setLoginErrors] = useState({});
   const [restaurants, setRestaurants] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -1596,8 +1601,9 @@ export default function App() {
 
   useEffect(() => {
     function handleInvalidAuth(event) {
-      setToken("");
-      setUser(null);
+    setToken("");
+    setUser(null);
+    clearCsrfToken();
       setRestaurants([]);
       setOrders([]);
       setCustomers([]);
@@ -1634,6 +1640,9 @@ export default function App() {
 
         setUser(payload.user);
         setToken("__cookie_session__");
+        if (payload.csrfToken) {
+          setCsrfToken(payload.csrfToken);
+        }
       } catch {
         if (!cancelled) {
           setToken("");
@@ -1967,6 +1976,9 @@ export default function App() {
 
       setToken(payload.token);
       setUser(payload.user);
+      if (payload.csrfToken) {
+        setCsrfToken(payload.csrfToken);
+      }
       setStatusMessage("Connexion admin reussie.");
       setLoginErrors({});
     } catch (error) {
