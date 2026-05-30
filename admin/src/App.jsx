@@ -2165,9 +2165,9 @@ export default function App() {
     try {
       const uploadedImageUrl = await uploadImage(menuImageFile);
       await apiRequest(
-        `/api/admin/menu-items/${selectedMenuItem.id}/update`,
+        `/api/admin/menu-items/${selectedMenuItem.id}`,
         {
-          method: "POST",
+          method: "PUT",
           body: JSON.stringify({
             ...selectedMenuItem,
             image: uploadedImageUrl || selectedMenuItem.image,
@@ -2317,8 +2317,8 @@ export default function App() {
   async function handleMenuAvailability(itemId, isAvailable) {
     try {
       await apiRequest(
-        `/api/admin/menu-items/${itemId}/availability/update`,
-        { method: "POST", body: JSON.stringify({ isAvailable }) },
+        `/api/admin/menu-items/${itemId}/availability`,
+        { method: "PATCH", body: JSON.stringify({ isAvailable }) },
         token
       );
       await loadAdminData();
@@ -2329,7 +2329,7 @@ export default function App() {
 
   async function handleDeleteMenuItem(itemId) {
     try {
-      await apiRequest(`/api/admin/menu-items/${itemId}/delete`, { method: "POST" }, token);
+      await apiRequest(`/api/admin/menu-items/${itemId}`, { method: "DELETE" }, token);
       setStatusMessage("Plat archive.");
       setShowDeleteMenuItemModal(false);
       setDeleteMenuItemTarget(null);
