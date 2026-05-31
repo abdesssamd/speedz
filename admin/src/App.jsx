@@ -2067,9 +2067,9 @@ export default function App() {
     try {
       const uploadedImageUrl = await uploadImage(restaurantImageFile);
       await apiRequest(
-        `/api/admin/restaurants/${selectedRestaurant.id}/update`,
+        `/api/admin/restaurants/${selectedRestaurant.id}`,
         {
-          method: "POST",
+          method: "PUT",
           body: JSON.stringify({
             ...selectedRestaurant,
             image: uploadedImageUrl || selectedRestaurant.image,
@@ -2342,8 +2342,9 @@ export default function App() {
   async function handleDeleteRestaurant(restaurantId, hard = false) {
     try {
       setIsDeletingRestaurant(true);
-      const url = `/api/admin/restaurants/${restaurantId}/delete`;
-      await apiRequest(url, { method: "POST", body: JSON.stringify({ hard }) }, token);
+      const suffix = hard ? "?hard=true" : "";
+      const url = `/api/admin/restaurants/${restaurantId}${suffix}`;
+      await apiRequest(url, { method: "DELETE" }, token);
       setShowDeleteRestaurantModal(false);
       setDeleteRestaurantTarget(null);
       setSelectedRestaurantId("");
@@ -2487,9 +2488,9 @@ export default function App() {
     }
     try {
       await apiRequest(
-        `/api/admin/menu-categories/${category.id}/update`,
+        `/api/admin/menu-categories/${category.id}`,
         {
-          method: "POST",
+          method: "PATCH",
           body: JSON.stringify(payload),
         },
         token
@@ -2519,7 +2520,7 @@ export default function App() {
 
   async function handleDeleteMenuCategory(categoryId) {
     try {
-      await apiRequest(`/api/admin/menu-categories/${categoryId}/delete`, { method: "POST" }, token);
+      await apiRequest(`/api/admin/menu-categories/${categoryId}`, { method: "DELETE" }, token);
       setStatusMessage("Categorie supprimee.");
       setDeleteCategoryTarget(null);
       await loadAdminData();

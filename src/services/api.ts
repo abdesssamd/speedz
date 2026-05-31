@@ -75,14 +75,14 @@ function getApiBaseUrl() {
 
   const devServerHost = getDevServerHost();
   if (devServerHost && !["localhost", "127.0.0.1"].includes(devServerHost)) {
-    return `http://${devServerHost}:4100`;
+    return `http://${devServerHost}:4000`;
   }
 
   if (Platform.OS === "android") {
-    return "http://10.0.2.2:4100";
+    return "http://10.0.2.2:4000";
   }
 
-  return "http://localhost:4100";
+  return "http://localhost:4000";
 }
 
 const API_BASE_URL = getApiBaseUrl();
