@@ -98,11 +98,21 @@ const upload = multer({
 });
 
 app.disable("x-powered-by");
+app.set("etag", false);
 app.use(corsMiddleware);
 app.use(helmetMiddleware);
 app.use(apiRateLimiter);
 app.use(express.json({ limit: "1mb" }));
 app.use("/uploads", express.static(uploadsDir));
+
+app.use("/api", (req, res, next) => {
+  // Prevent stale admin/api payloads behind browser, Passenger or proxy caches.
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  res.setHeader("Surrogate-Control", "no-store");
+  next();
+});
 
 // CSRF protection disabled - using SameSite=Lax cookies for protection
 // TODO: Implement proper double-submit cookie pattern if needed
@@ -190,6 +200,10 @@ function broadcastRealtime(type, payload) {
       client.send(message);
     }
   });
+}
+
+function broadcastAdminResource(type, payload = {}) {
+  broadcastRealtime(`admin/${type}`, payload);
 }
 
 wsServer.on("connection", (socket, request) => {
@@ -2818,6 +2832,10 @@ async function updateAdminApplication(req, res) {
     nextStatus,
     linkedEntityId: updatedApplication.linkedEntityId || null,
   });
+  broadcastAdminResource("application-updated", {
+    applicationId: updatedApplication.id,
+    linkedEntityId: updatedApplication.linkedEntityId || null,
+  });
 
   ok(res, updatedApplication);
 }
@@ -2839,6 +2857,7 @@ async function updateAdminCustomer(req, res) {
     }
   });
   await logAdminAction(req, "customer.updated", "customer", customer.id, { isActive: customer.isActive });
+  broadcastAdminResource("customer-updated", { customerId: customer.id });
   ok(res, serializeCustomer(customer));
 }
 
@@ -2859,6 +2878,7 @@ async function updateAdminCourier(req, res) {
     include: { orders: true }
   });
   await logAdminAction(req, "courier.updated", "courier", courier.id, { status: courier.status });
+  broadcastAdminResource("courier-updated", { courierId: courier.id });
   ok(res, serializeCourier(courier));
 }
 
@@ -2880,6 +2900,7 @@ async function updateAdminPromotion(req, res) {
     include: { orders: true }
   });
   await logAdminAction(req, "promotion.updated", "promotion", promotion.id, { code: promotion.code, isActive: promotion.isActive });
+  broadcastAdminResource("promotion-updated", { promotionId: promotion.id });
   ok(res, serializePromotion(promotion));
 }
 
@@ -3052,6 +3073,8 @@ app.post("/api/admin/restaurants", requireAuth, requireAdmin, wrapAsync(async (r
     });
   }
 
+  broadcastAdminResource("restaurant-created", { restaurantId: restaurant.id });
+
   res.status(201).json({
     ...serializeRestaurant(restaurant),
     generatedAccess: ownerEmail
@@ -3100,6 +3123,7 @@ app.put("/api/admin/restaurants/:id", requireAuth, requireAdmin, wrapAsync(async
     },
     include: { menuItems: true }
   });
+  broadcastAdminResource("restaurant-updated", { restaurantId: restaurant.id });
   res.json(serializeRestaurant(restaurant));
 }));
 
@@ -3135,6 +3159,7 @@ app.delete("/api/admin/restaurants/:id", requireAuth, requireAdmin, async (req, 
         });
       }
       await prisma.restaurant.delete({ where: { id } });
+      broadcastAdminResource("restaurant-deleted", { restaurantId: id, hard: true });
       return res.status(200).json({ deleted: true, hard: true });
     }
 
@@ -3146,6 +3171,8 @@ app.delete("/api/admin/restaurants/:id", requireAuth, requireAdmin, async (req, 
         validationStatus: "REJECTED",
       },
     });
+
+    broadcastAdminResource("restaurant-deleted", { restaurantId: updated.id, hard: false });
 
     return res.status(200).json({ deleted: true, hard: false, id: updated.id });
   } catch (error) {
@@ -3175,6 +3202,7 @@ app.post("/api/admin/restaurants/:id/menu-items", requireAuth, requireAdmin, asy
       options: body.options || []
     }
   });
+  broadcastAdminResource("menu-item-created", { restaurantId: req.params.id, menuItemId: item.id });
   res.status(201).json(item);
 });
 
@@ -3195,6 +3223,7 @@ app.put("/api/admin/menu-items/:id", requireAuth, requireAdmin, validateBody(Sch
       options: body.options || []
     }
   });
+  broadcastAdminResource("menu-item-updated", { restaurantId: item.restaurantId, menuItemId: item.id });
   res.json(item);
 });
 
@@ -3203,6 +3232,7 @@ app.patch("/api/admin/menu-items/:id/stock", requireAuth, requireAdmin, validate
     where: { id: req.params.id },
     data: { stock: Number(req.body?.stock || 0) }
   });
+  broadcastAdminResource("menu-item-stock-updated", { restaurantId: item.restaurantId, menuItemId: item.id });
   res.json(item);
 });
 
@@ -3211,14 +3241,16 @@ app.patch("/api/admin/menu-items/:id/availability", requireAuth, requireAdmin, v
     where: { id: req.params.id },
     data: { isAvailable: Boolean(req.body?.isAvailable) }
   });
+  broadcastAdminResource("menu-item-availability-updated", { restaurantId: item.restaurantId, menuItemId: item.id });
   res.json(item);
 });
 
 app.delete("/api/admin/menu-items/:id", requireAuth, requireAdmin, async (req, res) => {
-  await prisma.menuItem.update({
+  const item = await prisma.menuItem.update({
     where: { id: req.params.id },
     data: { deletedAt: new Date() }
   });
+  broadcastAdminResource("menu-item-deleted", { restaurantId: item.restaurantId, menuItemId: item.id });
   res.status(204).send();
 });
 
@@ -3248,6 +3280,8 @@ app.post("/api/admin/applications/:id/activate-restaurant", requireAuth, require
     include: { menuItems: true }
   });
 
+  broadcastAdminResource("application-restaurant-activated", { applicationId: req.params.id, restaurantId: restaurant.id });
+
   res.json(serializeRestaurant(restaurant));
 });
 
@@ -3264,6 +3298,7 @@ app.post("/api/admin/menu-categories", requireAuth, requireAdmin, validateBody(S
       isActive: body.isActive ?? true,
     }
   });
+  broadcastAdminResource("menu-category-created", { categoryId: category.id });
   res.status(201).json(serializeMenuCategory(category));
 });
 
@@ -3277,6 +3312,7 @@ app.patch("/api/admin/menu-categories/:id", requireAuth, requireAdmin, validateB
       isActive: body.isActive ?? true,
     }
   });
+  broadcastAdminResource("menu-category-updated", { categoryId: category.id });
   res.json(serializeMenuCategory(category));
 });
 
@@ -3305,6 +3341,8 @@ app.delete("/api/admin/menu-categories/:id", requireAuth, requireAdmin, async (r
   await prisma.menuCategory.delete({
     where: { id: req.params.id }
   });
+
+  broadcastAdminResource("menu-category-deleted", { categoryId: req.params.id });
 
   res.status(204).send();
 });
@@ -3386,6 +3424,7 @@ app.post("/api/admin/couriers", requireAuth, requireAdmin, validateBody(Schemas.
     },
     include: { orders: true }
   });
+  broadcastAdminResource("courier-created", { courierId: courier.id });
   res.status(201).json(serializeCourier(courier));
 });
 
@@ -3416,6 +3455,7 @@ app.post("/api/admin/promotions", requireAuth, requireAdmin, validateBody(Schema
     include: { orders: true }
   });
   await logAdminAction(req, "promotion.created", "promotion", promotion.id, { code: promotion.code });
+  broadcastAdminResource("promotion-created", { promotionId: promotion.id });
   ok(res, serializePromotion(promotion), 201);
 }));
 

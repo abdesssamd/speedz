@@ -1725,6 +1725,11 @@ export default function App() {
             }
 
             loadAdminData({ silent: true, background: true });
+            return;
+          }
+
+          if (message.type?.startsWith("admin/")) {
+            loadAdminData({ silent: true, background: true });
           }
         } catch {
           return;
@@ -2207,9 +2212,9 @@ export default function App() {
     setErrorMessage("");
     try {
       await apiRequest(
-        `/api/admin/orders/${orderId}/status/update`,
+        `/api/admin/orders/${orderId}/status`,
         {
-          method: "POST",
+          method: "PATCH",
           body: JSON.stringify({ status }),
         },
         token
@@ -2229,9 +2234,9 @@ export default function App() {
 
     try {
       await apiRequest(
-        `/api/admin/orders/${order.id}/status/update`,
+        `/api/admin/orders/${order.id}/status`,
         {
-          method: "POST",
+          method: "PATCH",
           body: JSON.stringify({ status: "Cancelled", reason }),
         },
         token
@@ -2304,8 +2309,8 @@ export default function App() {
   async function handleMenuStock(itemId, stock) {
     try {
       await apiRequest(
-        `/api/admin/menu-items/${itemId}/stock/update`,
-        { method: "POST", body: JSON.stringify({ stock }) },
+        `/api/admin/menu-items/${itemId}/stock`,
+        { method: "PATCH", body: JSON.stringify({ stock }) },
         token
       );
       await loadAdminData();
@@ -2360,9 +2365,9 @@ export default function App() {
   async function handleCustomerToggle(customer) {
     try {
       await apiRequest(
-        `/api/admin/customers/${customer.id}/update`,
+        `/api/admin/customers/${customer.id}`,
         {
-          method: "POST",
+          method: "PATCH",
           body: JSON.stringify({ ...customer, isActive: !customer.isActive }),
         },
         token
@@ -2376,9 +2381,9 @@ export default function App() {
   async function handleCourierStatus(courier, status) {
     try {
       await apiRequest(
-        `/api/admin/couriers/${courier.id}/update`,
+        `/api/admin/couriers/${courier.id}`,
         {
-          method: "POST",
+          method: "PATCH",
           body: JSON.stringify({ ...courier, status }),
         },
         token
@@ -2427,9 +2432,9 @@ export default function App() {
 
     try {
       await apiRequest(
-        `/api/admin/couriers/${selectedCourier.id}/update`,
+        `/api/admin/couriers/${selectedCourier.id}`,
         {
-          method: "POST",
+          method: "PATCH",
           body: JSON.stringify({
             ...selectedCourier,
             currentLat: selectedCourier.currentLat !== "" ? Number(selectedCourier.currentLat) : null,
@@ -2532,9 +2537,9 @@ export default function App() {
   async function handleApplicationStatus(applicationId, status) {
     try {
       await apiRequest(
-        `/api/admin/applications/${applicationId}/update`,
+        `/api/admin/applications/${applicationId}`,
         {
-          method: "POST",
+          method: "PATCH",
           body: JSON.stringify({ status }),
         },
         token
@@ -2584,8 +2589,8 @@ export default function App() {
   async function handleAssignCourier(orderId, courierId) {
     try {
       await apiRequest(
-        `/api/admin/orders/${orderId}/assign-courier/update`,
-        { method: "POST", body: JSON.stringify({ courierId }) },
+        `/api/admin/orders/${orderId}/assign-courier`,
+        { method: "PATCH", body: JSON.stringify({ courierId }) },
         token
       );
       await loadAdminData();
@@ -2637,9 +2642,9 @@ export default function App() {
 
     try {
       await apiRequest(
-        `/api/admin/promotions/${selectedPromotion.id}/update`,
+        `/api/admin/promotions/${selectedPromotion.id}`,
         {
-          method: "POST",
+          method: "PATCH",
           body: JSON.stringify({
             ...selectedPromotion,
             value: Number(selectedPromotion.value || 0),

@@ -81,7 +81,7 @@ const helmetOptions = {
       scriptSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],    // nécessaire pour la page QR HTML inline
       imgSrc: ["'self'", "data:", "https:"],       // images externes autorisées (menus, restaurants)
-      connectSrc: ["'self'"],
+      connectSrc: ["'self'", "https:", "wss:"],
       fontSrc: ["'self'"],
       objectSrc: ["'none'"],
       frameSrc: ["'none'"],
