@@ -369,6 +369,25 @@ function getRestaurantQrLandingUrl(qrCodeToken) {
   return `${DEFAULT_QR_WEBAPP_URL}/qr/${qrCodeToken}`;
 }
 
+function getRequestPublicBaseUrl(req) {
+  const configuredBaseUrl =
+    process.env.IMAGE_URL_BASE ||
+    process.env.PUBLIC_BASE_URL ||
+    process.env.API_BASE_URL ||
+    "";
+
+  if (configuredBaseUrl) {
+    return configuredBaseUrl.replace(/\/$/, "");
+  }
+
+  const forwardedProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
+  const forwardedHost = String(req.headers["x-forwarded-host"] || "").split(",")[0].trim();
+  const host = forwardedHost || req.headers.host || "localhost";
+  const protocol = forwardedProto || req.protocol || "http";
+
+  return `${protocol}://${host}`.replace(/\/$/, "");
+}
+
 function calculateCourierCompensation(order, courier) {
   const total = Number(((courier.payPerDelivery || 0) + (order.deliveryDistanceKm || 0) * (courier.payPerKm || 0)).toFixed(2));
   return {
@@ -2083,7 +2102,7 @@ app.post("/api/admin/upload-image", requireAuth, requireAdmin, wrapAsync(async (
     throw new ApiError(400, "Le fichier envoye n'est pas une image valide.", "UPLOAD_INVALID_IMAGE");
   }
 
-  const publicBaseUrl = process.env.PUBLIC_BASE_URL || process.env.API_BASE_URL || `http://localhost:${PORT}`;
+  const publicBaseUrl = getRequestPublicBaseUrl(req);
   ok(res, {
     url: `${publicBaseUrl.replace(/\/$/, "")}/uploads/${req.file.filename}`,
     filename: req.file.filename
