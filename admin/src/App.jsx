@@ -3175,6 +3175,9 @@ export default function App() {
               </span>
             </div>
             <button className="ghost" onClick={() => loadAdminData()}>{t("refresh")}</button>
+            <button className="ghost" onClick={openProfileModal}>Profil</button>
+            <button className="ghost" onClick={openPasswordModal}>Mot de passe</button>
+            <button className="ghost" onClick={handleLogout}>{t("logout")}</button>
             <button className="primary-alt" onClick={() => {
               setRestaurantCreateErrors({});
               setShowCreateModal(true);

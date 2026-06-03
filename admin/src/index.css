@@ -31,7 +31,7 @@
   }
 
   .sidebar {
-    @apply sticky top-5 h-[calc(100vh-40px)] rounded-3xl bg-slate-900 text-slate-100 p-4 grid gap-5 shadow-soft;
+    @apply sticky top-5 h-[calc(100vh-40px)] rounded-3xl bg-slate-900 text-slate-100 p-4 grid gap-5 shadow-soft overflow-y-auto;
   }
 
   .sidebar-brand-logo {
@@ -64,7 +64,7 @@
   }
 
   .side-card {
-    @apply rounded-2xl p-4 bg-white text-slate-900 border border-slate-200 shadow-soft;
+    @apply rounded-2xl p-4 bg-white text-slate-900 border border-slate-200 shadow-soft mt-auto;
   }
 
   .dark .side-card {
