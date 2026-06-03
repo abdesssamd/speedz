@@ -10,6 +10,7 @@ import {
   ExternalLink,
   Inbox,
   LayoutDashboard,
+  Lock,
   Mail,
   Moon,
   MoreVertical,
@@ -21,6 +22,7 @@ import {
   Sun,
   Tags,
   Trash2,
+  User,
   Users,
   X,
 } from "lucide-react";
@@ -760,6 +762,32 @@ function validatePromotionFormData(data) {
   return errors;
 }
 
+function validateAdminProfileForm(data) {
+  const errors = {};
+  if (!String(data.firstName || "").trim()) errors.firstName = "Le prenom est obligatoire.";
+  if (!String(data.lastName || "").trim()) errors.lastName = "Le nom est obligatoire.";
+  if (!String(data.name || "").trim()) errors.name = "Le nom complet est obligatoire.";
+  if (!isValidEmail(data.email)) errors.email = "Email invalide.";
+  if (data.phone && !isValidPhone(data.phone)) errors.phone = "Numero de telephone invalide.";
+  return errors;
+}
+
+function validateAdminPasswordForm(data) {
+  const errors = {};
+  if (!String(data.currentPassword || "").trim()) errors.currentPassword = "Le mot de passe actuel est obligatoire.";
+  if (!String(data.newPassword || "").trim()) {
+    errors.newPassword = "Le nouveau mot de passe est obligatoire.";
+  } else if (String(data.newPassword).length < 8) {
+    errors.newPassword = "Le nouveau mot de passe doit contenir au moins 8 caracteres.";
+  }
+  if (!String(data.confirmPassword || "").trim()) {
+    errors.confirmPassword = "La confirmation est obligatoire.";
+  } else if (data.newPassword !== data.confirmPassword) {
+    errors.confirmPassword = "La confirmation ne correspond pas.";
+  }
+  return errors;
+}
+
 function sameErrors(left, right) {
   const leftKeys = Object.keys(left || {});
   const rightKeys = Object.keys(right || {});
@@ -970,6 +998,8 @@ export default function App() {
   const [showCourierModal, setShowCourierModal] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showPromotionModal, setShowPromotionModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [deleteCategoryTarget, setDeleteCategoryTarget] = useState(null);
   const [selectedMenuItem, setSelectedMenuItem] = useState(null);
   const [selectedCourier, setSelectedCourier] = useState(null);
@@ -977,6 +1007,20 @@ export default function App() {
   const [selectedPromotion, setSelectedPromotion] = useState(null);
   const [restaurantImageFile, setRestaurantImageFile] = useState(null);
   const [menuImageFile, setMenuImageFile] = useState(null);
+  const [adminProfileForm, setAdminProfileForm] = useState({
+    firstName: "",
+    lastName: "",
+    name: "",
+    email: "",
+    phone: "",
+  });
+  const [adminPasswordForm, setAdminPasswordForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [adminProfileErrors, setAdminProfileErrors] = useState({});
+  const [adminPasswordErrors, setAdminPasswordErrors] = useState({});
   const queuedEmailCount = useMemo(() => emailOutbox.filter((email) => email.status === "QUEUED").length, [emailOutbox]);
   const sentEmailCount = useMemo(() => emailOutbox.filter((email) => email.status === "SENT").length, [emailOutbox]);
   const [courierForm, setCourierForm] = useState({
@@ -1491,6 +1535,28 @@ export default function App() {
     setPromotionErrors({});
   }
 
+  function openProfileModal() {
+    setAdminProfileForm({
+      firstName: user?.firstName || "",
+      lastName: user?.lastName || "",
+      name: user?.name || "",
+      email: user?.email || "",
+      phone: user?.phone || "",
+    });
+    setAdminProfileErrors({});
+    setShowProfileModal(true);
+  }
+
+  function openPasswordModal() {
+    setAdminPasswordForm({
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    });
+    setAdminPasswordErrors({});
+    setShowPasswordModal(true);
+  }
+
   useEffect(() => {
     if (!availableMealCategories.includes(menuItemForm.category)) {
       setMenuItemForm((current) => ({
@@ -1999,6 +2065,59 @@ export default function App() {
     }
     setToken("");
     setUser(null);
+  }
+
+  async function handleUpdateAdminProfile(event) {
+    event.preventDefault();
+    const errors = validateAdminProfileForm(adminProfileForm);
+    setAdminProfileErrors(errors);
+    if (Object.keys(errors).length) {
+      return;
+    }
+
+    try {
+      const payload = await apiRequest(
+        "/api/auth/me",
+        {
+          method: "PATCH",
+          body: JSON.stringify(adminProfileForm),
+        },
+        token
+      );
+      setUser(payload.user);
+      setShowProfileModal(false);
+      setStatusMessage("Profil admin mis a jour.");
+    } catch (error) {
+      setErrorMessage(error.message);
+    }
+  }
+
+  async function handleChangePassword(event) {
+    event.preventDefault();
+    const errors = validateAdminPasswordForm(adminPasswordForm);
+    setAdminPasswordErrors(errors);
+    if (Object.keys(errors).length) {
+      return;
+    }
+
+    try {
+      await apiRequest(
+        "/api/auth/change-password",
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            currentPassword: adminPasswordForm.currentPassword,
+            newPassword: adminPasswordForm.newPassword,
+          }),
+        },
+        token
+      );
+      setShowPasswordModal(false);
+      setAdminPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      setStatusMessage("Mot de passe mis a jour.");
+    } catch (error) {
+      setErrorMessage(error.message);
+    }
   }
 
   async function handleCreateRestaurant(event) {
@@ -3017,6 +3136,20 @@ export default function App() {
           <span className="chip chip-dark">{user?.role}</span>
           <h3>{user?.name}</h3>
           <p>{user?.email}</p>
+          <div className="side-card-actions">
+            <button className="ghost full" onClick={openProfileModal}>
+              <span className="inline-flex items-center gap-2">
+                <User size={14} />
+                Profil
+              </span>
+            </button>
+            <button className="ghost full" onClick={openPasswordModal}>
+              <span className="inline-flex items-center gap-2">
+                <Lock size={14} />
+                Mot de passe
+              </span>
+            </button>
+          </div>
           <button className="ghost full" onClick={handleLogout}>
             <span className="inline-flex items-center gap-2">
               <Power size={14} />
@@ -3760,7 +3893,7 @@ export default function App() {
                       </option>
                     ))}
                   </select>
-                  <span style={{ marginLeft: "auto", display: "flex", gap: "8px", alignItems: "center" }}>
+                  <span className="table-toolbar-end">
                     <button
                       className="ghost small"
                       onClick={() =>
@@ -3796,7 +3929,7 @@ export default function App() {
                       </label>
                     ))}
                   </div>
-                  <span className="table-summary">
+                  <span className="table-summary table-toolbar-spacer">
                     {sortedApplications.length} resultat(s)
                   </span>
                 </div>
@@ -4634,6 +4767,80 @@ export default function App() {
           ) : null}
         </section>
       </section>
+
+      <AdminDialog
+        open={showProfileModal}
+        title="Profil admin"
+        subtitle="Mettez a jour vos informations personnelles sans quitter le back-office."
+        eyebrowLabel="Compte"
+        onClose={() => setShowProfileModal(false)}
+        actions={
+          <>
+            <button type="button" className="btn-modal-ghost" onClick={() => setShowProfileModal(false)}>
+              Annuler
+            </button>
+            <button type="button" className="btn-modal-primary" onClick={() => submitFormById("form-admin-profile")}>
+              Enregistrer
+            </button>
+          </>
+        }
+      >
+        <form id="form-admin-profile" onSubmit={handleUpdateAdminProfile} className="stack compact-stack form-layout">
+          <FormSection title="Identite" hint="Les informations du compte admin sont utilisees dans le back-office.">
+            <div className="split form-grid">
+              <FormField label="Prenom" error={adminProfileErrors.firstName}>
+                <input value={adminProfileForm.firstName} onChange={(event) => setAdminProfileForm({ ...adminProfileForm, firstName: event.target.value })} />
+              </FormField>
+              <FormField label="Nom" error={adminProfileErrors.lastName}>
+                <input value={adminProfileForm.lastName} onChange={(event) => setAdminProfileForm({ ...adminProfileForm, lastName: event.target.value })} />
+              </FormField>
+            </div>
+            <FormField label="Nom complet" error={adminProfileErrors.name}>
+              <input value={adminProfileForm.name} onChange={(event) => setAdminProfileForm({ ...adminProfileForm, name: event.target.value })} />
+            </FormField>
+            <div className="split form-grid">
+              <FormField label={t("email")} error={adminProfileErrors.email}>
+                <input type="email" value={adminProfileForm.email} onChange={(event) => setAdminProfileForm({ ...adminProfileForm, email: event.target.value })} />
+              </FormField>
+              <FormField label={t("phone")} error={adminProfileErrors.phone}>
+                <input value={adminProfileForm.phone} onChange={(event) => setAdminProfileForm({ ...adminProfileForm, phone: event.target.value })} />
+              </FormField>
+            </div>
+          </FormSection>
+        </form>
+      </AdminDialog>
+
+      <AdminDialog
+        open={showPasswordModal}
+        title="Changer le mot de passe"
+        subtitle="Utilisez votre mot de passe actuel puis definissez un nouveau mot de passe."
+        eyebrowLabel="Securite"
+        onClose={() => setShowPasswordModal(false)}
+        actions={
+          <>
+            <button type="button" className="btn-modal-ghost" onClick={() => setShowPasswordModal(false)}>
+              Annuler
+            </button>
+            <button type="button" className="btn-modal-primary" onClick={() => submitFormById("form-admin-password")}>
+              Mettre a jour
+            </button>
+          </>
+        }
+      >
+        <form id="form-admin-password" onSubmit={handleChangePassword} className="stack compact-stack form-layout">
+          <FormSection title="Securite du compte" hint="Le nouveau mot de passe doit contenir au moins 8 caracteres.">
+            <FormField label="Mot de passe actuel" error={adminPasswordErrors.currentPassword}>
+              <input type="password" value={adminPasswordForm.currentPassword} onChange={(event) => setAdminPasswordForm({ ...adminPasswordForm, currentPassword: event.target.value })} />
+            </FormField>
+            <FormField label="Nouveau mot de passe" error={adminPasswordErrors.newPassword}>
+              <input type="password" value={adminPasswordForm.newPassword} onChange={(event) => setAdminPasswordForm({ ...adminPasswordForm, newPassword: event.target.value })} />
+            </FormField>
+            <FormField label="Confirmer le mot de passe" error={adminPasswordErrors.confirmPassword}>
+              <input type="password" value={adminPasswordForm.confirmPassword} onChange={(event) => setAdminPasswordForm({ ...adminPasswordForm, confirmPassword: event.target.value })} />
+            </FormField>
+          </FormSection>
+        </form>
+      </AdminDialog>
 
       <AdminDialog
         open={showCreateModal}

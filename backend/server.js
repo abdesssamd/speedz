@@ -2005,6 +2005,69 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
   });
 });
 
+app.patch("/api/auth/me", requireAuth, validateBody(Schemas.updateAdminProfile), wrapAsync(async (req, res) => {
+  const currentUser = await prisma.user.findUnique({
+    where: { id: req.auth.sub },
+  });
+
+  if (!currentUser) {
+    throw new ApiError(404, "Utilisateur introuvable.", "USER_NOT_FOUND");
+  }
+
+  const nextEmail = normalizeEmail(req.body?.email);
+  if (nextEmail !== currentUser.email) {
+    const existingUser = await prisma.user.findUnique({ where: { email: nextEmail } });
+    if (existingUser && existingUser.id !== currentUser.id) {
+      throw new ApiError(409, "Un compte existe deja avec cet email.", "EMAIL_ALREADY_EXISTS");
+    }
+  }
+
+  const updatedUser = await prisma.user.update({
+    where: { id: currentUser.id },
+    data: {
+      firstName: req.body?.firstName,
+      lastName: req.body?.lastName,
+      name: req.body?.name,
+      email: nextEmail,
+      phone: req.body?.phone ? String(req.body.phone).trim() : null,
+    },
+    include: { addresses: true, favorites: true },
+  });
+
+  res.json({
+    user: serializeUserProfile(updatedUser),
+    savedAddresses: (updatedUser.addresses || []).map(serializeUserAddress),
+    notificationPreferences: serializeNotificationPreferences(updatedUser),
+  });
+}));
+
+app.patch("/api/auth/change-password", requireAuth, validateBody(Schemas.updateAdminPassword), wrapAsync(async (req, res) => {
+  const user = await prisma.user.findUnique({
+    where: { id: req.auth.sub },
+  });
+
+  if (!user) {
+    throw new ApiError(404, "Utilisateur introuvable.", "USER_NOT_FOUND");
+  }
+
+  if (!user.passwordHash || typeof user.passwordHash !== "string") {
+    throw new ApiError(400, "Ce compte ne peut pas changer son mot de passe.", "PASSWORD_CHANGE_UNAVAILABLE");
+  }
+
+  const isValid = await bcrypt.compare(req.body.currentPassword, user.passwordHash);
+  if (!isValid) {
+    throw new ApiError(401, "Mot de passe actuel invalide.", "INVALID_CURRENT_PASSWORD");
+  }
+
+  const nextHash = await bcrypt.hash(req.body.newPassword, 12);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { passwordHash: nextHash },
+  });
+
+  res.json({ ok: true });
+}));
+
 app.patch("/api/auth/notification-preferences", optionalAuth, async (req, res) => {
   const user = await getAuthenticatedUser(req);
   if (!user) {

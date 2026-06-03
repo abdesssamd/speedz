@@ -215,6 +215,19 @@ const Schemas = {
     password: z.string().min(6, "Mot de passe trop court").max(200),
   }),
 
+  updateAdminProfile: z.object({
+    firstName: z.string().min(1).max(50).trim(),
+    lastName: z.string().min(1).max(50).trim(),
+    name: z.string().min(2).max(120).trim(),
+    email: Shared.email,
+    phone: Shared.phone.optional().or(z.literal("")).nullable(),
+  }),
+
+  updateAdminPassword: z.object({
+    currentPassword: z.string().min(6).max(200),
+    newPassword: z.string().min(8).max(200),
+  }),
+
   // POST /api/cart/quote
   cartQuote: z.object({
     restaurantId: Shared.nonEmptyString,
