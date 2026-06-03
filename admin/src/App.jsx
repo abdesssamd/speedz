@@ -3075,6 +3075,26 @@ export default function App() {
           <div className="sidebar-brand-row">
             <img className="brand-logo sidebar-brand-logo" src={brandLogoUrl} alt="FoodDelyvry" />
           </div>
+          <div className="sidebar-account-actions">
+            <button className="ghost full sidebar-account-btn" onClick={openProfileModal}>
+              <span className="inline-flex items-center gap-2">
+                <User size={14} />
+                Profil
+              </span>
+            </button>
+            <button className="ghost full sidebar-account-btn" onClick={openPasswordModal}>
+              <span className="inline-flex items-center gap-2">
+                <Lock size={14} />
+                Mot de passe
+              </span>
+            </button>
+            <button className="ghost full sidebar-account-btn" onClick={handleLogout}>
+              <span className="inline-flex items-center gap-2">
+                <Power size={14} />
+                {t("logout")}
+              </span>
+            </button>
+          </div>
           <p className="eyebrow">{t("operations_center")}</p>
           <h1>FoodDelyvry</h1>
           <p className="sidebar-copy">{t("sidebar_copy")}</p>
@@ -3175,9 +3195,6 @@ export default function App() {
               </span>
             </div>
             <button className="ghost" onClick={() => loadAdminData()}>{t("refresh")}</button>
-            <button className="ghost" onClick={openProfileModal}>Profil</button>
-            <button className="ghost" onClick={openPasswordModal}>Mot de passe</button>
-            <button className="ghost" onClick={handleLogout}>{t("logout")}</button>
             <button className="primary-alt" onClick={() => {
               setRestaurantCreateErrors({});
               setShowCreateModal(true);
