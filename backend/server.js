@@ -655,6 +655,14 @@ function getPublicError(error) {
     };
   }
 
+  if (typeof error?.message === "string" && error.message.startsWith("Origine non autorisée")) {
+    return {
+      status: 403,
+      message: error.message,
+      code: "CORS_ORIGIN_DENIED",
+    };
+  }
+
   return {
     status: 500,
     message: "Erreur serveur interne.",
@@ -2001,7 +2009,7 @@ app.patch("/api/auth/notification-preferences", optionalAuth, async (req, res) =
   });
 });
 
-app.post("/api/auth/login", loginLimiter, validateBody(Schemas.login), async (req, res) => {
+app.post("/api/auth/login", loginLimiter, validateBody(Schemas.login), wrapAsync(async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) {
     res.status(400).json({ message: "Email et mot de passe requis." });
@@ -2011,6 +2019,16 @@ app.post("/api/auth/login", loginLimiter, validateBody(Schemas.login), async (re
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) {
     res.status(401).json({ message: "Identifiants invalides." });
+    return;
+  }
+
+  if (!user.isActive) {
+    res.status(403).json({ message: "Ce compte est desactive." });
+    return;
+  }
+
+  if (!user.passwordHash || typeof user.passwordHash !== "string") {
+    res.status(401).json({ message: "Ce compte ne peut pas se connecter avec un mot de passe." });
     return;
   }
 
@@ -2032,7 +2050,7 @@ app.post("/api/auth/login", loginLimiter, validateBody(Schemas.login), async (re
       role: user.role
     }
   });
-});
+}));
 
 app.post("/api/auth/logout", (_req, res) => {
   clearSessionCookie(res);
