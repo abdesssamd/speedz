@@ -2920,7 +2920,7 @@ export default function App() {
       setStatusMessage("Publicite creee.");
       await loadAdminData();
     } catch (error) {
-      setErrorMessage(error.message);
+      setAdErrors({ submit: error.message });
     }
   }
 
@@ -2957,7 +2957,7 @@ export default function App() {
       setStatusMessage("Publicite mise a jour.");
       await loadAdminData();
     } catch (error) {
-      setErrorMessage(error.message);
+      setAdErrors({ submit: error.message });
     }
   }
 
@@ -5903,6 +5903,7 @@ export default function App() {
         }
       >
         <form id="form-ad" onSubmit={selectedAd ? handleUpdateAd : handleCreateAd} className="stack compact-stack form-layout">
+          {adErrors.submit ? <div className="form-banner error-banner">{adErrors.submit}</div> : null}
           <FormSection title="Contenu" hint="Titre interne et visuel affiché aux clients.">
             <FormField label={t("title")} error={adErrors.title}>
               <input

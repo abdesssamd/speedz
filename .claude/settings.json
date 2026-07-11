@@ -27,7 +27,13 @@
       "Bash(curl -s -m 12 -o /dev/null -w '%{http_code}\\\\n' https://speedz.microtechdz13.com/api/ads)",
       "Bash(curl -s -m 12 -o /dev/null -w '%{http_code}\\\\n' https://speedz.microtechdz13.com/api/restaurants)",
       "Bash(curl -s -m 12 -o /dev/null -w '%{http_code}\\\\n' https://speedz.microtechdz13.com/api/admin/restaurants)",
-      "Bash(curl -s -m 12 -o /dev/null -w '%{http_code}\\\\n' -X POST https://speedz.microtechdz13.com/api/auth/request-email-code -H 'Content-Type: application/json' -d '{\"email\":\"x@y.com\",\"fullName\":\"t\"}')"
+      "Bash(curl -s -m 12 -o /dev/null -w '%{http_code}\\\\n' -X POST https://speedz.microtechdz13.com/api/auth/request-email-code -H 'Content-Type: application/json' -d '{\"email\":\"x@y.com\",\"fullName\":\"t\"}')",
+      "Bash(curl -s -m 12 https://speedz.microtechdz13.com/?nocache=__CMDSUB_OUTPUT__ -H 'Cache-Control: no-cache')",
+      "Bash(curl -s -m 12 https://speedz.microtechdz13.com/)",
+      "Bash(curl -s -m 12 -o /dev/null -w '%{http_code}\\\\n' https://speedz.microtechdz13.com/assets/index-BM62NRXQ.css)",
+      "Bash(curl -s -m 12 -o /dev/null -w '%{http_code}\\\\n' https://speedz.microtechdz13.com/assets/index-DwkaTeBg.js)",
+      "Bash(curl -s -m 12 -D - -o /dev/null https://speedz.microtechdz13.com/)",
+      "Bash(curl -s -m 12 https://speedz.microtechdz13.com/assets/index-BM62NRXQ.css)"
     ]
   }
 }

@@ -84,9 +84,10 @@ const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, callback) => {
-    const allowedMimeTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+    // .jfif et .jpe sont des variantes de JPEG produites par certains appareils/Windows.
+    const allowedMimeTypes = new Set(["image/jpeg", "image/pjpeg", "image/png", "image/webp", "image/gif"]);
     const extension = path.extname(file.originalname || "").toLowerCase();
-    const allowedExtensions = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif"]);
+    const allowedExtensions = new Set([".jpg", ".jpeg", ".jfif", ".jpe", ".png", ".webp", ".gif"]);
 
     if (!allowedMimeTypes.has(file.mimetype) || !allowedExtensions.has(extension)) {
       callback(new Error("Format image non supporte. Utilisez JPG, PNG, WEBP ou GIF."));
@@ -2345,8 +2346,10 @@ app.post("/api/admin/upload-image", requireAuth, requireAdmin, wrapAsync(async (
     throw new ApiError(400, "Aucun fichier image envoye.", "UPLOAD_MISSING_FILE");
   }
 
+  // Normalise les variantes JPEG (pjpeg pour .jfif) avant comparaison.
+  const normalizeMime = (value) => (value === "image/pjpeg" ? "image/jpeg" : value);
   const detectedMimeType = detectImageTypeFromFile(req.file.path);
-  if (!detectedMimeType || detectedMimeType !== req.file.mimetype) {
+  if (!detectedMimeType || normalizeMime(detectedMimeType) !== normalizeMime(req.file.mimetype)) {
     fs.unlinkSync(req.file.path);
     throw new ApiError(400, "Le fichier envoye n'est pas une image valide.", "UPLOAD_INVALID_IMAGE");
   }
