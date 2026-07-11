@@ -11,7 +11,7 @@
  */
 
 import { Ionicons } from "@expo/vector-icons";
-import React from "react";
+import React, { useMemo } from "react";
 import {
   FlatList,
   SafeAreaView,
@@ -24,7 +24,8 @@ import { AnimatedCard } from "../components/AnimatedCard";
 import { EmptyState } from "../components/EmptyState";
 import { LiveDeliveryMap } from "../components/LiveDeliveryMap";
 import { useApp } from "../context/AppContext";
-import { alignStart, mobileTheme, rowDirection } from "../theme/mobile";
+import { alignStart, mobileTheme, rowDirection, ThemeColors } from "../theme/mobile";
+import { useTheme } from "../theme/ThemeProvider";
 import { translateStatus } from "../i18n/mobile";
 import { formatCurrency, formatDateTime } from "../services/format";
 import { Language, Order } from "../types";
@@ -51,6 +52,7 @@ function stepIndex(status: string) {
 
 // ─── Tracker horizontal (signature JE) ───────────────────────────────────────
 function JETracker({ status, language, isRTL }: { status: string; language: Language; isRTL: boolean }) {
+  const t = useTrackerStyles();
   const currentIdx = stepIndex(status);
   const steps = [
     { key: "Confirmed", label: translateStatus(language, "Confirmed"), icon: "checkmark-circle-outline" as const },
@@ -89,30 +91,34 @@ function JETracker({ status, language, isRTL }: { status: string; language: Lang
   );
 }
 
-const t = StyleSheet.create({
-  wrap: {
-    flexDirection: "row", alignItems: "flex-start",
-    justifyContent: "space-between", paddingVertical: 8,
-  },
-  step: { alignItems: "center", gap: 5, flex: 0, width: 52 },
-  circle: {
-    width: 30, height: 30, borderRadius: 15,
-    backgroundColor: "#E8E8E8", alignItems: "center", justifyContent: "center",
-  },
-  circleDone: { backgroundColor: JE.orange },
-  circleActive: {
-    backgroundColor: JE.orange,
-    shadowColor: JE.orange, shadowOpacity: 0.4,
-    shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4,
-  },
-  label: { fontSize: 9, fontWeight: "600", color: "#C4C4C4", textAlign: "center" },
-  labelDone: { color: JE.orange },
-  line: { flex: 1, height: 2, backgroundColor: "#E8E8E8", marginTop: 14 },
-  lineDone: { backgroundColor: JE.orange },
-});
+function useTrackerStyles() {
+  const { colors: c } = useTheme();
+  return useMemo(() => StyleSheet.create({
+    wrap: {
+      flexDirection: "row", alignItems: "flex-start",
+      justifyContent: "space-between", paddingVertical: 8,
+    },
+    step: { alignItems: "center", gap: 5, flex: 0, width: 52 },
+    circle: {
+      width: 30, height: 30, borderRadius: 15,
+      backgroundColor: c.border, alignItems: "center", justifyContent: "center",
+    },
+    circleDone: { backgroundColor: JE.orange },
+    circleActive: {
+      backgroundColor: JE.orange,
+      shadowColor: JE.orange, shadowOpacity: 0.4,
+      shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4,
+    },
+    label: { fontSize: 9, fontWeight: "600", color: c.textFaint, textAlign: "center" },
+    labelDone: { color: JE.orange },
+    line: { flex: 1, height: 2, backgroundColor: c.border, marginTop: 14 },
+    lineDone: { backgroundColor: JE.orange },
+  }), [c]);
+}
 
 // ─── Carte commande active ────────────────────────────────────────────────────
 function ActiveOrderCard({ item, index, restaurants, currentLocation, language, isRTL, translate }: any) {
+  const s = useOrdersStyles();
   const restaurant = restaurants.find((r: any) => r.id === item.restaurantId);
   const courierCoords =
     item.courier?.currentLat != null && item.courier?.currentLng != null
@@ -205,6 +211,7 @@ function DeliveredOrderCard({
 }: {
   item: Order; index: number; language: Language; translate: (key: any) => string; onReorder: () => void;
 }) {
+  const s = useOrdersStyles();
   return (
     <AnimatedCard delay={Math.min(index * 50, 180)} style={s.deliveredCard}>
       <View style={s.deliveredHeader}>
@@ -246,6 +253,8 @@ function DeliveredOrderCard({
 // ─────────────────────────────────────────────────────────────────────────────
 export function OrdersScreen() {
   const { orders, restaurants, currentLocation, reorder, t, language, isRTL } = useApp();
+  const s = useOrdersStyles();
+  const { colors: c } = useTheme();
 
   const activeOrders = orders.filter((o) => o.status !== "Delivered");
   const deliveredOrders = orders.filter((o) => o.status === "Delivered");
@@ -306,9 +315,9 @@ export function OrdersScreen() {
             return (
               <View style={s.statsRow}>
                 {[
-                  { val: orders.length,          lbl: t("orders_total"),    icon: "receipt-outline" as const,          color: JE.orange, bg: JE.orangeLight },
-                  { val: activeOrders.length,    lbl: t("orders_active"), icon: "bicycle-outline" as const,          color: JE.blue,   bg: JE.blueLight },
-                  { val: deliveredOrders.length, lbl: t("orders_delivered"),  icon: "checkmark-circle-outline" as const, color: JE.green,  bg: JE.greenLight },
+                  { val: orders.length,          lbl: t("orders_total"),    icon: "receipt-outline" as const,          color: JE.orange, bg: c.brandSoft },
+                  { val: activeOrders.length,    lbl: t("orders_active"), icon: "bicycle-outline" as const,          color: c.info,   bg: c.infoSoft },
+                  { val: deliveredOrders.length, lbl: t("orders_delivered"),  icon: "checkmark-circle-outline" as const, color: c.success,  bg: c.successSoft },
                 ].map((stat) => (
                   <View key={stat.lbl} style={s.statCard}>
                     <View style={[s.statIcon, { backgroundColor: stat.bg }]}>
@@ -378,25 +387,31 @@ export function OrdersScreen() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: JE.greyLight },
+function useOrdersStyles() {
+  const { colors: c } = useTheme();
+  return useMemo(() => makeStyles(c), [c]);
+}
+
+function makeStyles(c: ThemeColors) {
+  return StyleSheet.create({
+  safe: { flex: 1, backgroundColor: c.background },
   listContent: { paddingBottom: 32 },
 
   pageHeader: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 8, gap: 3 },
-  pageTitle: { color: JE.dark, fontSize: 28, fontWeight: "900" },
-  pageSubtitle: { color: JE.grey, fontSize: 14 },
+  pageTitle: { color: c.text, fontSize: 28, fontWeight: "900" },
+  pageSubtitle: { color: c.textMuted, fontSize: 14 },
 
   // Stats
   statsRow: { flexDirection: "row", gap: 12, marginHorizontal: 20, marginBottom: 8 },
   statCard: {
-    flex: 1, backgroundColor: JE.white, borderRadius: 20,
+    flex: 1, backgroundColor: c.surface, borderRadius: 20,
     padding: 14, gap: 6, alignItems: "center",
     shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 }, elevation: 2,
   },
   statIcon: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  statVal: { color: JE.dark, fontWeight: "900", fontSize: 22 },
-  statLbl: { color: JE.grey, fontSize: 11, fontWeight: "700", textAlign: "center" },
+  statVal: { color: c.text, fontWeight: "900", fontSize: 22 },
+  statLbl: { color: c.textMuted, fontSize: 11, fontWeight: "700", textAlign: "center" },
 
   // Section headers
   sectionHeader: {
@@ -406,11 +421,11 @@ const s = StyleSheet.create({
   sectionDot: {
     width: 8, height: 8, borderRadius: 4, backgroundColor: JE.orange,
   },
-  sectionTitle: { color: JE.dark, fontSize: 18, fontWeight: "900" },
+  sectionTitle: { color: c.text, fontSize: 18, fontWeight: "900" },
 
   // Carte active
   activeCard: {
-    marginHorizontal: 16, marginBottom: 16, backgroundColor: JE.white,
+    marginHorizontal: 16, marginBottom: 16, backgroundColor: c.surface,
     borderRadius: 24, overflow: "hidden",
     shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 18,
     shadowOffset: { width: 0, height: 5 }, elevation: 4,
@@ -420,7 +435,7 @@ const s = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
   },
   etaLabel: { color: "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: "600" },
-  etaTime: { color: JE.white, fontSize: 22, fontWeight: "900", marginTop: 2 },
+  etaTime: { color: "#FFFFFF", fontSize: 22, fontWeight: "900", marginTop: 2 },
   etaRight: { opacity: 0.6 },
 
   cardHeader: {
@@ -428,36 +443,36 @@ const s = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 14, gap: 10,
   },
   orderIdWrap: { flex: 1, gap: 3 },
-  orderId: { color: "#C4C4C4", fontWeight: "700", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5 },
-  restaurantName: { color: JE.dark, fontWeight: "900", fontSize: 17 },
+  orderId: { color: c.textFaint, fontWeight: "700", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5 },
+  restaurantName: { color: c.text, fontWeight: "900", fontSize: 17 },
   statusBadge: {
-    backgroundColor: JE.orangeLight, borderRadius: 999,
+    backgroundColor: c.brandSoft, borderRadius: 999,
     paddingHorizontal: 10, paddingVertical: 5,
   },
   statusTxt: { color: JE.orange, fontWeight: "800", fontSize: 12 },
 
-  // Tracker (styles dans const t ci-dessus)
+  // Tracker (styles dans useTrackerStyles ci-dessus)
 
   // Livreur
   courierCard: {
     flexDirection: "row", alignItems: "center", gap: 10,
     marginHorizontal: 16, marginBottom: 10,
-    backgroundColor: JE.greyLight, borderRadius: 14, padding: 12,
+    backgroundColor: c.surfaceMuted, borderRadius: 14, padding: 12,
   },
   courierAvatar: {
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: JE.orangeLight, alignItems: "center", justifyContent: "center",
+    backgroundColor: c.brandSoft, alignItems: "center", justifyContent: "center",
   },
   courierInfo: { flex: 1 },
-  courierName: { color: JE.dark, fontWeight: "800", fontSize: 14 },
-  courierVehicle: { color: JE.grey, fontSize: 12, marginTop: 1 },
+  courierName: { color: c.text, fontWeight: "800", fontSize: 14 },
+  courierVehicle: { color: c.textMuted, fontSize: 12, marginTop: 1 },
   callBtn: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: JE.orangeLight, alignItems: "center", justifyContent: "center",
+    backgroundColor: c.brandSoft, alignItems: "center", justifyContent: "center",
   },
   chatBtn: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: JE.blueLight, alignItems: "center", justifyContent: "center",
+    backgroundColor: c.infoSoft, alignItems: "center", justifyContent: "center",
   },
 
   // Chips
@@ -467,15 +482,15 @@ const s = StyleSheet.create({
   },
   chip: {
     flexDirection: "row", alignItems: "center", gap: 5,
-    backgroundColor: JE.orangeLight, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6,
+    backgroundColor: c.brandSoft, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6,
   },
   chipTxt: { color: JE.orange, fontWeight: "700", fontSize: 11, maxWidth: 120 },
 
   // Carte livrée
   deliveredCard: {
-    marginHorizontal: 16, marginBottom: 10, backgroundColor: JE.white,
+    marginHorizontal: 16, marginBottom: 10, backgroundColor: c.surface,
     borderRadius: 18, padding: 16, gap: 12,
-    borderWidth: 1, borderColor: JE.border,
+    borderWidth: 1, borderColor: c.borderSoft,
     shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 10,
     shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
@@ -484,14 +499,14 @@ const s = StyleSheet.create({
   },
   deliveredBadge: {
     flexDirection: "row", alignItems: "center", gap: 4,
-    backgroundColor: JE.greenLight, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4,
+    backgroundColor: c.successSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4,
   },
-  deliveredBadgeTxt: { color: JE.green, fontWeight: "700", fontSize: 11 },
+  deliveredBadgeTxt: { color: c.success, fontWeight: "700", fontSize: 11 },
   deliveredMeta: { gap: 4 },
-  deliveredDate: { color: JE.grey, fontSize: 12 },
-  deliveredItems: { color: JE.dark, fontWeight: "700", fontSize: 13 },
+  deliveredDate: { color: c.textMuted, fontSize: 12 },
+  deliveredItems: { color: c.text, fontWeight: "700", fontSize: 13 },
   pointsRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  pointsTxt: { color: JE.green, fontWeight: "600", fontSize: 12 },
+  pointsTxt: { color: c.success, fontWeight: "600", fontSize: 12 },
 
   // Bouton Recommander
   reorderBtn: {
@@ -501,6 +516,7 @@ const s = StyleSheet.create({
     shadowColor: JE.orange, shadowOpacity: 0.35,
     shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4,
   },
-  reorderTxt: { flex: 1, color: JE.white, fontWeight: "800", fontSize: 14 },
+  reorderTxt: { flex: 1, color: "#FFFFFF", fontWeight: "800", fontSize: 14 },
   reorderPrice: { color: "rgba(255,255,255,0.85)", fontWeight: "700", fontSize: 13 },
-});
+  });
+}

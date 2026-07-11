@@ -31,6 +31,8 @@ import { useApp } from "../context/AppContext";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { getDeliveryQuote } from "../services/delivery";
 import { formatCurrency } from "../services/format";
+import { ThemeColors } from "../theme/mobile";
+import { useTheme } from "../theme/ThemeProvider";
 import { MenuItem, Restaurant } from "../types";
 
 const JE = {
@@ -72,6 +74,8 @@ function RestaurantResult({ item, onPress, deliveryTime, fee, rating }: {
   item: any; onPress: () => void;
   deliveryTime: string; fee: string; rating: string;
 }) {
+  const s = useSearchStyles();
+  const { colors: c } = useTheme();
   return (
     <TouchableOpacity style={s.restRow} onPress={onPress} activeOpacity={0.85}>
       <Image source={{ uri: item.image }} style={s.restImg} />
@@ -79,21 +83,21 @@ function RestaurantResult({ item, onPress, deliveryTime, fee, rating }: {
         <Text style={s.restName} numberOfLines={1}>{item.name}</Text>
         <Text style={s.restSub} numberOfLines={1}>{item.shortDescription}</Text>
         <View style={s.restChips}>
-          <View style={[s.chip, { backgroundColor: JE.greenLight }]}>
-            <Ionicons name="star" size={9} color={JE.green} />
-            <Text style={[s.chipTxt, { color: JE.green }]}>{rating}</Text>
+          <View style={[s.chip, { backgroundColor: c.successSoft }]}>
+            <Ionicons name="star" size={9} color={c.success} />
+            <Text style={[s.chipTxt, { color: c.success }]}>{rating}</Text>
           </View>
-          <View style={[s.chip, { backgroundColor: JE.orangeLight }]}>
+          <View style={[s.chip, { backgroundColor: c.brandSoft }]}>
             <Ionicons name="time-outline" size={9} color={JE.orange} />
             <Text style={[s.chipTxt, { color: JE.orange }]}>{deliveryTime}</Text>
           </View>
-          <View style={[s.chip, { backgroundColor: JE.greyLight }]}>
-            <Ionicons name="bicycle-outline" size={9} color={JE.grey} />
-            <Text style={[s.chipTxt, { color: JE.grey }]}>{fee}</Text>
+          <View style={[s.chip, { backgroundColor: c.surfaceMuted }]}>
+            <Ionicons name="bicycle-outline" size={9} color={c.textMuted} />
+            <Text style={[s.chipTxt, { color: c.textMuted }]}>{fee}</Text>
           </View>
         </View>
       </View>
-      <Ionicons name="chevron-forward" size={16} color="#C4C4C4" />
+      <Ionicons name="chevron-forward" size={16} color={c.textFaint} />
     </TouchableOpacity>
   );
 }
@@ -103,6 +107,7 @@ function DishResult({ dish, restaurantName, onPress, onAdd }: {
   dish: any; restaurantName: string;
   onPress: () => void; onAdd: () => void;
 }) {
+  const s = useSearchStyles();
   return (
     <TouchableOpacity style={s.dishRow} onPress={onPress} activeOpacity={0.85}>
       {dish.image
@@ -131,6 +136,7 @@ export function SearchScreen() {
     toggleFavorite, addToCart, t, isRTL, menuCategories, refreshRemoteData,
   } = useApp();
 
+  const s = useSearchStyles();
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
@@ -402,25 +408,31 @@ export function SearchScreen() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: JE.greyLight },
+function useSearchStyles() {
+  const { colors: c } = useTheme();
+  return useMemo(() => makeStyles(c), [c]);
+}
+
+function makeStyles(c: ThemeColors) {
+  return StyleSheet.create({
+  safe: { flex: 1, backgroundColor: c.background },
 
   // Header de recherche
   searchHeader: {
-    backgroundColor: JE.white,
+    backgroundColor: c.surface,
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10,
-    borderBottomWidth: 1, borderBottomColor: JE.border,
+    borderBottomWidth: 1, borderBottomColor: c.borderSoft,
     gap: 8,
   },
   searchBar: {
     flexDirection: "row", alignItems: "center", gap: 10,
-    backgroundColor: JE.greyLight, borderRadius: 14,
+    backgroundColor: c.surfaceMuted, borderRadius: 14,
     paddingHorizontal: 14, paddingVertical: 10,
     borderWidth: 1.5, borderColor: "transparent",
   },
-  searchBarFocused: { borderColor: JE.orange, backgroundColor: JE.white },
-  searchInput: { flex: 1, color: JE.dark, fontSize: 15, padding: 0 },
-  resultsCount: { color: JE.grey, fontSize: 12, fontWeight: "600" },
+  searchBarFocused: { borderColor: JE.orange, backgroundColor: c.surface },
+  searchInput: { flex: 1, color: c.text, fontSize: 15, padding: 0 },
+  resultsCount: { color: c.textMuted, fontSize: 12, fontWeight: "600" },
 
   listPad: { paddingBottom: 32 },
 
@@ -429,9 +441,9 @@ const s = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 8,
     paddingHorizontal: 16, paddingTop: 18, paddingBottom: 8,
   },
-  sectionTitle: { color: JE.dark, fontSize: 17, fontWeight: "900" },
+  sectionTitle: { color: c.text, fontSize: 17, fontWeight: "900" },
   sectionCount: {
-    backgroundColor: JE.orangeLight, borderRadius: 999,
+    backgroundColor: c.brandSoft, borderRadius: 999,
     paddingHorizontal: 8, paddingVertical: 2,
     color: JE.orange, fontSize: 12, fontWeight: "700",
   },
@@ -440,13 +452,13 @@ const s = StyleSheet.create({
   restRow: {
     flexDirection: "row", alignItems: "center", gap: 12,
     marginHorizontal: 16, marginBottom: 8,
-    backgroundColor: JE.white, borderRadius: 14, padding: 12,
-    borderWidth: 1, borderColor: JE.border,
+    backgroundColor: c.surface, borderRadius: 14, padding: 12,
+    borderWidth: 1, borderColor: c.borderSoft,
   },
   restImg: { width: 64, height: 64, borderRadius: 10 },
   restBody: { flex: 1, gap: 4 },
-  restName: { color: JE.dark, fontWeight: "800", fontSize: 14 },
-  restSub: { color: JE.grey, fontSize: 11 },
+  restName: { color: c.text, fontWeight: "800", fontSize: 14 },
+  restSub: { color: c.textMuted, fontSize: 11 },
   restChips: { flexDirection: "row", gap: 5 },
   chip: {
     flexDirection: "row", alignItems: "center", gap: 3,
@@ -458,16 +470,16 @@ const s = StyleSheet.create({
   dishRow: {
     flexDirection: "row", alignItems: "center", gap: 12,
     marginHorizontal: 16, marginBottom: 8,
-    backgroundColor: JE.white, borderRadius: 14, padding: 12,
-    borderWidth: 1, borderColor: JE.border,
+    backgroundColor: c.surface, borderRadius: 14, padding: 12,
+    borderWidth: 1, borderColor: c.borderSoft,
   },
   dishImg: { width: 60, height: 60, borderRadius: 10, resizeMode: "cover" },
   dishImgPlaceholder: {
-    backgroundColor: JE.greyLight, alignItems: "center", justifyContent: "center",
+    backgroundColor: c.surfaceMuted, alignItems: "center", justifyContent: "center",
   },
   dishBody: { flex: 1, gap: 3 },
-  dishName: { color: JE.dark, fontWeight: "800", fontSize: 13 },
-  dishRestaurant: { color: JE.grey, fontSize: 11 },
+  dishName: { color: c.text, fontWeight: "800", fontSize: 13 },
+  dishRestaurant: { color: c.textMuted, fontSize: 11 },
   dishPrice: { color: JE.orange, fontWeight: "900", fontSize: 13 },
   addBtn: {
     width: 30, height: 30, borderRadius: 15,
@@ -480,31 +492,32 @@ const s = StyleSheet.create({
   emptyState: { padding: 16, gap: 4 },
   emptySection: { paddingVertical: 12, gap: 10 },
   emptyRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  emptyTitle: { color: JE.dark, fontSize: 16, fontWeight: "900" },
+  emptyTitle: { color: c.text, fontSize: 16, fontWeight: "900" },
   clearAll: { color: JE.orange, fontWeight: "600", fontSize: 13 },
 
   historyItem: {
     flexDirection: "row", alignItems: "center", gap: 12,
-    paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: JE.border,
+    paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: c.borderSoft,
   },
-  historyTxt: { flex: 1, color: JE.dark, fontSize: 14, fontWeight: "500" },
+  historyTxt: { flex: 1, color: c.text, fontSize: 14, fontWeight: "500" },
 
   tagWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   quickTag: {
-    backgroundColor: JE.white, borderRadius: 999,
+    backgroundColor: c.surface, borderRadius: 999,
     paddingHorizontal: 14, paddingVertical: 8,
-    borderWidth: 1, borderColor: JE.border,
+    borderWidth: 1, borderColor: c.borderSoft,
   },
-  quickTagTxt: { color: JE.dark, fontWeight: "700", fontSize: 13 },
+  quickTagTxt: { color: c.text, fontWeight: "700", fontSize: 13 },
 
   // Aucun résultat
   noResultWrap: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 32 },
   noResultEmoji: { fontSize: 48 },
-  noResultTitle: { color: JE.dark, fontSize: 18, fontWeight: "900", textAlign: "center" },
-  noResultSub: { color: JE.grey, fontSize: 14, textAlign: "center", lineHeight: 20 },
+  noResultTitle: { color: c.text, fontSize: 18, fontWeight: "900", textAlign: "center" },
+  noResultSub: { color: c.textMuted, fontSize: 14, textAlign: "center", lineHeight: 20 },
   clearBtn: {
-    backgroundColor: JE.orangeLight, borderRadius: 14,
+    backgroundColor: c.brandSoft, borderRadius: 14,
     paddingHorizontal: 20, paddingVertical: 12, marginTop: 8,
   },
   clearBtnTxt: { color: JE.orange, fontWeight: "800", fontSize: 14 },
-});
+  });
+}

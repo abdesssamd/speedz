@@ -2,7 +2,7 @@
   "expo": {
     "name": "SpeedZ",
     "slug": "speedz",
-    "version": "1.0.0",
+    "version": "2.3.0",
     "orientation": "portrait",
     "icon": "./Logo.png",
     "userInterfaceStyle": "light",
@@ -28,20 +28,27 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
       ],
-      "package": "com.abdessamad213.fooddelyvry"
+      "package": "com.microtech.speedz"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-font",
-      "expo-location"
-    ]
+      "expo-location",
+      [
+        "expo-notifications",
+        {
+          "color": "#FF7622"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "06568b3f-5c2c-4d17-8c7b-7d4604720278"
+      }
+    }
   }
 }

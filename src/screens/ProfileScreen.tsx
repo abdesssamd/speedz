@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import React from "react";
+import React, { useMemo } from "react";
 import { FlatList, SafeAreaView, StyleSheet, Text, View } from "react-native";
 import { AnimatedCard } from "../components/AnimatedCard";
 import { EmptyState } from "../components/EmptyState";
@@ -9,7 +9,8 @@ import { ScalePressable } from "../components/ScalePressable";
 import { useApp } from "../context/AppContext";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { formatCurrency, formatDateTime } from "../services/format";
-import { alignStart, mobileTheme, rowDirection } from "../theme/mobile";
+import { alignStart, rowDirection, ThemeColors } from "../theme/mobile";
+import { ThemeMode, useTheme } from "../theme/ThemeProvider";
 
 export function ProfileScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -17,6 +18,14 @@ export function ProfileScreen() {
     user, favorites, orders, pointsBalance, pointsHistory,
     currentLocation, requestLocation, logout, language, t, isRTL,
   } = useApp();
+  const { mode, setMode, colors: tc } = useTheme();
+  const s = useMemo(() => makeStyles(tc), [tc]);
+
+  const appearanceOptions: Array<{ value: ThemeMode; label: string; icon: "phone-portrait-outline" | "sunny-outline" | "moon-outline" }> = [
+    { value: "system", label: "Système", icon: "phone-portrait-outline" },
+    { value: "light", label: "Clair", icon: "sunny-outline" },
+    { value: "dark", label: "Sombre", icon: "moon-outline" },
+  ];
 
   const settingsItems = [
     { label: t("my_addresses"),  route: "Addresses" as const,     icon: "location-outline" as const },
@@ -115,6 +124,24 @@ export function ProfileScreen() {
         </View>
       </View>
 
+      {/* Appearance */}
+      <Text style={s.sectionTitle}>Apparence</Text>
+      <View style={[s.segmentRow, { backgroundColor: tc.surfaceMuted, borderColor: tc.borderSoft }]}>
+        {appearanceOptions.map((opt) => {
+          const active = mode === opt.value;
+          return (
+            <ScalePressable
+              key={opt.value}
+              containerStyle={[s.segmentBtn, active && { backgroundColor: "#FF7622" }]}
+              onPress={() => setMode(opt.value)}
+            >
+              <Ionicons name={opt.icon} size={16} color={active ? "#FFF" : tc.textMuted} />
+              <Text style={[s.segmentLabel, { color: active ? "#FFF" : tc.textMuted }]}>{opt.label}</Text>
+            </ScalePressable>
+          );
+        })}
+      </View>
+
       {/* Settings */}
       <Text style={s.sectionTitle}>{t("settings")}</Text>
       <View style={s.menuCard}>
@@ -191,13 +218,21 @@ export function ProfileScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: mobileTheme.colors.background },
+function makeStyles(c: ThemeColors) {
+  return StyleSheet.create({
+  safe: { flex: 1, backgroundColor: c.background },
   content: { paddingBottom: 32 },
   headerBlock: { padding: 20, gap: 18, paddingBottom: 8 },
 
+  segmentRow: { flexDirection: "row", borderRadius: 14, borderWidth: 1, padding: 4, gap: 4 },
+  segmentBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 6, paddingVertical: 10, borderRadius: 11,
+  },
+  segmentLabel: { fontSize: 13, fontWeight: "700" },
+
   profileCard: {
-    backgroundColor: "#FFF", borderRadius: 24, padding: 18, gap: 14,
+    backgroundColor: c.surface, borderRadius: 24, padding: 18, gap: 14,
     shadowColor: "#000", shadowOpacity: 0.07, shadowRadius: 16, shadowOffset: { width: 0, height: 4 }, elevation: 3,
   },
   profileTop: { flexDirection: "row", alignItems: "center", gap: 14 },
@@ -208,52 +243,52 @@ const s = StyleSheet.create({
   },
   avatarLetter: { color: "#FFF", fontSize: 26, fontWeight: "900" },
   profileInfo: { flex: 1, gap: 3 },
-  profileName: { color: "#181C2E", fontWeight: "900", fontSize: 20 },
-  profileEmail: { color: "#898989", fontSize: 13 },
-  profilePhone: { color: "#898989", fontSize: 13 },
+  profileName: { color: c.text, fontWeight: "900", fontSize: 20 },
+  profileEmail: { color: c.textMuted, fontSize: 13 },
+  profilePhone: { color: c.textMuted, fontSize: 13 },
   editBtn: {
-    width: 36, height: 36, borderRadius: 18, backgroundColor: "#FFF3EC",
+    width: 36, height: 36, borderRadius: 18, backgroundColor: c.brandSoft,
     alignItems: "center", justifyContent: "center",
   },
   addressRow: {
     flexDirection: "row", alignItems: "center", gap: 6,
-    backgroundColor: "#FFF3EC", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8,
+    backgroundColor: c.brandSoft, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8,
   },
-  addressText: { flex: 1, color: "#898989", fontSize: 13, fontWeight: "600" },
+  addressText: { flex: 1, color: c.textMuted, fontSize: 13, fontWeight: "600" },
 
   statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   statCard: {
-    width: "47%", backgroundColor: "#FFF", borderRadius: 20, padding: 16, gap: 8, alignItems: "center",
+    width: "47%", backgroundColor: c.surface, borderRadius: 20, padding: 16, gap: 8, alignItems: "center",
     shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2,
   },
   statIcon: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
-  statVal: { color: "#181C2E", fontWeight: "900", fontSize: 22 },
-  statLbl: { color: "#898989", fontSize: 12, fontWeight: "700", textAlign: "center" },
+  statVal: { color: c.text, fontWeight: "900", fontSize: 22 },
+  statLbl: { color: c.textMuted, fontSize: 12, fontWeight: "700", textAlign: "center" },
 
   gpsCard: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12,
-    backgroundColor: "#FFF", borderRadius: 18, padding: 14,
+    backgroundColor: c.surface, borderRadius: 18, padding: 14,
     shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
   gpsLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
-  gpsDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#E5E5E5" },
+  gpsDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: c.border },
   gpsDotActive: { backgroundColor: "#22C55E" },
   gpsStatus: { color: "#FF7622", fontWeight: "800", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5 },
-  gpsLabel: { color: "#898989", fontSize: 13, fontWeight: "600", marginTop: 2 },
+  gpsLabel: { color: c.textMuted, fontSize: 13, fontWeight: "600", marginTop: 2 },
   gpsRefreshBtn: {
     flexDirection: "row", alignItems: "center", gap: 5,
-    backgroundColor: "#FFF3EC", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8,
+    backgroundColor: c.brandSoft, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8,
   },
   gpsRefreshText: { color: "#FF7622", fontWeight: "800", fontSize: 12 },
 
   partnerCard: {
-    backgroundColor: "#FFF", borderRadius: 24, padding: 18, gap: 14,
+    backgroundColor: c.surface, borderRadius: 24, padding: 18, gap: 14,
     shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 14, shadowOffset: { width: 0, height: 4 }, elevation: 3,
   },
   partnerHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
-  partnerIconWrap: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#FFF3EC", alignItems: "center", justifyContent: "center" },
-  partnerTitle: { color: "#181C2E", fontWeight: "900", fontSize: 16 },
-  partnerSub: { color: "#898989", fontSize: 12, lineHeight: 18, marginTop: 2 },
+  partnerIconWrap: { width: 44, height: 44, borderRadius: 22, backgroundColor: c.brandSoft, alignItems: "center", justifyContent: "center" },
+  partnerTitle: { color: c.text, fontWeight: "900", fontSize: 16 },
+  partnerSub: { color: c.textMuted, fontSize: 12, lineHeight: 18, marginTop: 2 },
   partnerGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   partnerBtn: {
     width: "47%", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7,
@@ -262,27 +297,28 @@ const s = StyleSheet.create({
   },
   partnerBtnText: { color: "#FFF", fontWeight: "800", fontSize: 12 },
 
-  sectionTitle: { color: "#181C2E", fontSize: 20, fontWeight: "900" },
+  sectionTitle: { color: c.text, fontSize: 20, fontWeight: "900" },
 
   menuCard: {
-    backgroundColor: "#FFF", borderRadius: 22, overflow: "hidden",
+    backgroundColor: c.surface, borderRadius: 22, overflow: "hidden",
     shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 14, shadowOffset: { width: 0, height: 4 }, elevation: 3,
   },
   menuRow: { flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 18, paddingVertical: 16 },
-  menuRowBorder: { borderBottomWidth: 1, borderBottomColor: "#F5F5F5" },
-  menuIconWrap: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#FFF3EC", alignItems: "center", justifyContent: "center" },
-  menuLabel: { flex: 1, color: "#181C2E", fontWeight: "700", fontSize: 15 },
+  menuRowBorder: { borderBottomWidth: 1, borderBottomColor: c.borderSoft },
+  menuIconWrap: { width: 40, height: 40, borderRadius: 20, backgroundColor: c.brandSoft, alignItems: "center", justifyContent: "center" },
+  menuLabel: { flex: 1, color: c.text, fontWeight: "700", fontSize: 15 },
 
   histCard: {
     flexDirection: "row", alignItems: "flex-start", gap: 14,
-    marginHorizontal: 20, marginBottom: 12, backgroundColor: "#FFF", borderRadius: 20, padding: 16,
+    marginHorizontal: 20, marginBottom: 12, backgroundColor: c.surface, borderRadius: 20, padding: 16,
     shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2,
   },
-  histIconWrap: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#FFF3EC", alignItems: "center", justifyContent: "center", marginTop: 2 },
+  histIconWrap: { width: 40, height: 40, borderRadius: 20, backgroundColor: c.brandSoft, alignItems: "center", justifyContent: "center", marginTop: 2 },
   histBody: { flex: 1, gap: 4 },
   histTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  histRestaurant: { color: "#181C2E", fontWeight: "800", fontSize: 14, flex: 1 },
+  histRestaurant: { color: c.text, fontWeight: "800", fontSize: 14, flex: 1 },
   histPoints: { color: "#22C55E", fontWeight: "900", fontSize: 16 },
-  histDesc: { color: "#898989", lineHeight: 19, fontSize: 13 },
-  histDate: { color: "#C4C4C4", fontSize: 11 },
-});
+  histDesc: { color: c.textMuted, lineHeight: 19, fontSize: 13 },
+  histDate: { color: c.textFaint, fontSize: 11 },
+  });
+}

@@ -13,7 +13,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -30,6 +30,8 @@ import { EmptyState } from "../components/EmptyState";
 import { useApp } from "../context/AppContext";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { formatCurrency } from "../services/format";
+import { ThemeColors } from "../theme/mobile";
+import { useTheme } from "../theme/ThemeProvider";
 
 const JE = {
   orange: "#F36E26",
@@ -52,6 +54,8 @@ export function CartScreen() {
     t, isRTL,
   } = useApp();
 
+  const { colors: c } = useTheme();
+  const s = useMemo(() => makeStyles(c), [c]);
   const summary = getCartSummary();
   const [promoModalVisible, setPromoModalVisible] = useState(false);
   const [localPromo, setLocalPromo] = useState(promoCode);
@@ -138,11 +142,13 @@ export function CartScreen() {
     <SafeAreaView style={s.safe}>
       {PromoModal}
 
+      <View style={s.flexCol}>
       <FlatList
         data={cart}
         keyExtractor={(i) => i.id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={s.listContent}
+        style={{ flex: 1 }}
 
         // ── En-tête ──────────────────────────────────────────────────────
         ListHeaderComponent={
@@ -301,63 +307,66 @@ export function CartScreen() {
           activeOpacity={0.85}
           onPress={() => navigation.navigate("Checkout")}
         >
-          <Text style={s.stickyLabel}>Confirmer la commande</Text>
+          <Text style={s.stickyLabel}>Valider la commande</Text>
           <Text style={s.stickyPrice}>{formatCurrency(summary.total)}</Text>
         </TouchableOpacity>
       </View>
+    </View>
     </SafeAreaView>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: JE.greyLight },
+function makeStyles(c: ThemeColors) {
+  return StyleSheet.create({
+  safe: { flex: 1, backgroundColor: c.background },
+  flexCol: { flex: 1 },
   listContent: { paddingBottom: 16 },
 
   emptyHeader: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
   header: {
-    backgroundColor: JE.white, paddingHorizontal: 20,
+    backgroundColor: c.surface, paddingHorizontal: 20,
     paddingTop: 18, paddingBottom: 14,
-    borderBottomWidth: 1, borderBottomColor: JE.border,
+    borderBottomWidth: 1, borderBottomColor: c.borderSoft,
     gap: 4,
   },
-  pageTitle: { color: JE.dark, fontSize: 22, fontWeight: "900" },
+  pageTitle: { color: c.text, fontSize: 22, fontWeight: "900" },
   headerMeta: { flexDirection: "row", alignItems: "center", gap: 5 },
   headerRestaurant: { color: JE.orange, fontSize: 13, fontWeight: "600" },
 
   // Items
   itemCard: {
     flexDirection: "row", alignItems: "center", gap: 12,
-    backgroundColor: JE.white, marginHorizontal: 16, marginTop: 8,
+    backgroundColor: c.surface, marginHorizontal: 16, marginTop: 8,
     borderRadius: 14, padding: 12,
-    borderWidth: 1, borderColor: JE.border,
+    borderWidth: 1, borderColor: c.borderSoft,
   },
   qtyControl: { flexDirection: "row", alignItems: "center", gap: 8 },
   qtyBtn: {
     width: 28, height: 28, borderRadius: 14,
-    backgroundColor: JE.greyLight, alignItems: "center", justifyContent: "center",
+    backgroundColor: c.surfaceMuted, alignItems: "center", justifyContent: "center",
   },
   qtyBtnActive: { backgroundColor: JE.orange },
-  qtyVal: { color: JE.dark, fontWeight: "800", fontSize: 14, minWidth: 18, textAlign: "center" },
+  qtyVal: { color: c.text, fontWeight: "800", fontSize: 14, minWidth: 18, textAlign: "center" },
   itemBody: { flex: 1, gap: 3 },
-  itemName: { color: JE.dark, fontWeight: "700", fontSize: 13, lineHeight: 18 },
-  itemOptions: { color: JE.grey, fontSize: 11 },
+  itemName: { color: c.text, fontWeight: "700", fontSize: 13, lineHeight: 18 },
+  itemOptions: { color: c.textMuted, fontSize: 11 },
   itemNote: { color: JE.orange, fontSize: 11, fontStyle: "italic" },
-  itemPrice: { color: JE.dark, fontWeight: "800", fontSize: 13 },
+  itemPrice: { color: c.text, fontWeight: "800", fontSize: 13 },
 
   // Footer
   footer: { paddingHorizontal: 16, gap: 12, paddingTop: 8 },
   addMoreBtn: {
     flexDirection: "row", alignItems: "center", gap: 8,
     paddingVertical: 12, paddingHorizontal: 16,
-    backgroundColor: JE.orangeLight, borderRadius: 12,
+    backgroundColor: c.brandSoft, borderRadius: 12,
   },
   addMoreTxt: { color: JE.orange, fontWeight: "700", fontSize: 13 },
 
   // Promo band
   promoBand: {
     flexDirection: "row", alignItems: "center", gap: 10,
-    backgroundColor: JE.white, borderRadius: 14,
+    backgroundColor: c.surface, borderRadius: 14,
     padding: 14, borderWidth: 1.5, borderColor: JE.orange,
     borderStyle: "dashed",
   },
@@ -365,37 +374,36 @@ const s = StyleSheet.create({
 
   // Récap
   summaryCard: {
-    backgroundColor: JE.white, borderRadius: 18, padding: 18, gap: 10,
+    backgroundColor: c.surface, borderRadius: 18, padding: 18, gap: 10,
     shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 12,
     shadowOffset: { width: 0, height: 3 }, elevation: 2,
   },
-  summaryTitle: { color: JE.dark, fontWeight: "900", fontSize: 16, marginBottom: 4 },
+  summaryTitle: { color: c.text, fontWeight: "900", fontSize: 16, marginBottom: 4 },
   summaryRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  summaryLabel: { color: JE.grey, fontSize: 13, fontWeight: "600" },
-  summaryValue: { color: JE.dark, fontSize: 13, fontWeight: "700" },
+  summaryLabel: { color: c.textMuted, fontSize: 13, fontWeight: "600" },
+  summaryValue: { color: c.text, fontSize: 13, fontWeight: "700" },
   pointsRow: {
-    backgroundColor: JE.greenLight, borderRadius: 10,
+    backgroundColor: c.successSoft, borderRadius: 10,
     paddingHorizontal: 10, paddingVertical: 7,
   },
   pointsLeft: { flexDirection: "row", alignItems: "center", gap: 5 },
-  pointsTxt: { color: JE.green, fontSize: 13, fontWeight: "600" },
-  pointsVal: { color: JE.green, fontWeight: "800", fontSize: 13 },
-  divider: { height: 1, backgroundColor: JE.greyLight, marginVertical: 4 },
-  totalLabel: { color: JE.dark, fontWeight: "900", fontSize: 18 },
+  pointsTxt: { color: c.success, fontSize: 13, fontWeight: "600" },
+  pointsVal: { color: c.success, fontWeight: "800", fontSize: 13 },
+  divider: { height: 1, backgroundColor: c.borderSoft, marginVertical: 4 },
+  totalLabel: { color: c.text, fontWeight: "900", fontSize: 18 },
   totalValue: { color: JE.orange, fontWeight: "900", fontSize: 22 },
 
   // Barre sticky
   stickyBar: {
-    position: "absolute", left: 0, right: 0, bottom: 0,
-    backgroundColor: JE.white, paddingHorizontal: 16, paddingBottom: 24, paddingTop: 12,
-    borderTopWidth: 1, borderTopColor: JE.border,
+    backgroundColor: c.surface, paddingHorizontal: 16, paddingBottom: 80, paddingTop: 12,
+    borderTopWidth: 1, borderTopColor: c.borderSoft,
     flexDirection: "row", alignItems: "center", gap: 12,
     shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 16,
     shadowOffset: { width: 0, height: -4 }, elevation: 10,
   },
   stickyCount: {
     width: 38, height: 38, borderRadius: 19,
-    backgroundColor: JE.orangeLight, alignItems: "center", justifyContent: "center",
+    backgroundColor: c.brandSoft, alignItems: "center", justifyContent: "center",
   },
   stickyCountTxt: { color: JE.orange, fontWeight: "900", fontSize: 15 },
   stickyBtn: {
@@ -413,27 +421,28 @@ const s = StyleSheet.create({
     flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end",
   },
   modalSheet: {
-    backgroundColor: JE.white, borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    backgroundColor: c.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28,
     padding: 24, gap: 18,
   },
   modalHandle: {
-    width: 40, height: 4, borderRadius: 2, backgroundColor: "#E0E0E0",
+    width: 40, height: 4, borderRadius: 2, backgroundColor: c.border,
     alignSelf: "center", marginBottom: 4,
   },
-  modalTitle: { color: JE.dark, fontSize: 20, fontWeight: "900" },
+  modalTitle: { color: c.text, fontSize: 20, fontWeight: "900" },
   promoInputWrap: {
     flexDirection: "row", alignItems: "center", gap: 10,
-    backgroundColor: JE.greyLight, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 4,
-    borderWidth: 1.5, borderColor: JE.border,
+    backgroundColor: c.surfaceMuted, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 4,
+    borderWidth: 1.5, borderColor: c.borderSoft,
   },
   promoInput: {
-    flex: 1, color: JE.dark, fontSize: 16, fontWeight: "700",
+    flex: 1, color: c.text, fontSize: 16, fontWeight: "700",
     paddingVertical: 12, letterSpacing: 1,
   },
   promoApplyBtn: {
     backgroundColor: JE.orange, borderRadius: 14,
     paddingVertical: 16, alignItems: "center",
   },
-  promoApplyBtnDisabled: { backgroundColor: "#E0E0E0" },
+  promoApplyBtnDisabled: { backgroundColor: c.border },
   promoApplyTxt: { color: JE.white, fontWeight: "900", fontSize: 16 },
-});
+  });
+}

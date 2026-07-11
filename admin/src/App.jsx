@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   Lock,
   Mail,
+  Megaphone,
   Moon,
   MoreVertical,
   Plus,
@@ -29,7 +30,7 @@ import {
 import { AdminDialog } from "./components/AdminDialog";
 import OmniSearch from "./components/OmniSearch";
 import AnalyticsDashboard from "./components/AnalyticsDashboard";
-import { API_URL, WS_URL, apiRequest, setCsrfToken, clearCsrfToken } from "./lib/api";
+import { API_URL, WS_URL, apiRequest, setCsrfToken, clearCsrfToken, getCsrfToken } from "./lib/api";
 import "./index.css";
 
 const brandLogoUrl = "/logo.png";
@@ -1044,6 +1045,20 @@ export default function App() {
     restaurantId: "",
     isActive: true,
   });
+  const [ads, setAds] = useState([]);
+  const [showAdModal, setShowAdModal] = useState(false);
+  const [selectedAd, setSelectedAd] = useState(null);
+  const [adImageFile, setAdImageFile] = useState(null);
+  const [adErrors, setAdErrors] = useState({});
+  const [adForm, setAdForm] = useState({
+    title: "",
+    imageUrl: "",
+    placement: "HOME_BANNER",
+    isActive: true,
+    startsAt: "",
+    endsAt: "",
+    restaurantId: "",
+  });
   const [menuCategoryForm, setMenuCategoryForm] = useState({
     name: "",
     sortOrder: "",
@@ -1096,6 +1111,9 @@ export default function App() {
   const requestInFlightRef = useRef(false);
   const hasHydratedLiveFeedRef = useRef(false);
   const selectedRestaurantIdRef = useRef("");
+  // Miroir de activeView pour le handler WebSocket, afin de ne pas
+  // recréer la connexion à chaque changement d'onglet.
+  const activeViewRef = useRef("overview");
   const previousOrdersRef = useRef([]);
   const previousApplicationsRef = useRef([]);
   const realtimeSocketRef = useRef(null);
@@ -1413,6 +1431,10 @@ export default function App() {
     }
 
     const context = new AudioContextRef();
+    // Les navigateurs suspendent l'audio tant qu'aucune interaction n'a eu lieu.
+    if (context.state === "suspended") {
+      context.resume().catch(() => undefined);
+    }
     const oscillator = context.createOscillator();
     const gain = context.createGain();
     oscillator.type = "sine";
@@ -1645,6 +1667,28 @@ export default function App() {
   }, [selectedRestaurantId]);
 
   useEffect(() => {
+    activeViewRef.current = activeView;
+  }, [activeView]);
+
+  // Auto-effacement des messages : succès après 5 s, erreurs après 10 s.
+  // Évite les bannières qui restent affichées indéfiniment.
+  useEffect(() => {
+    if (!statusMessage) {
+      return;
+    }
+    const timeoutId = window.setTimeout(() => setStatusMessage(""), 5000);
+    return () => window.clearTimeout(timeoutId);
+  }, [statusMessage]);
+
+  useEffect(() => {
+    if (!errorMessage) {
+      return;
+    }
+    const timeoutId = window.setTimeout(() => setErrorMessage(""), 10000);
+    return () => window.clearTimeout(timeoutId);
+  }, [errorMessage]);
+
+  useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
     localStorage.setItem("admin_theme", theme);
   }, [theme]);
@@ -1785,7 +1829,7 @@ export default function App() {
           const message = JSON.parse(String(event.data));
 
           if (message.type?.startsWith("order/")) {
-            if (message.type === "order/created" && activeView !== "orders") {
+            if (message.type === "order/created" && activeViewRef.current !== "orders") {
               setLiveInbox((current) => ({ ...current, orders: current.orders + 1 }));
               playPendingOrderAlert();
             }
@@ -1822,7 +1866,7 @@ export default function App() {
       realtimeSocketRef.current?.close();
       realtimeSocketRef.current = null;
     };
-  }, [token, activeView]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (activeView === "orders") {
@@ -1862,6 +1906,7 @@ export default function App() {
         categoryResult,
         promotionResult,
         reportResult,
+        adsResult,
       ] = await Promise.all([
         loadResource("restaurants", "/api/admin/restaurants", []),
         loadResource("commandes", "/api/admin/orders", []),
@@ -1872,6 +1917,7 @@ export default function App() {
         loadResource("categories", "/api/admin/menu-categories", []),
         loadResource("promotions", "/api/admin/promotions", []),
         loadResource("rapports", "/api/admin/reports/summary", null),
+        loadResource("publicites", "/api/admin/ads", []),
       ]);
 
       const failedResults = [
@@ -1884,6 +1930,7 @@ export default function App() {
         categoryResult,
         promotionResult,
         reportResult,
+        adsResult,
       ].filter((result) => result.error);
 
       const restaurantData = restaurantResult.data;
@@ -1923,6 +1970,7 @@ export default function App() {
       setMenuCategories(categoryData);
       setPromotions(promotionItems);
       setReports(reportData);
+      setAds(asList(adsResult.data));
       previousOrdersRef.current = orderItems;
       previousApplicationsRef.current = applicationItems;
       setLastSyncAt(new Date().toLocaleTimeString(language === "ar" ? "ar-DZ" : "fr-FR", {
@@ -1932,8 +1980,8 @@ export default function App() {
 
       if (background && hasHydratedLiveFeedRef.current) {
         setLiveInbox((current) => ({
-          orders: activeView === "orders" ? 0 : current.orders + freshOrders,
-          applications: activeView === "applications" ? 0 : current.applications + freshApplications,
+          orders: activeViewRef.current === "orders" ? 0 : current.orders + freshOrders,
+          applications: activeViewRef.current === "applications" ? 0 : current.applications + freshApplications,
         }));
 
         if (freshPendingOrders > 0) {
@@ -2003,6 +2051,7 @@ export default function App() {
       method: "POST",
       credentials: "include",
       headers: {
+        ...(getCsrfToken() ? { "X-Csrf-Token": getCsrfToken() } : {}),
         ...(token && token !== "__cookie_session__" ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: formData,
@@ -2718,6 +2767,16 @@ export default function App() {
     }
   }
 
+  // Le backend valide les dates avec z.string().datetime() (ISO 8601 complet).
+  // Les inputs datetime-local produisent "YYYY-MM-DDTHH:mm" → il faut convertir.
+  function toIsoDatetime(value) {
+    if (!value) {
+      return value;
+    }
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? value : date.toISOString();
+  }
+
   async function handleCreatePromotion(event) {
     event.preventDefault();
     const errors = validatePromotionFormData(promotionForm);
@@ -2735,6 +2794,8 @@ export default function App() {
             value: Number(promotionForm.value || 0),
             minOrderTotal: Number(promotionForm.minOrderTotal || 0),
             restaurantId: promotionForm.restaurantId || null,
+            startsAt: toIsoDatetime(promotionForm.startsAt),
+            endsAt: toIsoDatetime(promotionForm.endsAt),
           }),
         },
         token
@@ -2769,6 +2830,8 @@ export default function App() {
             value: Number(selectedPromotion.value || 0),
             minOrderTotal: Number(selectedPromotion.minOrderTotal || 0),
             restaurantId: selectedPromotion.restaurantId || null,
+            startsAt: toIsoDatetime(selectedPromotion.startsAt),
+            endsAt: toIsoDatetime(selectedPromotion.endsAt),
           }),
         },
         token
@@ -2776,6 +2839,149 @@ export default function App() {
       resetPromotionModal();
       setStatusMessage("Promotion mise a jour.");
       setShowPromotionModal(false);
+      await loadAdminData();
+    } catch (error) {
+      setErrorMessage(error.message);
+    }
+  }
+
+  // ─── Publicités ─────────────────────────────────────────────────────────
+  function resetAdModal() {
+    setSelectedAd(null);
+    setAdImageFile(null);
+    setAdErrors({});
+    setAdForm({
+      title: "",
+      imageUrl: "",
+      placement: "HOME_BANNER",
+      isActive: true,
+      startsAt: "",
+      endsAt: "",
+      restaurantId: "",
+    });
+  }
+
+  function openCreateAdModal() {
+    resetAdModal();
+    setShowAdModal(true);
+  }
+
+  function openEditAdModal(ad) {
+    setAdErrors({});
+    setAdImageFile(null);
+    setSelectedAd({
+      ...ad,
+      startsAt: ad.startsAt ? ad.startsAt.slice(0, 16) : "",
+      endsAt: ad.endsAt ? ad.endsAt.slice(0, 16) : "",
+      restaurantId: ad.restaurantId || "",
+    });
+    setShowAdModal(true);
+  }
+
+  function validateAdFormData(data, { requireImage } = {}) {
+    const errors = {};
+    if (String(data.title || "").trim().length < 2) {
+      errors.title = "Le titre est obligatoire (2 caracteres minimum).";
+    }
+    if (requireImage && !adImageFile && !String(data.imageUrl || "").trim()) {
+      errors.imageUrl = "Une image est obligatoire pour la publicite.";
+    }
+    if (data.startsAt && data.endsAt && new Date(data.endsAt) <= new Date(data.startsAt)) {
+      errors.endsAt = "La date de fin doit etre posterieure a la date de debut.";
+    }
+    return errors;
+  }
+
+  async function handleCreateAd(event) {
+    event.preventDefault();
+    const errors = validateAdFormData(adForm, { requireImage: true });
+    setAdErrors(errors);
+    if (Object.keys(errors).length) {
+      return;
+    }
+    try {
+      const uploadedImageUrl = await uploadImage(adImageFile);
+      await apiRequest(
+        "/api/admin/ads",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            ...adForm,
+            imageUrl: uploadedImageUrl || adForm.imageUrl,
+            restaurantId: adForm.restaurantId || null,
+            startsAt: adForm.startsAt ? toIsoDatetime(adForm.startsAt) : null,
+            endsAt: adForm.endsAt ? toIsoDatetime(adForm.endsAt) : null,
+          }),
+        },
+        token
+      );
+      resetAdModal();
+      setShowAdModal(false);
+      setStatusMessage("Publicite creee.");
+      await loadAdminData();
+    } catch (error) {
+      setErrorMessage(error.message);
+    }
+  }
+
+  async function handleUpdateAd(event) {
+    event.preventDefault();
+    if (!selectedAd) {
+      return;
+    }
+    const errors = validateAdFormData(selectedAd);
+    setAdErrors(errors);
+    if (Object.keys(errors).length) {
+      return;
+    }
+    try {
+      const uploadedImageUrl = await uploadImage(adImageFile);
+      await apiRequest(
+        `/api/admin/ads/${selectedAd.id}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            title: selectedAd.title,
+            imageUrl: uploadedImageUrl || selectedAd.imageUrl,
+            placement: selectedAd.placement,
+            isActive: Boolean(selectedAd.isActive),
+            restaurantId: selectedAd.restaurantId || null,
+            startsAt: selectedAd.startsAt ? toIsoDatetime(selectedAd.startsAt) : null,
+            endsAt: selectedAd.endsAt ? toIsoDatetime(selectedAd.endsAt) : null,
+          }),
+        },
+        token
+      );
+      resetAdModal();
+      setShowAdModal(false);
+      setStatusMessage("Publicite mise a jour.");
+      await loadAdminData();
+    } catch (error) {
+      setErrorMessage(error.message);
+    }
+  }
+
+  async function handleToggleAd(ad) {
+    try {
+      await apiRequest(
+        `/api/admin/ads/${ad.id}`,
+        { method: "PATCH", body: JSON.stringify({ isActive: !ad.isActive }) },
+        token
+      );
+      setStatusMessage(ad.isActive ? "Publicite desactivee." : "Publicite activee.");
+      await loadAdminData();
+    } catch (error) {
+      setErrorMessage(error.message);
+    }
+  }
+
+  async function handleDeleteAd(ad) {
+    if (!window.confirm(`Supprimer la publicite "${ad.title}" ?`)) {
+      return;
+    }
+    try {
+      await apiRequest(`/api/admin/ads/${ad.id}`, { method: "DELETE" }, token);
+      setStatusMessage("Publicite supprimee.");
       await loadAdminData();
     } catch (error) {
       setErrorMessage(error.message);
@@ -3111,6 +3317,7 @@ export default function App() {
             { id: "notifications", label: t("notifications_nav"), icon: Mail },
             { id: "categories", label: t("categories_nav"), icon: Tags },
             { id: "promotions", label: t("promotions_nav"), icon: Sparkles },
+            { id: "ads", label: "Publicités", icon: Megaphone },
             { id: "reports", label: t("reports_nav"), icon: BarChart2 },
             { id: "create", label: t("new_restaurant"), icon: Plus },
           ].map((item) => (
@@ -4675,6 +4882,56 @@ export default function App() {
               </article>
             )}
 
+            {activeView === "ads" && (
+              <article className="panel">
+                <div className="panel-head">
+                  <div>
+                    <h3>Publicités</h3>
+                    <p>Affiches à l'ouverture de l'app et bannières sur l'écran d'accueil.</p>
+                  </div>
+                  <button className="primary-alt" onClick={openCreateAdModal}>Créer une publicité</button>
+                </div>
+                {ads.length === 0 ? (
+                  <p className="muted" style={{ padding: "24px 0", textAlign: "center" }}>
+                    Aucune publicité. Créez-en une pour la voir apparaître dans l'application mobile.
+                  </p>
+                ) : (
+                  <div className="orders-grid">
+                    {ads.map((ad) => (
+                      <div key={ad.id} className="order-card">
+                        <img
+                          src={ad.imageUrl}
+                          alt={ad.title}
+                          style={{ width: "100%", aspectRatio: "21/9", objectFit: "cover", borderRadius: 12, marginBottom: 10 }}
+                        />
+                        <div className="order-head">
+                          <div>
+                            <strong>{ad.title}</strong>
+                            <p>{ad.placement === "SPLASH" ? "Affiche à l'ouverture" : "Bannière accueil"}</p>
+                          </div>
+                          <span className={`status-pill ${ad.isActive ? "success" : "neutral"}`}>
+                            {ad.isActive ? t("active") : t("inactive")}
+                          </span>
+                        </div>
+                        <div className="order-metrics">
+                          <span>{ad.startsAt ? new Date(ad.startsAt).toLocaleDateString("fr-FR") : "Sans début"}</span>
+                          <span>→</span>
+                          <span>{ad.endsAt ? new Date(ad.endsAt).toLocaleDateString("fr-FR") : "Sans fin"}</span>
+                        </div>
+                        <div className="button-row">
+                          <button className="ghost small" onClick={() => handleToggleAd(ad)}>
+                            {ad.isActive ? "Désactiver" : "Activer"}
+                          </button>
+                          <button className="ghost small" onClick={() => openEditAdModal(ad)}>{t("edit")}</button>
+                          <button className="ghost small" onClick={() => handleDeleteAd(ad)}>Supprimer</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </article>
+            )}
+
             {activeView === "reports" && (
               <article className="panel">
                 <div className="panel-head">
@@ -5634,6 +5891,135 @@ export default function App() {
                 </label>
               </FormField>
             </div>
+          </FormSection>
+        </form>
+      </AdminDialog>
+
+      <AdminDialog
+        open={showAdModal}
+        title={selectedAd ? `${t("edit")} ${selectedAd.title}` : "Créer une publicité"}
+        subtitle="L'image apparaît dans l'app mobile : affiche plein écran à l'ouverture ou bannière sur l'accueil."
+        eyebrowLabel="Publicités"
+        onClose={() => {
+          resetAdModal();
+          setShowAdModal(false);
+        }}
+        actions={
+          <>
+            <button
+              type="button"
+              className="btn-modal-ghost"
+              onClick={() => {
+                resetAdModal();
+                setShowAdModal(false);
+              }}
+            >
+              Annuler
+            </button>
+            <button type="button" className="btn-modal-primary" onClick={() => submitFormById("form-ad")}>
+              {selectedAd ? t("save_changes") : "Créer la publicité"}
+            </button>
+          </>
+        }
+      >
+        <form id="form-ad" onSubmit={selectedAd ? handleUpdateAd : handleCreateAd} className="stack compact-stack form-layout">
+          <FormSection title="Contenu" hint="Titre interne et visuel affiché aux clients.">
+            <FormField label={t("title")} error={adErrors.title}>
+              <input
+                value={selectedAd ? selectedAd.title : adForm.title}
+                onChange={(event) =>
+                  selectedAd
+                    ? setSelectedAd({ ...selectedAd, title: event.target.value })
+                    : setAdForm({ ...adForm, title: event.target.value })
+                }
+                placeholder="Campagne Ramadan"
+                required
+              />
+            </FormField>
+            <FormField label="Image (affiche)" hint="Format conseillé : 3:4 pour l'affiche d'ouverture, 21:9 pour la bannière." error={adErrors.imageUrl}>
+              <input type="file" accept="image/*" onChange={(event) => setAdImageFile(event.target.files?.[0] || null)} />
+              {(selectedAd?.imageUrl || adForm.imageUrl) && !adImageFile ? (
+                <img
+                  src={selectedAd ? selectedAd.imageUrl : adForm.imageUrl}
+                  alt="Aperçu"
+                  style={{ marginTop: 8, width: "100%", maxHeight: 160, objectFit: "cover", borderRadius: 10 }}
+                />
+              ) : null}
+            </FormField>
+          </FormSection>
+          <FormSection title="Emplacement et lien" hint="Où la publicité apparaît, et vers quel restaurant elle renvoie au clic.">
+            <div className="split form-grid">
+              <FormField label="Emplacement">
+                <select
+                  className="inline-select"
+                  value={selectedAd ? selectedAd.placement : adForm.placement}
+                  onChange={(event) =>
+                    selectedAd
+                      ? setSelectedAd({ ...selectedAd, placement: event.target.value })
+                      : setAdForm({ ...adForm, placement: event.target.value })
+                  }
+                >
+                  <option value="HOME_BANNER">Bannière accueil (au-dessus des restaurants)</option>
+                  <option value="SPLASH">Affiche à l'ouverture de l'app</option>
+                </select>
+              </FormField>
+              <FormField label="Restaurant lié (optionnel)">
+                <select
+                  className="inline-select"
+                  value={selectedAd ? selectedAd.restaurantId : adForm.restaurantId}
+                  onChange={(event) =>
+                    selectedAd
+                      ? setSelectedAd({ ...selectedAd, restaurantId: event.target.value })
+                      : setAdForm({ ...adForm, restaurantId: event.target.value })
+                  }
+                >
+                  <option value="">Aucun lien</option>
+                  {restaurants.map((restaurant) => (
+                    <option key={restaurant.id} value={restaurant.id}>{restaurant.name}</option>
+                  ))}
+                </select>
+              </FormField>
+            </div>
+          </FormSection>
+          <FormSection title="Période et statut" hint="Laissez les dates vides pour une diffusion permanente.">
+            <div className="split form-grid">
+              <FormField label={t("starts_at")}>
+                <input
+                  type="datetime-local"
+                  value={selectedAd ? selectedAd.startsAt : adForm.startsAt}
+                  onChange={(event) =>
+                    selectedAd
+                      ? setSelectedAd({ ...selectedAd, startsAt: event.target.value })
+                      : setAdForm({ ...adForm, startsAt: event.target.value })
+                  }
+                />
+              </FormField>
+              <FormField label={t("ends_at")} error={adErrors.endsAt}>
+                <input
+                  type="datetime-local"
+                  value={selectedAd ? selectedAd.endsAt : adForm.endsAt}
+                  onChange={(event) =>
+                    selectedAd
+                      ? setSelectedAd({ ...selectedAd, endsAt: event.target.value })
+                      : setAdForm({ ...adForm, endsAt: event.target.value })
+                  }
+                />
+              </FormField>
+            </div>
+            <FormField label="Statut">
+              <label className="toggle-inline toggle-card">
+                <input
+                  type="checkbox"
+                  checked={Boolean(selectedAd ? selectedAd.isActive : adForm.isActive)}
+                  onChange={(event) =>
+                    selectedAd
+                      ? setSelectedAd({ ...selectedAd, isActive: event.target.checked })
+                      : setAdForm({ ...adForm, isActive: event.target.checked })
+                  }
+                />
+                <span>Publicité active</span>
+              </label>
+            </FormField>
           </FormSection>
         </form>
       </AdminDialog>

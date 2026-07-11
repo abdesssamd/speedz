@@ -1,5 +1,6 @@
 import Constants from "expo-constants";
 import { NativeModules, Platform } from "react-native";
+import { reportOffline, reportOnline } from "./connectivity";
 import {
   AuthMethod,
   CartItem,
@@ -35,6 +36,18 @@ type BootstrapResponse = {
   menuCategories?: Array<{ id: string; name: string; sortOrder: number; isActive: boolean }>;
 };
 
+export type Ad = {
+  id: string;
+  title: string;
+  imageUrl: string;
+  placement: "SPLASH" | "HOME_BANNER";
+  isActive: boolean;
+  startsAt: string | null;
+  endsAt: string | null;
+  restaurantId: string | null;
+  createdAt: string;
+};
+
 type MobileConfigResponse = {
   forceUpdate: boolean;
   minimumVersion: string;
@@ -67,10 +80,20 @@ function getDevServerHost() {
   return matchedHost ?? null;
 }
 
+// Production backend. Used as the ultimate fallback so a release build never
+// points at a dev-only loopback address (which causes "Network request failed").
+const PRODUCTION_API_URL = "https://speedz.microtechdz13.com";
+
 function getApiBaseUrl() {
   const configuredUrl = process.env.EXPO_PUBLIC_API_URL;
   if (configuredUrl) {
     return configuredUrl.replace(/\/$/, "");
+  }
+
+  // In a release build there is no Metro dev server, so the only safe target
+  // is the hosted production backend.
+  if (!__DEV__) {
+    return PRODUCTION_API_URL;
   }
 
   const devServerHost = getDevServerHost();
@@ -98,21 +121,45 @@ export function setCourierAuthToken(token: string | null) {
   courierToken = token;
 }
 
+const REQUEST_TIMEOUT_MS = 20000;
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
-      ...(options?.headers ?? {}),
-    },
-    ...options,
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        ...(options?.headers ?? {}),
+      },
+      ...options,
+    });
+  } catch (error) {
+    // Un échec du fetch (ou un timeout) signifie que le serveur est injoignable.
+    reportOffline();
+    // Distinguish an aborted (timed-out) request from a genuine connectivity failure.
+    if ((error as Error)?.name === "AbortError") {
+      throw new Error("La connexion a expiré. Vérifiez votre connexion internet et réessayez.");
+    }
+    throw new Error(
+      "Impossible de joindre le serveur. Vérifiez votre connexion internet et réessayez."
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  // La requête a atteint le serveur (même en cas d'erreur HTTP) : on est en ligne.
+  reportOnline();
 
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as
       | { message?: string; error?: { message?: string } }
       | null;
-    throw new Error(errorBody?.error?.message ?? errorBody?.message ?? "Erreur reseau");
+    throw new Error(errorBody?.error?.message ?? errorBody?.message ?? "Erreur réseau");
   }
 
   return response.json() as Promise<T>;
@@ -229,6 +276,12 @@ export const api = {
     }
     return request<MobileConfigResponse>(`/api/mobile-config?${params.toString()}`);
   },
+  registerPushToken(token: string) {
+    return request<{ ok: boolean }>("/api/notifications/register-token", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    });
+  },
   updateNotificationPreferences(input: { orderUpdates?: boolean; promotions?: boolean; loyalty?: boolean }) {
     return request<{
       notificationPreferences: {
@@ -280,6 +333,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     });
+  },
+  getAds(placement?: "SPLASH" | "HOME_BANNER") {
+    const suffix = placement ? `?placement=${placement}` : "";
+    return request<Ad[]>(`/api/ads${suffix}`);
   },
   getPromotions(restaurantId?: string) {
     const suffix = restaurantId ? `?restaurantId=${encodeURIComponent(restaurantId)}` : "";

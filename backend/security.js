@@ -404,6 +404,28 @@ const Schemas = {
     restaurantId: z.string().nullable().optional(),
   }),
 
+  // Admin: create ad (publicité)
+  createAd: z.object({
+    title: z.string().min(2).max(120).trim(),
+    imageUrl: z.string().min(5).max(2000),
+    placement: z.enum(["SPLASH", "HOME_BANNER"]),
+    isActive: z.boolean().optional().default(true),
+    startsAt: z.string().datetime().nullable().optional(),
+    endsAt: z.string().datetime().nullable().optional(),
+    restaurantId: z.string().nullable().optional(),
+  }),
+
+  // Admin: update ad
+  updateAd: z.object({
+    title: z.string().min(2).max(120).trim().optional(),
+    imageUrl: z.string().min(5).max(2000).optional(),
+    placement: z.enum(["SPLASH", "HOME_BANNER"]).optional(),
+    isActive: z.boolean().optional(),
+    startsAt: z.string().datetime().nullable().optional(),
+    endsAt: z.string().datetime().nullable().optional(),
+    restaurantId: z.string().nullable().optional(),
+  }),
+
   // Admin: update order status
   updateOrderStatus: z.object({
     status: z.string().min(1, "Statut requis"),

@@ -25,6 +25,10 @@ export function clearCsrfToken() {
   csrfToken = null;
 }
 
+export function getCsrfToken() {
+  return csrfToken;
+}
+
 export async function apiRequest(path, options = {}, token, requestOptions = {}) {
   let response;
   try {

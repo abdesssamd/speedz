@@ -4,9 +4,11 @@ import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Image, Linking, Platform, SafeAreaView, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { OfflineBanner } from "./src/components/OfflineBanner";
 import { AppProvider } from "./src/context/AppContext";
 import { AppNavigator } from "./src/navigation/AppNavigator";
 import { api } from "./src/services/api";
+import { ThemeProvider, useTheme } from "./src/theme/ThemeProvider";
 
 type ForceUpdateState = {
   forceUpdate: boolean;
@@ -90,18 +92,14 @@ export default function App() {
   const showForceUpdate = Platform.OS === "android" && forceUpdateState?.forceUpdate;
 
   return (
+    <ThemeProvider>
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AppProvider>
-          <StatusBar style="dark" />
+          <ThemedStatusBar />
           {isCheckingUpdate ? (
-            <SafeAreaView style={styles.updateScreen}>
-              <View style={styles.updateCard}>
-                <Image source={brandLogo} style={styles.updateLogo} resizeMode="contain" />
-                <ActivityIndicator size="large" color="#F97316" />
-                <Text style={styles.updateTitle}>Verification de la version</Text>
-                <Text style={styles.updateText}>Nous controlons si une mise a jour Android obligatoire est disponible.</Text>
-              </View>
+            <SafeAreaView style={styles.splashScreen}>
+              <Image source={brandLogo} style={styles.splashLogo} resizeMode="contain" />
             </SafeAreaView>
           ) : showForceUpdate ? (
             <SafeAreaView style={styles.updateScreen}>
@@ -123,13 +121,30 @@ export default function App() {
           ) : (
             <AppNavigator />
           )}
+          <OfflineBanner />
         </AppProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
+    </ThemeProvider>
   );
 }
 
+function ThemedStatusBar() {
+  const { isDark } = useTheme();
+  return <StatusBar style={isDark ? "light" : "dark"} />;
+}
+
 const styles = StyleSheet.create({
+  splashScreen: {
+    flex: 1,
+    backgroundColor: "#FFF8F2",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  splashLogo: {
+    width: 200,
+    height: 200,
+  },
   updateScreen: {
     flex: 1,
     backgroundColor: "#FFF8F2",

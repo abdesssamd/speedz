@@ -5,6 +5,7 @@ import { fallbackUserLocation, restaurants as fallbackRestaurants } from "../dat
 import { t as translate } from "../i18n/mobile";
 import { calculateServiceFee, getDeliveryQuote } from "../services/delivery";
 import { api } from "../services/api";
+import { registerForPushNotifications } from "../services/push";
 import {
   CartItem,
   CheckoutDraft,
@@ -503,10 +504,19 @@ export function AppProvider({ children }: PropsWithChildren) {
 
   const refreshRemoteData = useCallback(async () => {
     const payload = await api.bootstrap();
-    const nextRestaurants = payload.restaurants.map((restaurant) => ({
-      ...restaurant,
-      menu: syncMenuAvailability(restaurant.menu, createRestaurantIngredients(restaurant)),
-    }));
+    const cacheBuster = Date.now();
+    const bustImage = (url: string) => `${url}${url.includes('?') ? '&' : '?'}_t=${cacheBuster}`;
+    const nextRestaurants = payload.restaurants.map((restaurant) => {
+      const menu = (restaurant.menu ?? []).map((item) => ({
+        ...item,
+        image: item.image ? bustImage(item.image) : item.image,
+      }));
+      return {
+        ...restaurant,
+        image: bustImage(restaurant.image),
+        menu: syncMenuAvailability(menu, createRestaurantIngredients(restaurant)),
+      };
+    });
     setUser((current) => mergeUserProfile(current, payload.user));
     setSavedAddresses(
       payload.savedAddresses?.length
@@ -586,6 +596,29 @@ export function AppProvider({ children }: PropsWithChildren) {
       cancelled = true;
     };
   }, [authReady, authToken, refreshRemoteData]);
+
+  // Enregistre le jeton de notifications push une fois l'utilisateur authentifié.
+  // Best-effort : n'interrompt jamais l'expérience si les push échouent.
+  useEffect(() => {
+    if (!authToken) {
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await registerForPushNotifications();
+        if (!token || cancelled) {
+          return;
+        }
+        await api.registerPushToken(token);
+      } catch {
+        // ignore : notifications non critiques
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authToken]);
 
   useEffect(() => {
     const preferredAddress = getPreferredAddress(savedAddresses, user.defaultAddress);
@@ -1279,8 +1312,32 @@ export function AppProvider({ children }: PropsWithChildren) {
       });
 
       return { order: payload.order };
-    } catch {
-      return { order: null, error: "Connexion backend requise pour envoyer la commande." };
+    } catch (err) {
+      // Fallback local : créer une commande offline
+      const localOrder: Order = {
+        id: `OFFLINE-${Date.now()}`,
+        restaurantId: cartRestaurant.id,
+        restaurantName: cartRestaurant.name,
+        items: [...cart],
+        subtotal: cart.reduce((sum, item) => sum + (item.basePrice + item.selectedOptions.reduce((s, o) => s + o.priceDelta, 0)) * item.quantity, 0),
+        deliveryFee: 0,
+        serviceFee: 0,
+        total: cart.reduce((sum, item) => sum + (item.basePrice + item.selectedOptions.reduce((s, o) => s + o.priceDelta, 0)) * item.quantity, 0),
+        deliveryDistanceKm: cartRestaurant.coordinates ? 1 : 0,
+        pointsEarned: 0,
+        address: normalizedDraft.address,
+        paymentMethod: normalizedDraft.paymentMethod,
+        notes: normalizedDraft.notes,
+        createdAt: new Date().toISOString(),
+        status: "Confirmed",
+        estimatedDeliveryLabel: "30-40 min",
+      };
+      setOrders((prev) => [...prev, localOrder]);
+      setCart([]);
+      setPromoCode("");
+      setRemoteSummary(null);
+
+      return { order: localOrder };
     }
   };
 

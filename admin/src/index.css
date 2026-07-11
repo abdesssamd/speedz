@@ -1044,7 +1044,23 @@
   }
 
   .error {
-    @apply text-red-600 text-sm;
+    @apply text-red-700 text-sm font-semibold bg-red-50 border border-red-200 rounded-xl px-4 py-3;
+    animation: banner-in 0.22s ease-out;
+  }
+
+  .dark .error {
+    @apply text-red-300 bg-red-950/50 border-red-900;
+  }
+
+  @keyframes banner-in {
+    from {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   /* ─── Auth ────────────────────────────────────────────────── */
@@ -1515,7 +1531,12 @@
   }
 
   .success {
-    @apply text-emerald-600 text-sm;
+    @apply text-emerald-700 text-sm font-semibold bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3;
+    animation: banner-in 0.22s ease-out;
+  }
+
+  .dark .success {
+    @apply text-emerald-300 bg-emerald-950/50 border-emerald-900;
   }
 
   /* ─── Table toolbar ───────────────────────────────────────── */

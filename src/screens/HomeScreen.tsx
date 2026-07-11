@@ -15,6 +15,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Dimensions,
   FlatList,
   Image,
   Platform,
@@ -26,13 +27,18 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { AdSplashModal } from "../components/AdSplashModal";
 import { AnimatedCard } from "../components/AnimatedCard";
 import { EmptyState } from "../components/EmptyState";
 import { ScalePressable } from "../components/ScalePressable";
+import { RestaurantCardSkeleton } from "../components/Skeleton";
 import { useApp } from "../context/AppContext";
 import { RootStackParamList } from "../navigation/AppNavigator";
+import { Ad, api } from "../services/api";
 import { getDeliveryQuote } from "../services/delivery";
 import { formatCurrency } from "../services/format";
+import { ThemeColors } from "../theme/mobile";
+import { useTheme } from "../theme/ThemeProvider";
 
 // ─── Palette Just Eat ────────────────────────────────────────────────────────
 const JE = {
@@ -78,6 +84,7 @@ function RestaurantRowCard({
   onFav,
   deliveryFee,
   deliveryTime,
+  c,
 }: {
   item: any;
   isFav: boolean;
@@ -85,13 +92,14 @@ function RestaurantRowCard({
   onFav: () => void;
   deliveryFee: string;
   deliveryTime: string;
+  c: ThemeColors;
 }) {
   return (
-    <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={s.rowCard}>
+    <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={[s.rowCard, { backgroundColor: c.surface, borderColor: c.borderSoft }]}>
       <Image source={{ uri: item.image }} style={s.rowImg} />
       <View style={s.rowBody}>
         <View style={s.rowTop}>
-          <Text style={s.rowName} numberOfLines={1}>{item.name}</Text>
+          <Text style={[s.rowName, { color: c.text }]} numberOfLines={1}>{item.name}</Text>
           <TouchableOpacity onPress={onFav} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons
               name={isFav ? "heart" : "heart-outline"}
@@ -100,7 +108,7 @@ function RestaurantRowCard({
             />
           </TouchableOpacity>
         </View>
-        <Text style={s.rowDesc} numberOfLines={1}>{item.shortDescription}</Text>
+        <Text style={[s.rowDesc, { color: c.textMuted }]} numberOfLines={1}>{item.shortDescription}</Text>
         <View style={s.rowChips}>
           <View style={[s.chip, { backgroundColor: JE.greenLight }]}>
             <Ionicons name="star" size={10} color={JE.green} />
@@ -125,17 +133,19 @@ function CatBubble({
   cat,
   active,
   onPress,
+  c,
 }: {
   cat: (typeof CATEGORIES)[number];
   active: boolean;
   onPress: () => void;
+  c: ThemeColors;
 }) {
   return (
     <TouchableOpacity onPress={onPress} style={s.catWrap} activeOpacity={0.75}>
-      <View style={[s.catCircle, active && s.catCircleActive]}>
+      <View style={[s.catCircle, { backgroundColor: c.surface, borderColor: c.borderSoft }, active && s.catCircleActive]}>
         <Text style={s.catEmoji}>{cat.emoji}</Text>
       </View>
-      <Text style={[s.catLabel, active && s.catLabelActive]} numberOfLines={1}>
+      <Text style={[s.catLabel, { color: c.textMuted }, active && s.catLabelActive]} numberOfLines={1}>
         {cat.label}
       </Text>
     </TouchableOpacity>
@@ -150,11 +160,36 @@ export function HomeScreen() {
     currentLocation, toggleFavorite, t, isRTL, refreshRemoteData,
   } = useApp();
 
+  const { colors: c } = useTheme();
   const [selectedCat, setSelectedCat] = useState("all");
   const [activeFeed, setActiveFeed] = useState<"all" | "favorites">("all");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  // Affiche des skeletons au premier chargement tant qu'aucune donnée n'est arrivée.
+  const [initialLoading, setInitialLoading] = useState(restaurants.length === 0);
+  const [bannerAds, setBannerAds] = useState<Ad[]>([]);
+
+  // Publicités bannière au-dessus de la liste — best-effort, jamais bloquant.
+  useEffect(() => {
+    let active = true;
+    api.getAds("HOME_BANNER")
+      .then((ads) => { if (active) setBannerAds(ads); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   useFocusEffect(useCallback(() => { refreshRemoteData().catch(() => {}); }, [refreshRemoteData]));
+  useEffect(() => {
+    let active = true;
+    if (restaurants.length > 0) {
+      setInitialLoading(false);
+      return;
+    }
+    refreshRemoteData()
+      .catch(() => {})
+      .finally(() => { if (active) setInitialLoading(false); });
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => { setVisibleCount(PAGE_SIZE); }, [selectedCat, activeFeed]);
 
   const sorted = useMemo(() => [...restaurants].sort((a, b) => b.rating - a.rating), [restaurants]);
@@ -208,13 +243,14 @@ export function HomeScreen() {
             isFav={isFav}
             deliveryFee={fee}
             deliveryTime={time}
+            c={c}
             onPress={() => navigation.navigate("Restaurant", { restaurantId: item.id })}
             onFav={() => toggleFavorite(item.id)}
           />
         </AnimatedCard>
       );
     },
-    [currentLocation.coordinates, favorites, navigation, toggleFavorite]
+    [currentLocation.coordinates, favorites, navigation, toggleFavorite, c]
   );
 
   // ── Header complet ──────────────────────────────────────────────────────────
@@ -266,8 +302,33 @@ export function HomeScreen() {
       {/* ── Corps blanc ── */}
       <View style={s.body}>
 
+        {/* Publicités bannière (gérées depuis l'admin) */}
+        {bannerAds.length > 0 && (
+          <ScrollView
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={s.adRow}
+          >
+            {bannerAds.map((ad) => (
+              <TouchableOpacity
+                key={ad.id}
+                activeOpacity={0.9}
+                style={s.adCard}
+                onPress={() => {
+                  if (ad.restaurantId) {
+                    navigation.navigate("Restaurant", { restaurantId: ad.restaurantId });
+                  }
+                }}
+              >
+                <Image source={{ uri: ad.imageUrl }} style={s.adImage} resizeMode="cover" />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
+
         {/* Promos horizontales scrollables */}
-        <Text style={s.sectionTitle}>🔥 Offres du moment</Text>
+        <Text style={[s.sectionTitle, { color: c.text }]}>🔥 Offres du moment</Text>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -283,7 +344,7 @@ export function HomeScreen() {
         </ScrollView>
 
         {/* Catégories en bulles */}
-        <Text style={s.sectionTitle}>Catégories</Text>
+        <Text style={[s.sectionTitle, { color: c.text }]}>Catégories</Text>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -294,6 +355,7 @@ export function HomeScreen() {
               key={cat.id}
               cat={cat}
               active={selectedCat === cat.id}
+              c={c}
               onPress={() => setSelectedCat(cat.id)}
             />
           ))}
@@ -301,10 +363,10 @@ export function HomeScreen() {
 
         {/* Switch Tous / Favoris */}
         <View style={s.feedSwitchRow}>
-          <Text style={s.sectionTitle}>
+          <Text style={[s.sectionTitle, { color: c.text }]}>
             {activeFeed === "favorites" ? "Mes favoris" : "Restaurants"}
           </Text>
-          <View style={s.feedSwitch}>
+          <View style={[s.feedSwitch, { backgroundColor: c.surfaceMuted }]}>
             {(["all", "favorites"] as const).map((f) => (
               <ScalePressable
                 key={f}
@@ -315,10 +377,10 @@ export function HomeScreen() {
                   <Ionicons
                     name="heart"
                     size={12}
-                    color={activeFeed === f ? JE.white : JE.grey}
+                    color={activeFeed === f ? JE.white : c.textMuted}
                   />
                 )}
-                <Text style={[s.feedBtnTxt, activeFeed === f && s.feedBtnTxtActive]}>
+                <Text style={[s.feedBtnTxt, { color: c.textMuted }, activeFeed === f && s.feedBtnTxtActive]}>
                   {f === "all" ? "Tous" : "Favoris"}
                 </Text>
               </ScalePressable>
@@ -330,7 +392,7 @@ export function HomeScreen() {
   );
 
   return (
-    <SafeAreaView style={s.safe}>
+    <SafeAreaView style={[s.safe, { backgroundColor: c.background }]}>
       <FlatList
         data={visible}
         keyExtractor={(item) => item.id}
@@ -341,16 +403,30 @@ export function HomeScreen() {
         onEndReached={() => setVisibleCount((c) => Math.min(c + PAGE_SIZE, filtered.length))}
         onEndReachedThreshold={0.4}
         ListEmptyComponent={
-          <View style={s.emptyWrap}>
-            <EmptyState
-              title={t("no_restaurant")}
-              message={t("no_restaurant_msg")}
-              actionLabel="Actualiser"
-              onAction={() => refreshRemoteData().catch(() => {})}
-            />
-          </View>
+          initialLoading ? (
+            <View style={s.skeletonWrap}>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <RestaurantCardSkeleton key={i} />
+              ))}
+            </View>
+          ) : (
+            <View style={s.emptyWrap}>
+              <EmptyState
+                title={t("no_restaurant")}
+                message={t("no_restaurant_msg")}
+                actionLabel="Actualiser"
+                onAction={() => refreshRemoteData().catch(() => {})}
+              />
+            </View>
+          )
         }
         ListFooterComponent={<View style={{ height: 32 }} />}
+      />
+      {/* Affiche publicitaire à l'ouverture (une fois par session) */}
+      <AdSplashModal
+        onNavigateToRestaurant={(restaurantId) =>
+          navigation.navigate("Restaurant", { restaurantId })
+        }
       />
     </SafeAreaView>
   );
@@ -364,34 +440,44 @@ const s = StyleSheet.create({
   // ── Header orange ────────────────────────────────────────────────────────
   jeHeader: {
     backgroundColor: JE.orange,
-    paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) + 12 : 16,
+    paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) + 6 : 6,
     paddingHorizontal: 18,
-    paddingBottom: 24,
-    gap: 12,
+    paddingBottom: 10,
+    gap: 4,
   },
   jeTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   locPill: {
-    flexDirection: "row", alignItems: "center", gap: 5,
+    flex: 1, flexDirection: "row", alignItems: "center", gap: 4,
     backgroundColor: "rgba(255,255,255,0.22)", borderRadius: 999,
-    paddingHorizontal: 12, paddingVertical: 7,
+    paddingHorizontal: 10, paddingVertical: 4, marginRight: 8,
   },
-  locText: { color: JE.white, fontSize: 13, fontWeight: "600", maxWidth: 180 },
+  locText: { color: JE.white, fontSize: 12, fontWeight: "600", maxWidth: 180 },
   notifBtn: {
-    width: 36, height: 36, borderRadius: 18,
+    width: 32, height: 32, borderRadius: 16,
     backgroundColor: "rgba(255,255,255,0.22)",
     alignItems: "center", justifyContent: "center",
   },
-  greeting: { color: JE.white, fontSize: 22, fontWeight: "900" },
+  greeting: { color: JE.white, fontSize: 17, fontWeight: "900" },
   searchBar: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    backgroundColor: JE.white, borderRadius: 16,
-    paddingHorizontal: 14, paddingVertical: 13,
+    flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: JE.white, borderRadius: 12,
+    paddingHorizontal: 12, paddingVertical: 8,
   },
   searchPlaceholder: { flex: 1, color: "#A0A5BA", fontSize: 14, fontWeight: "500" },
   searchFilter: {
     width: 30, height: 30, borderRadius: 15,
     backgroundColor: JE.orangeLight, alignItems: "center", justifyContent: "center",
   },
+
+  // ── Publicités bannière ──────────────────────────────────────────────────
+  adRow: { gap: 12 },
+  adCard: {
+    width: Dimensions.get("window").width - 36,
+    borderRadius: 18,
+    overflow: "hidden",
+    backgroundColor: "#00000010",
+  },
+  adImage: { width: "100%", aspectRatio: 21 / 9 },
 
   // ── Corps ────────────────────────────────────────────────────────────────
   body: { paddingHorizontal: 18, paddingTop: 18, gap: 14 },
@@ -465,4 +551,5 @@ const s = StyleSheet.create({
   chipTxt: { fontSize: 10, fontWeight: "700" },
 
   emptyWrap: { paddingHorizontal: 18, marginTop: 24 },
+  skeletonWrap: { paddingTop: 6 },
 });

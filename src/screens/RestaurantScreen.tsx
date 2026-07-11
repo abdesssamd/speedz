@@ -37,6 +37,8 @@ import { useApp } from "../context/AppContext";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { getDeliveryQuote } from "../services/delivery";
 import { formatCurrency } from "../services/format";
+import { ThemeColors } from "../theme/mobile";
+import { useTheme } from "../theme/ThemeProvider";
 import { MenuItem, Restaurant, SelectedOption } from "../types";
 
 type RestaurantRoute = RouteProp<RootStackParamList, "Restaurant">;
@@ -83,18 +85,22 @@ function sameOptionSet(left: SelectedOption[], right: SelectedOption[]) {
 function InfoChip({
   icon,
   label,
-  color = JE.grey,
-  bg = JE.greyLight,
+  color,
+  bg,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   color?: string;
   bg?: string;
 }) {
+  const s = useRestaurantStyles();
+  const { colors: c } = useTheme();
+  const chipColor = color ?? c.textMuted;
+  const chipBg = bg ?? c.surfaceMuted;
   return (
-    <View style={[s.infoChip, { backgroundColor: bg }]}>
-      <Ionicons name={icon} size={12} color={color} />
-      <Text style={[s.infoChipTxt, { color }]}>{label}</Text>
+    <View style={[s.infoChip, { backgroundColor: chipBg }]}>
+      <Ionicons name={icon} size={12} color={chipColor} />
+      <Text style={[s.infoChipTxt, { color: chipColor }]}>{label}</Text>
     </View>
   );
 }
@@ -109,6 +115,8 @@ export function RestaurantScreen() {
     t, isRTL,
   } = useApp();
 
+  const s = useRestaurantStyles();
+  const { colors: c } = useTheme();
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [activeCategory, setActiveCategory] = useState<string>("popular");
   const catScrollRef = useRef<ScrollView>(null);
@@ -349,7 +357,7 @@ export function RestaurantScreen() {
           {restaurant.category} · {delivery.distanceKm.toFixed(1)} km
         </Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.infoChips}>
-          <InfoChip icon="checkmark-circle-outline" label="HALAL" color={JE.green} bg={JE.greenLight} />
+          <InfoChip icon="checkmark-circle-outline" label="HALAL" color={c.success} bg={c.successSoft} />
           <InfoChip icon="card-outline" label="Carte acceptée" />
           <InfoChip icon="star-outline" label="Points fidélité" color="#F59E0B" bg="#FFFBEB" />
           <InfoChip icon="time-outline" label={`Ouvert · Ferme à 23h`} />
@@ -442,8 +450,14 @@ export function RestaurantScreen() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: JE.greyLight },
+function useRestaurantStyles() {
+  const { colors: c } = useTheme();
+  return useMemo(() => makeStyles(c), [c]);
+}
+
+function makeStyles(c: ThemeColors) {
+  return StyleSheet.create({
+  safe: { flex: 1, backgroundColor: c.background },
 
   // Hero
   hero: { height: 220, position: "relative" },
@@ -474,12 +488,12 @@ const s = StyleSheet.create({
 
   // Info bar
   infoBar: {
-    backgroundColor: JE.white, paddingHorizontal: 16,
+    backgroundColor: c.surface, paddingHorizontal: 16,
     paddingTop: 12, paddingBottom: 4,
-    borderBottomWidth: 1, borderBottomColor: JE.border,
+    borderBottomWidth: 1, borderBottomColor: c.borderSoft,
     gap: 8,
   },
-  infoSub: { color: JE.grey, fontSize: 12 },
+  infoSub: { color: c.textMuted, fontSize: 12 },
   infoChips: { gap: 8, paddingBottom: 10 },
   infoChip: {
     flexDirection: "row", alignItems: "center", gap: 5,
@@ -489,8 +503,8 @@ const s = StyleSheet.create({
 
   // Onglets catégories style JE
   catTabsWrap: {
-    backgroundColor: JE.white,
-    borderBottomWidth: 1, borderBottomColor: JE.border,
+    backgroundColor: c.surface,
+    borderBottomWidth: 1, borderBottomColor: c.borderSoft,
   },
   catTabsRow: { paddingHorizontal: 16, gap: 0 },
   catTab: {
@@ -498,15 +512,15 @@ const s = StyleSheet.create({
     borderBottomWidth: 2, borderBottomColor: "transparent",
   },
   catTabActive: { borderBottomColor: JE.orange },
-  catTabTxt: { fontSize: 13, fontWeight: "600", color: JE.grey },
+  catTabTxt: { fontSize: 13, fontWeight: "600", color: c.textMuted },
   catTabTxtActive: { color: JE.orange, fontWeight: "800" },
 
   // Item menu
   menuItem: {
     flexDirection: "row", gap: 12,
     marginHorizontal: 16, marginTop: 10,
-    backgroundColor: JE.white, borderRadius: 16, padding: 12,
-    borderWidth: 1, borderColor: JE.border,
+    backgroundColor: c.surface, borderRadius: 16, padding: 12,
+    borderWidth: 1, borderColor: c.borderSoft,
     shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
@@ -515,17 +529,17 @@ const s = StyleSheet.create({
   badgeRow: { flexDirection: "row", gap: 5 },
   bestSellerBadge: {
     flexDirection: "row", alignItems: "center", gap: 3,
-    backgroundColor: JE.greenLight, borderRadius: 6,
+    backgroundColor: c.successSoft, borderRadius: 6,
     paddingHorizontal: 6, paddingVertical: 2,
   },
-  bestSellerTxt: { fontSize: 9, fontWeight: "700", color: JE.green },
+  bestSellerTxt: { fontSize: 9, fontWeight: "700", color: c.success },
   customBadge: {
-    backgroundColor: JE.orangeLight, borderRadius: 6,
+    backgroundColor: c.brandSoft, borderRadius: 6,
     paddingHorizontal: 6, paddingVertical: 2,
   },
   customBadgeTxt: { fontSize: 9, fontWeight: "700", color: JE.orange },
-  menuItemName: { color: JE.dark, fontSize: 13, fontWeight: "800", lineHeight: 18 },
-  menuItemDesc: { color: JE.grey, fontSize: 11, lineHeight: 16 },
+  menuItemName: { color: c.text, fontSize: 13, fontWeight: "800", lineHeight: 18 },
+  menuItemDesc: { color: c.textMuted, fontSize: 11, lineHeight: 16 },
   menuItemFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   menuItemPrice: { color: JE.orange, fontSize: 15, fontWeight: "900" },
 
@@ -541,24 +555,24 @@ const s = StyleSheet.create({
   qtyRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   qtyBtnSm: {
     width: 26, height: 26, borderRadius: 13,
-    backgroundColor: JE.greyLight, alignItems: "center", justifyContent: "center",
+    backgroundColor: c.surfaceMuted, alignItems: "center", justifyContent: "center",
   },
   qtyBtnSmActive: { backgroundColor: JE.orange },
-  qtyVal: { color: JE.dark, fontWeight: "800", fontSize: 13, minWidth: 16, textAlign: "center" },
+  qtyVal: { color: c.text, fontWeight: "800", fontSize: 13, minWidth: 16, textAlign: "center" },
 
   // Barre panier sticky
   cartBar: {
     position: "absolute", left: 0, right: 0, bottom: 0,
-    backgroundColor: JE.white,
+    backgroundColor: c.surface,
     paddingHorizontal: 16, paddingBottom: 24, paddingTop: 12,
-    borderTopWidth: 1, borderTopColor: JE.border,
+    borderTopWidth: 1, borderTopColor: c.borderSoft,
     flexDirection: "row", alignItems: "center", gap: 12,
     shadowColor: "#000", shadowOpacity: 0.1,
     shadowRadius: 16, shadowOffset: { width: 0, height: -4 }, elevation: 10,
   },
   cartCount: {
     width: 38, height: 38, borderRadius: 19,
-    backgroundColor: JE.orangeLight, alignItems: "center", justifyContent: "center",
+    backgroundColor: c.brandSoft, alignItems: "center", justifyContent: "center",
   },
   cartCountTxt: { color: JE.orange, fontWeight: "900", fontSize: 15 },
   cartBtn: {
@@ -570,4 +584,5 @@ const s = StyleSheet.create({
   },
   cartBtnLabel: { color: JE.white, fontWeight: "800", fontSize: 15 },
   cartBtnPrice: { color: "rgba(255,255,255,0.85)", fontWeight: "700", fontSize: 14 },
-});
+  });
+}

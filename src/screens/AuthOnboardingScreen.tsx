@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, Pressable,
   SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View,
@@ -32,8 +32,31 @@ export function AuthOnboardingScreen({ navigation }: Props) {
   const [countryPickerVisible, setCountryPickerVisible] = useState(false);
   const [otpVisible, setOtpVisible] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [resendIn, setResendIn] = useState(0);
+  const [isResending, setIsResending] = useState(false);
 
   const otpDigits = useMemo(() => otpCode.padEnd(6, " ").slice(0, 6).split(""), [otpCode]);
+
+  // Compte à rebours avant de pouvoir renvoyer un code.
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const timer = setInterval(() => setResendIn((v) => (v <= 1 ? 0 : v - 1)), 1000);
+    return () => clearInterval(timer);
+  }, [resendIn]);
+
+  const handleResend = async () => {
+    if (resendIn > 0 || isResending) return;
+    setIsResending(true);
+    setErrors((c) => ({ ...c, otp: "" }));
+    const res = await requestEmailAuthCode({ email, fullName });
+    setIsResending(false);
+    if (!res.ok) {
+      setErrors((c) => ({ ...c, otp: res.error || "Échec de l'envoi. Réessayez." }));
+      return;
+    }
+    setOtpCode("");
+    setResendIn(30);
+  };
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -50,24 +73,35 @@ export function AuthOnboardingScreen({ navigation }: Props) {
     const res = await requestEmailAuthCode({ email, fullName });
     setIsSubmitting(false);
     if (!res.ok) { setErrors((c) => ({ ...c, email: res.error || "Échec d'envoi." })); return; }
-    setOtpCode(""); setOtpVisible(true);
+    setOtpCode(""); setOtpVisible(true); setResendIn(30);
   };
 
   const handleOtpSubmit = async () => {
     if (otpCode.length !== 6) { setErrors((c) => ({ ...c, otp: "Code à 6 chiffres requis." })); return; }
     if (!authFlow.challengeId) { setErrors((c) => ({ ...c, otp: "Session expirée. Recommencez." })); return; }
     setIsVerifying(true);
-    const ok = await verifyEmailAuthCode({
-      challengeId: authFlow.challengeId, code: otpCode, email, fullName,
-      phone: `${selectedCountry.code}${phoneNumber.replace(/\D/g, "")}`,
-    });
-    setIsVerifying(false);
-    if (ok) { setOtpVisible(false); navigation.replace("MainTabs"); }
+    try {
+      const ok = await verifyEmailAuthCode({
+        challengeId: authFlow.challengeId, code: otpCode, email, fullName,
+        phone: `${selectedCountry.code}${phoneNumber.replace(/\D/g, "")}`,
+      });
+      setIsVerifying(false);
+      if (ok) { 
+        setOtpVisible(false); 
+        navigation.replace("MainTabs"); 
+      } else {
+        setErrors((c) => ({ ...c, otp: "Code invalide ou expiré. Réessayez." }));
+      }
+    } catch (error) {
+      setIsVerifying(false);
+      console.error("Erreur validation OTP:", error);
+      setErrors((c) => ({ ...c, otp: "Erreur de connexion. Réessayez." }));
+    }
   };
 
   return (
     <SafeAreaView style={s.safe}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
           {/* Header illustration area */}
@@ -155,8 +189,9 @@ export function AuthOnboardingScreen({ navigation }: Props) {
 
         {/* OTP modal */}
         <Modal animationType="slide" transparent visible={otpVisible} onRequestClose={() => setOtpVisible(false)}>
-          <Pressable style={s.overlay} onPress={() => setOtpVisible(false)}>
-            <Pressable style={s.sheet} onPress={() => null}>
+          <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: "flex-end" }}>
+          <View style={s.overlay}>
+            <Pressable style={s.sheet}>
               <View style={s.sheetHandle} />
               <View style={s.otpIconWrap}><Ionicons name="shield-checkmark" size={28} color="#FF7622" /></View>
               <Text style={[s.sheetTitle, alignStart(isRTL)]}>{t("auth_email_verification")}</Text>
@@ -176,8 +211,18 @@ export function AuthOnboardingScreen({ navigation }: Props) {
               <Pressable style={[s.primaryBtn, isVerifying && s.btnDisabled]} onPress={() => void handleOtpSubmit()} disabled={isVerifying}>
                 {isVerifying ? <ActivityIndicator color="#FFF" /> : <Text style={s.primaryBtnText}>{t("auth_validate_account")}</Text>}
               </Pressable>
+              <Pressable style={s.resendBtn} onPress={() => void handleResend()} disabled={resendIn > 0 || isResending}>
+                {isResending ? (
+                  <ActivityIndicator color="#FF7622" size="small" />
+                ) : (
+                  <Text style={[s.resendText, resendIn > 0 && s.resendTextDisabled]}>
+                    {resendIn > 0 ? `Renvoyer le code (${resendIn}s)` : "Renvoyer le code"}
+                  </Text>
+                )}
+              </Pressable>
             </Pressable>
-          </Pressable>
+          </View>
+          </KeyboardAvoidingView>
         </Modal>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -233,4 +278,7 @@ const s = StyleSheet.create({
   otpDigit: { color: "#181C2E", fontSize: 22, fontWeight: "900" },
   otpInput: { minHeight: 54, borderRadius: 16, borderWidth: 1.5, borderColor: "#EFEFEF", backgroundColor: "#FAFAFA", paddingHorizontal: 14, color: "#181C2E", fontSize: 22, letterSpacing: 10, textAlign: "center" },
   otpNote: { color: "#A0A5BA", fontSize: 12, textAlign: "center", lineHeight: 18 },
+  resendBtn: { alignSelf: "center", paddingVertical: 8, minHeight: 32, justifyContent: "center" },
+  resendText: { color: "#FF7622", fontSize: 14, fontWeight: "700" },
+  resendTextDisabled: { color: "#A0A5BA" },
 });

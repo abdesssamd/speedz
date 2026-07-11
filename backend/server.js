@@ -613,6 +613,123 @@ function writeEmailOutbox(items) {
   fs.writeFileSync(outboxFile, JSON.stringify(items, null, 2), "utf8");
 }
 
+// ─── Notifications push (stockage fichier, sans migration de schéma) ───────────
+const pushTokensFile = path.join(dataDir, "push-tokens.json");
+
+function readPushTokens() {
+  try {
+    if (!fs.existsSync(pushTokensFile)) return {};
+    return JSON.parse(fs.readFileSync(pushTokensFile, "utf8")) || {};
+  } catch {
+    return {};
+  }
+}
+
+function writePushTokens(map) {
+  fs.writeFileSync(pushTokensFile, JSON.stringify(map, null, 2), "utf8");
+}
+
+function savePushToken(userId, token) {
+  if (!userId || !token) return;
+  const map = readPushTokens();
+  map[userId] = { token, updatedAt: new Date().toISOString() };
+  writePushTokens(map);
+}
+
+function getPushToken(userId) {
+  if (!userId) return null;
+  const entry = readPushTokens()[userId];
+  return entry?.token || null;
+}
+
+// ─── Publicités (stockage fichier, sans migration de schéma) ──────────────────
+const adsFile = path.join(dataDir, "ads.json");
+
+function readAds() {
+  try {
+    if (!fs.existsSync(adsFile)) return [];
+    return JSON.parse(fs.readFileSync(adsFile, "utf8")) || [];
+  } catch {
+    return [];
+  }
+}
+
+function writeAds(items) {
+  fs.writeFileSync(adsFile, JSON.stringify(items, null, 2), "utf8");
+}
+
+function serializeAd(ad) {
+  return {
+    id: ad.id,
+    title: ad.title,
+    imageUrl: ad.imageUrl,
+    placement: ad.placement,
+    isActive: Boolean(ad.isActive),
+    startsAt: ad.startsAt || null,
+    endsAt: ad.endsAt || null,
+    restaurantId: ad.restaurantId || null,
+    createdAt: ad.createdAt,
+    updatedAt: ad.updatedAt || null,
+  };
+}
+
+function isAdLive(ad, now = new Date()) {
+  if (!ad.isActive) return false;
+  if (ad.startsAt && new Date(ad.startsAt) > now) return false;
+  if (ad.endsAt && new Date(ad.endsAt) < now) return false;
+  return true;
+}
+
+/**
+ * Envoie une notification via l'API Expo Push. Best-effort : n'échoue jamais
+ * l'appelant (log seulement), pour ne pas casser la mise à jour de commande.
+ */
+async function sendExpoPush({ to, title, body, data }) {
+  if (!to || !/^ExponentPushToken\[/.test(to)) return;
+  try {
+    const response = await fetch("https://exp.host/--/api/v2/push/send", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ to, title, body, data: data || {}, sound: "default", priority: "high" }),
+    });
+    if (!response.ok) {
+      console.error("[push] Expo a répondu", response.status);
+    }
+  } catch (error) {
+    console.error("[push] échec envoi notification:", error?.message || error);
+  }
+}
+
+const ORDER_STATUS_PUSH = {
+  CONFIRMED: { title: "Commande confirmée ✅", body: "Votre commande a été confirmée par le restaurant." },
+  PREPARING: { title: "En préparation 👨‍🍳", body: "Votre commande est en cours de préparation." },
+  READY: { title: "Commande prête 🍽️", body: "Votre commande est prête." },
+  ON_THE_WAY: { title: "En route 🛵", body: "Votre livreur est en route !" },
+  OUT_FOR_DELIVERY: { title: "En route 🛵", body: "Votre livreur est en route !" },
+  DELIVERED: { title: "Livrée 🎉", body: "Votre commande a été livrée. Bon appétit !" },
+  CANCELLED: { title: "Commande annulée", body: "Votre commande a été annulée." },
+};
+
+async function notifyOrderStatus(order) {
+  try {
+    const token = getPushToken(order?.userId);
+    if (!token) return;
+    const preset = ORDER_STATUS_PUSH[String(order.status || "").toUpperCase()];
+    if (!preset) return;
+    await sendExpoPush({
+      to: token,
+      title: preset.title,
+      body: preset.body,
+      data: { type: "order-status", orderId: order.id, status: order.status },
+    });
+  } catch (error) {
+    console.error("[push] notifyOrderStatus:", error?.message || error);
+  }
+}
+
 class ApiError extends Error {
   constructor(status, message, code = "API_ERROR", details = undefined) {
     super(message);
@@ -891,6 +1008,36 @@ async function sendEmailMessage({ to, subject, text, html, metadata }) {
     provider: "smtp",
     status: "SENT",
     messageId: result.messageId || entry.id,
+  };
+}
+
+/**
+ * Classe une erreur d'envoi d'email SMTP.
+ * - "invalid-recipient" : l'adresse est refusée/inexistante (erreur utilisateur -> 400)
+ * - "transport"         : SMTP indisponible, auth, DNS, timeout (erreur serveur -> 502)
+ * Ne renvoie jamais le texte brut SMTP au client.
+ */
+function classifyEmailError(error) {
+  const responseCode = Number(error?.responseCode);
+  const code = String(error?.code || "").toUpperCase();
+  const rejected = Array.isArray(error?.rejected) ? error.rejected : [];
+  const isRecipientRejected =
+    rejected.length > 0 ||
+    code === "EENVELOPE" ||
+    (responseCode >= 500 && responseCode < 600);
+
+  if (isRecipientRejected) {
+    return {
+      kind: "invalid-recipient",
+      status: 400,
+      message: "Cette adresse email semble invalide ou injoignable. Vérifiez-la et réessayez.",
+    };
+  }
+
+  return {
+    kind: "transport",
+    status: 502,
+    message: "L'envoi de l'email a échoué. Réessayez dans quelques instants.",
   };
 }
 
@@ -1646,7 +1793,7 @@ app.post("/api/auth/request-code", requestCodeLimiter, validateBody(Schemas.requ
       expiresAt: challenge.expiresAt.toISOString(),
       provider: delivery.provider,
       userExists: Boolean(existingUser),
-      demoCode: delivery.provider === "demo" ? code : undefined,
+      demoCode: process.env.NODE_ENV !== "production" && delivery.provider === "demo" ? code : undefined,
     });
   } catch (error) {
     res.status(502).json({
@@ -1688,12 +1835,14 @@ app.post("/api/auth/request-email-code", requestCodeLimiter, validateBody(Schema
       expiresAt: challenge.expiresAt.toISOString(),
       provider: delivery.provider,
       userExists: Boolean(existingUser),
-      demoCode: delivery.provider === "outbox" ? code : undefined,
+      demoCode: process.env.NODE_ENV !== "production" && delivery.provider === "outbox" ? code : undefined,
     });
   } catch (error) {
-    res.status(502).json({
-      message: error instanceof Error ? error.message : "Envoi email impossible.",
-    });
+    const classified = classifyEmailError(error);
+    if (classified.kind === "transport") {
+      console.error("[request-email-code] échec envoi email:", error);
+    }
+    res.status(classified.status).json({ message: classified.message });
   }
 });
 
@@ -2089,6 +2238,23 @@ app.patch("/api/auth/notification-preferences", optionalAuth, async (req, res) =
   res.json({
     notificationPreferences: serializeNotificationPreferences(updatedUser),
   });
+});
+
+app.post("/api/notifications/register-token", optionalAuth, async (req, res) => {
+  const user = await getAuthenticatedUser(req);
+  if (!user) {
+    res.status(401).json({ message: "Authentification requise." });
+    return;
+  }
+
+  const token = String(req.body?.token || "").trim();
+  if (!/^ExponentPushToken\[.+\]$/.test(token)) {
+    res.status(422).json({ message: "Jeton de notification invalide." });
+    return;
+  }
+
+  savePushToken(user.id, token);
+  res.json({ ok: true });
 });
 
 app.post("/api/auth/login", loginLimiter, validateBody(Schemas.login), wrapAsync(async (req, res) => {
@@ -2751,6 +2917,69 @@ app.get("/api/promotions", async (req, res) => {
   res.json(promotions.map(serializePromotion));
 });
 
+// Publicités actives, filtrables par emplacement (SPLASH | HOME_BANNER).
+app.get("/api/ads", (req, res) => {
+  const placement = String(req.query.placement || "").toUpperCase();
+  const now = new Date();
+  const ads = readAds()
+    .filter((ad) => isAdLive(ad, now))
+    .filter((ad) => (placement ? ad.placement === placement : true))
+    .map(serializeAd);
+  res.json(ads);
+});
+
+app.get("/api/admin/ads", requireAuth, requireAdmin, (_req, res) => {
+  res.json(readAds().map(serializeAd));
+});
+
+app.post("/api/admin/ads", requireAuth, requireAdmin, validateBody(Schemas.createAd), (req, res) => {
+  const ads = readAds();
+  const now = new Date().toISOString();
+  const ad = {
+    id: crypto.randomUUID(),
+    title: req.body.title,
+    imageUrl: req.body.imageUrl,
+    placement: req.body.placement,
+    isActive: req.body.isActive,
+    startsAt: req.body.startsAt || null,
+    endsAt: req.body.endsAt || null,
+    restaurantId: req.body.restaurantId || null,
+    createdAt: now,
+    updatedAt: now,
+  };
+  ads.unshift(ad);
+  writeAds(ads);
+  res.status(201).json(serializeAd(ad));
+});
+
+app.patch("/api/admin/ads/:id", requireAuth, requireAdmin, validateBody(Schemas.updateAd), (req, res) => {
+  const ads = readAds();
+  const index = ads.findIndex((ad) => ad.id === req.params.id);
+  if (index === -1) {
+    res.status(404).json({ message: "Publicité introuvable." });
+    return;
+  }
+  ads[index] = {
+    ...ads[index],
+    ...req.body,
+    restaurantId: req.body.restaurantId !== undefined ? req.body.restaurantId || null : ads[index].restaurantId,
+    updatedAt: new Date().toISOString(),
+  };
+  writeAds(ads);
+  res.json(serializeAd(ads[index]));
+});
+
+app.delete("/api/admin/ads/:id", requireAuth, requireAdmin, (req, res) => {
+  const ads = readAds();
+  const next = ads.filter((ad) => ad.id !== req.params.id);
+  if (next.length === ads.length) {
+    res.status(404).json({ message: "Publicité introuvable." });
+    return;
+  }
+  writeAds(next);
+  res.json({ ok: true });
+});
+
 app.get("/api/menu-categories", async (_req, res) => {
   const categories = await prisma.menuCategory.findMany({
     where: { isActive: true },
@@ -3032,6 +3261,7 @@ async function updateAdminOrderStatus(req, res) {
     include: { restaurant: true, courier: true }
   });
   await emitOrderRealtime(order.id, "order/status-updated");
+  await notifyOrderStatus(order);
   await logAdminAction(req, "order.status_updated", "order", order.id, {
     previousStatus: existingOrder.status,
     nextStatus: order.status,
