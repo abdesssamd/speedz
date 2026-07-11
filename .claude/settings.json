@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -m 10 -o /dev/null -w \"%{http_code}\" https://speedz.microtechdz13.com/api/bootstrap)",
+      "Bash(npx tsc *)",
+      "Bash(curl -s -m 15 -X POST https://speedz.microtechdz13.com/api/auth/request-email-code -H \"Content-Type: application/json\" -d '{\"email\":\"test.speedz.diag@example.com\",\"fullName\":\"Diag Test\"}' -w \"\\\\nHTTP %{http_code}\\\\n\")",
+      "Bash(node -c server.js)",
+      "Bash(grep -rlE \"useColorScheme|prefers-color|darkMode|ThemeProvider|isDark\" src/)",
+      "Bash(grep -rlE \"registerForPush|getExpoPushToken|Notifications\\\\.\" src/ backend/)",
+      "Bash(grep -rlE \"useColorScheme|ThemeProvider|isDark\" src/)",
+      "Bash(grep -rlE \"getExpoPushToken|Notifications\\\\.|registerForPush|pushToken\" src/ backend/)",
+      "Bash(node -e \"console.log\\('node', process.version, 'fetch', typeof fetch\\)\")",
+      "Bash(node -c backend/server.js)",
+      "Bash(npx vite *)",
+      "Bash(node -c security.js)",
+      "Bash(node -e ' *)",
+      "Bash(xargs echo \"fichiers dist trackés:\")",
+      "Bash(curl -s -m 15 -X POST https://speedz.microtechdz13.com/api/auth/request-email-code -H \"Content-Type: application/json\" -d '{\"email\":\"contact@microtechdz13.com\",\"fullName\":\"Test Diag\"}' -w \"\\\\nHTTP %{http_code}\\\\n\")"
+    ]
+  }
+}

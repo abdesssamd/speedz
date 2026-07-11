@@ -997,12 +997,32 @@ async function sendEmailMessage({ to, subject, text, html, metadata }) {
     html,
   });
 
-  entry.status = "SENT";
+  // nodemailer résout même si le serveur SMTP a rejeté certains destinataires.
+  // On vérifie explicitement qu'au moins un destinataire a été accepté, et on
+  // conserve la réponse SMTP brute dans l'outbox pour pouvoir diagnostiquer
+  // (ex: message accepté par le relais mais bloqué ensuite par SPF/DKIM).
+  const accepted = Array.isArray(result.accepted) ? result.accepted : [];
+  const rejected = Array.isArray(result.rejected) ? result.rejected : [];
+  const delivered = accepted.length > 0 && rejected.length === 0;
+
+  entry.status = delivered ? "SENT" : "REJECTED";
   entry.provider = "smtp";
   entry.messageId = result.messageId || null;
+  entry.smtpResponse = result.response || null;
+  entry.accepted = accepted;
+  entry.rejected = rejected;
   entry.sentAt = new Date().toISOString();
   outbox.unshift(entry);
   writeEmailOutbox(outbox);
+
+  if (!delivered) {
+    const error = new Error(
+      `SMTP a rejeté le destinataire (${rejected.join(", ") || "aucun accepté"}). Réponse: ${result.response || "inconnue"}`
+    );
+    error.rejected = rejected;
+    error.responseCode = result.responseCode;
+    throw error;
+  }
 
   return {
     provider: "smtp",
