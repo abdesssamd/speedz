@@ -15,7 +15,14 @@
       "Bash(node -c security.js)",
       "Bash(node -e ' *)",
       "Bash(xargs echo \"fichiers dist trackés:\")",
-      "Bash(curl -s -m 15 -X POST https://speedz.microtechdz13.com/api/auth/request-email-code -H \"Content-Type: application/json\" -d '{\"email\":\"contact@microtechdz13.com\",\"fullName\":\"Test Diag\"}' -w \"\\\\nHTTP %{http_code}\\\\n\")"
+      "Bash(curl -s -m 15 -X POST https://speedz.microtechdz13.com/api/auth/request-email-code -H \"Content-Type: application/json\" -d '{\"email\":\"contact@microtechdz13.com\",\"fullName\":\"Test Diag\"}' -w \"\\\\nHTTP %{http_code}\\\\n\")",
+      "Bash(nslookup -type=TXT microtechdz13.com)",
+      "Bash(nslookup -type=TXT _dmarc.microtechdz13.com)",
+      "Bash(nslookup -type=TXT default._domainkey.microtechdz13.com)",
+      "Bash(nslookup -type=MX microtechdz13.com)",
+      "Bash(nslookup shopdz.microtechdz13.com)",
+      "Bash(nslookup microtechdz13.com)",
+      "Bash(xargs echo \"enregistrements DMARC trouvés:\")"
     ]
   }
 }

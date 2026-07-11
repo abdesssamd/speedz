@@ -31,7 +31,11 @@
   }
 
   .sidebar {
-    @apply sticky top-5 h-[calc(100vh-40px)] rounded-3xl bg-slate-900 text-slate-100 p-4 grid gap-5 shadow-soft overflow-y-auto;
+    @apply sticky top-5 h-[calc(100vh-40px)] rounded-3xl bg-slate-900 text-slate-100 p-4 flex flex-col gap-5 shadow-soft overflow-hidden;
+  }
+
+  .brand-block {
+    @apply shrink-0;
   }
 
   .sidebar-brand-logo {
@@ -51,7 +55,7 @@
   }
 
   .side-nav {
-    @apply grid gap-2;
+    @apply grid gap-2 flex-1 min-h-0 overflow-y-auto content-start pr-1;
   }
 
   .nav-item {
@@ -76,7 +80,7 @@
   }
 
   .side-card {
-    @apply rounded-2xl p-4 bg-white text-slate-900 border border-slate-200 shadow-soft mt-auto;
+    @apply rounded-2xl p-4 bg-white text-slate-900 border border-slate-200 shadow-soft shrink-0 mt-0;
   }
 
   .dark .side-card {
