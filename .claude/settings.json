@@ -22,7 +22,12 @@
       "Bash(nslookup -type=MX microtechdz13.com)",
       "Bash(nslookup shopdz.microtechdz13.com)",
       "Bash(nslookup microtechdz13.com)",
-      "Bash(xargs echo \"enregistrements DMARC trouvés:\")"
+      "Bash(xargs echo \"enregistrements DMARC trouvés:\")",
+      "Bash(curl -s -m 12 -o /dev/null -w '%{http_code}\\\\n' https://speedz.microtechdz13.com/health)",
+      "Bash(curl -s -m 12 -o /dev/null -w '%{http_code}\\\\n' https://speedz.microtechdz13.com/api/ads)",
+      "Bash(curl -s -m 12 -o /dev/null -w '%{http_code}\\\\n' https://speedz.microtechdz13.com/api/restaurants)",
+      "Bash(curl -s -m 12 -o /dev/null -w '%{http_code}\\\\n' https://speedz.microtechdz13.com/api/admin/restaurants)",
+      "Bash(curl -s -m 12 -o /dev/null -w '%{http_code}\\\\n' -X POST https://speedz.microtechdz13.com/api/auth/request-email-code -H 'Content-Type: application/json' -d '{\"email\":\"x@y.com\",\"fullName\":\"t\"}')"
     ]
   }
 }
