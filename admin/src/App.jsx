@@ -591,6 +591,13 @@ function formatMoney(value) {
   return `${Number(value || 0).toFixed(2)} Da`;
 }
 
+// Échappe le texte inséré dans une fenêtre d'impression (fiche de connexion).
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (char) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]
+  ));
+}
+
 function ImagePreview({ src, alt }) {
   if (!src) return null;
   return <img src={src} alt={alt} className="admin-image-preview" />;
@@ -2782,6 +2789,87 @@ export default function App() {
     }
   }
 
+  async function handleRegenerateToken(restaurantId) {
+    if (!window.confirm("Générer un NOUVEAU token ? L'ancien cessera immédiatement de fonctionner et le restaurant devra recoller le nouveau dans l'agent d'impression.")) {
+      return;
+    }
+    try {
+      const payload = await apiRequest(
+        `/api/admin/restaurants/${restaurantId}/regenerate-token`,
+        { method: "POST" },
+        token
+      );
+      setRestaurantQrData(payload);
+      setStatusMessage("Nouveau token généré. Imprimez la fiche ou communiquez-le au restaurant.");
+      await loadAdminData();
+    } catch (error) {
+      setErrorMessage(error.message);
+    }
+  }
+
+  function handleCopyToken(value) {
+    if (!value) {
+      return;
+    }
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(value).then(
+        () => setStatusMessage("Token copié dans le presse-papiers."),
+        () => setErrorMessage("Copie impossible.")
+      );
+    }
+  }
+
+  // Ouvre une fenêtre imprimable : fiche de connexion (token + QR + instructions)
+  // à remettre au restaurant, utile si l'email n'arrive pas.
+  function handlePrintRestaurantCredentials(restaurant, qrData) {
+    const apiToken = qrData?.apiToken || restaurant?.apiToken || "—";
+    const qrUrl = qrData?.qrUrl || restaurant?.qrCodeUrl || "";
+    const qrImg = qrData?.qrDataUrl ? `<img src="${qrData.qrDataUrl}" alt="QR" style="width:220px;height:220px" />` : "";
+    const win = window.open("", "_blank", "width=720,height=900");
+    if (!win) {
+      setErrorMessage("Le navigateur a bloqué la fenêtre d'impression. Autorisez les pop-ups.");
+      return;
+    }
+    win.document.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8" />
+      <title>Fiche de connexion — ${escapeHtml(restaurant?.name || "")}</title>
+      <style>
+        * { box-sizing: border-box; font-family: Segoe UI, Arial, sans-serif; }
+        body { margin: 0; padding: 32px; color: #111827; }
+        h1 { color: #EA580C; margin: 0 0 4px; font-size: 22px; }
+        .sub { color: #6b7280; margin: 0 0 20px; font-size: 13px; }
+        .box { border: 2px solid #EA580C; border-radius: 12px; padding: 16px; margin: 16px 0; }
+        .label { font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: .04em; }
+        .token { font-family: Consolas, monospace; font-size: 18px; font-weight: 800; word-break: break-all; margin-top: 4px; }
+        .row { display: flex; gap: 24px; align-items: flex-start; }
+        ol { line-height: 1.7; font-size: 14px; padding-left: 18px; }
+        .foot { margin-top: 24px; font-size: 12px; color: #9ca3af; }
+      </style></head><body>
+      <h1>SpeedZ — Fiche de connexion</h1>
+      <p class="sub">${escapeHtml(restaurant?.name || "")}${restaurant?.ownerName ? " — " + escapeHtml(restaurant.ownerName) : ""}</p>
+      <div class="row">
+        <div style="flex:1">
+          <div class="box">
+            <div class="label">Votre token (mot de passe de l'agent d'impression)</div>
+            <div class="token">${escapeHtml(apiToken)}</div>
+          </div>
+          <ol>
+            <li>Ouvrez l'application <strong>SpeedZPrinter</strong> sur le PC de caisse.</li>
+            <li>Collez le token ci-dessus, choisissez l'imprimante, cliquez <strong>« Se connecter »</strong>.</li>
+            <li>L'impression des commandes démarre automatiquement.</li>
+            <li>Onglet <strong>« 📊 Mon compte »</strong> : commandes, facturation, lien du menu.</li>
+          </ol>
+        </div>
+        <div style="text-align:center">
+          ${qrImg}
+          <div class="label" style="margin-top:8px">QR de commande client</div>
+        </div>
+      </div>
+      <p class="foot">Lien du menu : ${escapeHtml(qrUrl)}</p>
+      <script>window.onload = function(){ window.print(); }<\/script>
+      </body></html>`);
+    win.document.close();
+  }
+
   async function handleReprintOrder(orderId) {
     try {
       await apiRequest(`/api/admin/orders/${orderId}/reprint`, { method: "POST" }, token);
@@ -3692,7 +3780,7 @@ export default function App() {
 
                         <div className="menu-preview">
                           <div className="panel-subhead">
-                            <h4>QR code restaurant</h4>
+                            <h4>Connexion & QR restaurant</h4>
                             <div className="inline-actions">
                               <button type="button" className="ghost small" onClick={() => handleFetchRestaurantQr(selectedRestaurant.id)}>
                                 Generer QR
@@ -3701,8 +3789,24 @@ export default function App() {
                           </div>
                           <p>Acces direct au menu digital et marquage "QR / Sur place" pour les commandes.</p>
                           <p><strong>Plan:</strong> {formatBillingPlan(selectedRestaurant)}</p>
-                          <p><strong>Token API:</strong> {selectedRestaurant.apiToken || "Genere a la validation admin"}</p>
+                          <p><strong>Token API:</strong> {restaurantQrData?.apiToken || selectedRestaurant.apiToken || "Genere a la validation admin"}</p>
                           <p><strong>QR URL:</strong> {restaurantQrData?.qrUrl || selectedRestaurant.qrCodeUrl || "-"}</p>
+                          <div className="inline-actions" style={{ gap: 8, flexWrap: "wrap", margin: "8px 0" }}>
+                            <button type="button" className="primary-alt" onClick={() => handleRegenerateToken(selectedRestaurant.id)}>
+                              🔑 Nouveau token
+                            </button>
+                            <button
+                              type="button"
+                              className="ghost small"
+                              onClick={() => handleCopyToken(restaurantQrData?.apiToken || selectedRestaurant.apiToken)}
+                              disabled={!(restaurantQrData?.apiToken || selectedRestaurant.apiToken)}
+                            >
+                              Copier le token
+                            </button>
+                            <button type="button" className="ghost small" onClick={() => handlePrintRestaurantCredentials(selectedRestaurant, restaurantQrData)}>
+                              🖨️ Imprimer la fiche
+                            </button>
+                          </div>
                           {restaurantQrData?.qrDataUrl ? (
                             <img src={restaurantQrData.qrDataUrl} alt={`QR ${selectedRestaurant.name}`} className="menu-preview-image" />
                           ) : null}
