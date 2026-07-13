@@ -6,10 +6,10 @@ import win32serviceutil
 from printer_agent import PrinterAgent, load_config, setup_logging
 
 
-class FoodDelyvryPrinterService(win32serviceutil.ServiceFramework):
-    _svc_name_ = "FoodDelyvryPrinterAgent"
-    _svc_display_name_ = "FoodDelyvry Printer Agent"
-    _svc_description_ = "Polls FoodDelyvry backend and prints kitchen tickets automatically."
+class SpeedZPrinterService(win32serviceutil.ServiceFramework):
+    _svc_name_ = "SpeedZPrinterAgent"
+    _svc_display_name_ = "SpeedZ Printer Agent"
+    _svc_description_ = "Interroge le backend SpeedZ et imprime automatiquement les tickets."
 
     def __init__(self, args):
         super().__init__(args)
@@ -20,7 +20,7 @@ class FoodDelyvryPrinterService(win32serviceutil.ServiceFramework):
         win32event.SetEvent(self.stop_event)
 
     def SvcDoRun(self):
-        servicemanager.LogInfoMsg("FoodDelyvryPrinterAgent started")
+        servicemanager.LogInfoMsg("SpeedZPrinterAgent started")
         setup_logging()
         agent = PrinterAgent(load_config())
         try:
@@ -31,4 +31,4 @@ class FoodDelyvryPrinterService(win32serviceutil.ServiceFramework):
 
 
 if __name__ == "__main__":
-    win32serviceutil.HandleCommandLine(FoodDelyvryPrinterService)
+    win32serviceutil.HandleCommandLine(SpeedZPrinterService)

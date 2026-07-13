@@ -8,6 +8,7 @@ import {
   CheckoutDraft,
   CourierDashboard,
   CourierSession,
+  DeliveryConfig,
   Gender,
   LoyaltyEntry,
   Order,
@@ -337,6 +338,9 @@ export const api = {
   getAds(placement?: "SPLASH" | "HOME_BANNER") {
     const suffix = placement ? `?placement=${placement}` : "";
     return request<Ad[]>(`/api/ads${suffix}`);
+  },
+  getDeliveryConfig() {
+    return request<DeliveryConfig>("/api/delivery-config");
   },
   getPromotions(restaurantId?: string) {
     const suffix = restaurantId ? `?restaurantId=${encodeURIComponent(restaurantId)}` : "";

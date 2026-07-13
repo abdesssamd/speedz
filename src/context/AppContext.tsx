@@ -3,7 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { PropsWithChildren, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { fallbackUserLocation, restaurants as fallbackRestaurants } from "../data/mockData";
 import { t as translate } from "../i18n/mobile";
-import { calculateServiceFee, getDeliveryQuote } from "../services/delivery";
+import { calculateServiceFee, getDeliveryQuote, setDeliveryConfig } from "../services/delivery";
 import { api } from "../services/api";
 import { registerForPushNotifications } from "../services/push";
 import {
@@ -552,6 +552,13 @@ export function AppProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     requestLocation();
+  }, []);
+
+  // Charge la config de livraison paramétrée par l'admin (best-effort).
+  useEffect(() => {
+    api.getDeliveryConfig()
+      .then((config) => setDeliveryConfig(config))
+      .catch(() => setDeliveryConfig(null));
   }, []);
 
   useEffect(() => {

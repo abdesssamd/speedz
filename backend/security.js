@@ -293,7 +293,8 @@ const Schemas = {
       businessName: z.string().min(2).max(200),
       restaurantCategory: z.string().min(1).max(100),
       address: z.string().min(5).max(300),
-      billingPlanType: z.enum(["FIXED_PER_ORDER", "PERCENTAGE_PER_ORDER", "MONTHLY_SUBSCRIPTION"]),
+      // Plan de facturation défini par l'admin dans le back-office, pas à l'inscription.
+      billingPlanType: z.enum(["FIXED_PER_ORDER", "PERCENTAGE_PER_ORDER", "MONTHLY_SUBSCRIPTION"]).optional().default("FIXED_PER_ORDER"),
       billingFixedFee: z.number().min(0).optional(),
       billingPercentage: z.number().min(0).max(100).optional(),
       monthlySubscriptionFee: z.number().min(0).optional(),
@@ -404,6 +405,21 @@ const Schemas = {
     restaurantId: z.string().nullable().optional(),
   }),
 
+  // Admin: configuration de livraison (au km ou par zone)
+  deliveryConfig: z.object({
+    mode: z.enum(["PER_KM", "PER_ZONE"]),
+    perKm: z.object({
+      baseFee: z.number().min(0).max(100000),
+      pricePerKm: z.number().min(0).max(100000),
+      freeUnderKm: z.number().min(0).max(1000),
+    }),
+    zones: z.array(z.object({
+      label: z.string().min(1).max(60),
+      maxDistanceKm: z.number().min(0).max(100000),
+      fee: z.number().min(0).max(100000),
+    })).min(1, "Au moins une zone est requise").max(12),
+  }),
+
   // Admin: create ad (publicité)
   createAd: z.object({
     title: z.string().min(2).max(120).trim(),
@@ -424,6 +440,14 @@ const Schemas = {
     startsAt: z.string().datetime().nullable().optional(),
     endsAt: z.string().datetime().nullable().optional(),
     restaurantId: z.string().nullable().optional(),
+  }),
+
+  // Admin: enregistrer un versement d'un restaurant
+  createSettlement: z.object({
+    amount: z.coerce.number().positive("Montant invalide").max(10000000),
+    method: z.string().max(60).trim().optional(),
+    note: z.string().max(500).trim().optional(),
+    paidAt: z.string().datetime().optional(),
   }),
 
   // Admin: update order status

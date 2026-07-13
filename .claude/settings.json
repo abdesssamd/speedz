@@ -33,7 +33,15 @@
       "Bash(curl -s -m 12 -o /dev/null -w '%{http_code}\\\\n' https://speedz.microtechdz13.com/assets/index-BM62NRXQ.css)",
       "Bash(curl -s -m 12 -o /dev/null -w '%{http_code}\\\\n' https://speedz.microtechdz13.com/assets/index-DwkaTeBg.js)",
       "Bash(curl -s -m 12 -D - -o /dev/null https://speedz.microtechdz13.com/)",
-      "Bash(curl -s -m 12 https://speedz.microtechdz13.com/assets/index-BM62NRXQ.css)"
+      "Bash(curl -s -m 12 https://speedz.microtechdz13.com/assets/index-BM62NRXQ.css)",
+      "Bash(xargs wc -l)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('printer_agent.py',encoding='utf-8'\\).read\\(\\)\\); print\\('python syntax OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('windows_service.py',encoding='utf-8'\\).read\\(\\)\\); print\\('service OK'\\)\")",
+      "Bash(npm run *)",
+      "Bash(timeout 8 node -e \"process.env.SKIP_LISTEN='1'; require\\('./server.js'\\); console.log\\('LOADED OK'\\);\")",
+      "Bash(powershell.exe -NoProfile -Command \"Get-PSDrive E | Select-Object Used,Free\")",
+      "Bash(python -m py_compile speedz_printer_gui.py printer_agent.py)",
+      "Bash(python3 -m py_compile speedz_printer_gui.py printer_agent.py)"
     ]
   }
 }

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { SafeAreaView, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import { AnimatedCard } from "../components/AnimatedCard";
 import { EmptyState } from "../components/EmptyState";
@@ -83,6 +83,23 @@ export function RestaurantHubScreen() {
     setDraftIngredients("");
   };
 
+  const shareMenuLink = async () => {
+    const link = currentRestaurantAccount.menuQrValue;
+    try {
+      await Share.share({
+        message: `📋 Menu ${currentRestaurant.name} — commandez en ligne : ${link}`,
+        url: link,
+        title: `Menu ${currentRestaurant.name}`,
+      });
+    } catch {
+      pushNotification({
+        title: t("missing_information"),
+        message: link,
+        tone: "error",
+      });
+    }
+  };
+
   const submitTable = () => {
     const seats = Number(tableSeats);
     if (!tableLabel.trim() || !seats) {
@@ -150,6 +167,9 @@ export function RestaurantHubScreen() {
               <Text style={styles.qrText}>{currentRestaurantAccount.contactEmail}</Text>
             </View>
           </View>
+          <ScalePressable containerStyle={styles.shareButton} onPress={shareMenuLink}>
+            <Text style={styles.shareButtonText}>🔗 Partager le lien du menu</Text>
+          </ScalePressable>
         </AnimatedCard>
 
         <AnimatedCard style={styles.formCard}>
@@ -388,6 +408,8 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 12,
   },
+  shareButton: { backgroundColor: "#EA580C", borderRadius: 14, paddingVertical: 12, alignItems: "center" },
+  shareButtonText: { color: "#FFFFFF", fontWeight: "800", fontSize: 13 },
   qrRow: { flexDirection: "row", gap: 12, alignItems: "center" },
   qrBox: { backgroundColor: "#FFFFFF", borderRadius: 16, padding: 10 },
   qrDetails: { flex: 1, gap: 4 },

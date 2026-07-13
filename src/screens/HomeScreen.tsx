@@ -202,34 +202,6 @@ export function HomeScreen() {
 
   const firstName = user.firstName?.trim() || user.name?.split(" ")[0] || "vous";
 
-  // Promos — scroll horizontal statique (style JE)
-  const PROMOS = [
-    {
-      id: "p1",
-      title: "Livraison gratuite",
-      sub: "1ère commande dès 800 DA",
-      emoji: "🎁",
-      color: JE.orange,
-      bg: JE.orangeLight,
-    },
-    {
-      id: "p2",
-      title: "Les mieux notés ⭐",
-      sub: "Découvrez les tops restos",
-      emoji: "🏆",
-      color: "#3B82F6",
-      bg: "#EFF6FF",
-    },
-    {
-      id: "p3",
-      title: "Express 20 min ⚡",
-      sub: "Disponibles maintenant",
-      emoji: "🛵",
-      color: JE.green,
-      bg: JE.greenLight,
-    },
-  ];
-
   const renderRestaurant = useCallback(
     ({ item, index }: { item: typeof visible[number]; index: number }) => {
       const dq = getDeliveryQuote(currentLocation.coordinates, item.coordinates);
@@ -326,22 +298,6 @@ export function HomeScreen() {
             ))}
           </ScrollView>
         )}
-
-        {/* Promos horizontales scrollables */}
-        <Text style={[s.sectionTitle, { color: c.text }]}>🔥 Offres du moment</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={s.promoRow}
-        >
-          {PROMOS.map((p) => (
-            <TouchableOpacity key={p.id} style={[s.promoCard, { backgroundColor: p.bg }]} activeOpacity={0.85}>
-              <Text style={s.promoEmoji}>{p.emoji}</Text>
-              <Text style={[s.promoTitle, { color: p.color }]}>{p.title}</Text>
-              <Text style={s.promoSub}>{p.sub}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
 
         {/* Catégories en bulles */}
         <Text style={[s.sectionTitle, { color: c.text }]}>Catégories</Text>
@@ -440,10 +396,10 @@ const s = StyleSheet.create({
   // ── Header orange ────────────────────────────────────────────────────────
   jeHeader: {
     backgroundColor: JE.orange,
-    paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) + 6 : 6,
+    paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) + 4 : 4,
     paddingHorizontal: 18,
-    paddingBottom: 10,
-    gap: 4,
+    paddingBottom: 8,
+    gap: 2,
   },
   jeTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   locPill: {
@@ -457,15 +413,15 @@ const s = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.22)",
     alignItems: "center", justifyContent: "center",
   },
-  greeting: { color: JE.white, fontSize: 17, fontWeight: "900" },
+  greeting: { color: JE.white, fontSize: 15, fontWeight: "900" },
   searchBar: {
     flexDirection: "row", alignItems: "center", gap: 8,
     backgroundColor: JE.white, borderRadius: 12,
-    paddingHorizontal: 12, paddingVertical: 8,
+    paddingHorizontal: 12, paddingVertical: 6, marginTop: 2,
   },
-  searchPlaceholder: { flex: 1, color: "#A0A5BA", fontSize: 14, fontWeight: "500" },
+  searchPlaceholder: { flex: 1, color: "#A0A5BA", fontSize: 13, fontWeight: "500" },
   searchFilter: {
-    width: 30, height: 30, borderRadius: 15,
+    width: 26, height: 26, borderRadius: 13,
     backgroundColor: JE.orangeLight, alignItems: "center", justifyContent: "center",
   },
 

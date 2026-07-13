@@ -65,7 +65,7 @@ function TabsNavigator() {
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: "#EA580C",
-        tabBarInactiveTintColor: "#7C6F64",
+        tabBarInactiveTintColor: "#475569",
         tabBarStyle: {
           height: tabBarHeight,
           borderTopWidth: 0,
@@ -91,26 +91,27 @@ function TabsNavigator() {
         tabBarItemStyle: {
           paddingVertical: 2,
         },
-        tabBarIcon: ({ color, size }) => {
-          const iconMap: Record<keyof TabParamList, keyof typeof Ionicons.glyphMap> = {
-            Home: "sparkles",
-            Explore: "search",
-            Cart: "bag-handle",
-            Orders: "receipt",
-            Profile: "person-circle",
+        tabBarIcon: ({ color, focused }) => {
+          // Icônes pleines quand actif, contour quand inactif : plus lisible.
+          const iconMap: Record<keyof TabParamList, [keyof typeof Ionicons.glyphMap, keyof typeof Ionicons.glyphMap]> = {
+            Home: ["home", "home-outline"],
+            Explore: ["restaurant", "restaurant-outline"],
+            Cart: ["bag-handle", "bag-handle-outline"],
+            Orders: ["receipt", "receipt-outline"],
+            Profile: ["person-circle", "person-circle-outline"],
           };
 
-          const isActive = color === "#EA580C";
+          const [activeIcon, inactiveIcon] = iconMap[route.name as keyof TabParamList];
           return (
             <View
               style={{
-                backgroundColor: isActive ? "#FFF1E8" : "transparent",
-                paddingHorizontal: 10,
+                backgroundColor: focused ? "#FFF1E8" : "transparent",
+                paddingHorizontal: 12,
                 paddingVertical: 6,
                 borderRadius: 999,
               }}
             >
-              <Ionicons name={iconMap[route.name as keyof TabParamList]} size={size} color={color} />
+              <Ionicons name={focused ? activeIcon : inactiveIcon} size={24} color={color} />
             </View>
           );
         },

@@ -25,6 +25,7 @@ import {
   Trash2,
   User,
   Users,
+  Wallet,
   X,
 } from "lucide-react";
 import { AdminDialog } from "./components/AdminDialog";
@@ -674,6 +675,12 @@ function isNumeric(value) {
   return value !== "" && !Number.isNaN(Number(value));
 }
 
+// Imprimante "en ligne" si un heartbeat a été reçu il y a moins de 90 s.
+function isPrinterOnline(restaurant) {
+  if (!restaurant?.printerLastSeenAt) return false;
+  return Date.now() - new Date(restaurant.printerLastSeenAt).getTime() < 90 * 1000;
+}
+
 function submitFormById(formId) {
   if (typeof document === "undefined") {
     return;
@@ -1045,6 +1052,12 @@ export default function App() {
     restaurantId: "",
     isActive: true,
   });
+  const [deliveryConfig, setDeliveryConfig] = useState(null);
+  const [deliverySaving, setDeliverySaving] = useState(false);
+  const [billingOverview, setBillingOverview] = useState({ restaurants: [], settlements: [] });
+  const [settlementTarget, setSettlementTarget] = useState(null);
+  const [settlementForm, setSettlementForm] = useState({ amount: "", method: "", note: "" });
+  const [settlementSaving, setSettlementSaving] = useState(false);
   const [ads, setAds] = useState([]);
   const [showAdModal, setShowAdModal] = useState(false);
   const [selectedAd, setSelectedAd] = useState(null);
@@ -1907,6 +1920,8 @@ export default function App() {
         promotionResult,
         reportResult,
         adsResult,
+        deliveryResult,
+        billingResult,
       ] = await Promise.all([
         loadResource("restaurants", "/api/admin/restaurants", []),
         loadResource("commandes", "/api/admin/orders", []),
@@ -1918,6 +1933,8 @@ export default function App() {
         loadResource("promotions", "/api/admin/promotions", []),
         loadResource("rapports", "/api/admin/reports/summary", null),
         loadResource("publicites", "/api/admin/ads", []),
+        loadResource("livraison", "/api/admin/delivery-config", null),
+        loadResource("versements", "/api/admin/billing-overview", { restaurants: [], settlements: [] }),
       ]);
 
       const failedResults = [
@@ -1931,6 +1948,8 @@ export default function App() {
         promotionResult,
         reportResult,
         adsResult,
+        deliveryResult,
+        billingResult,
       ].filter((result) => result.error);
 
       const restaurantData = restaurantResult.data;
@@ -1971,6 +1990,15 @@ export default function App() {
       setPromotions(promotionItems);
       setReports(reportData);
       setAds(asList(adsResult.data));
+      if (deliveryResult.data) {
+        setDeliveryConfig(deliveryResult.data);
+      }
+      if (billingResult.data) {
+        setBillingOverview({
+          restaurants: asList(billingResult.data.restaurants),
+          settlements: asList(billingResult.data.settlements),
+        });
+      }
       previousOrdersRef.current = orderItems;
       previousApplicationsRef.current = applicationItems;
       setLastSyncAt(new Date().toLocaleTimeString(language === "ar" ? "ar-DZ" : "fr-FR", {
@@ -2754,6 +2782,15 @@ export default function App() {
     }
   }
 
+  async function handleReprintOrder(orderId) {
+    try {
+      await apiRequest(`/api/admin/orders/${orderId}/reprint`, { method: "POST" }, token);
+      setStatusMessage("Ticket renvoyé à l'imprimante du restaurant.");
+    } catch (error) {
+      setErrorMessage(error.message);
+    }
+  }
+
   async function handleAssignCourier(orderId, courierId) {
     try {
       await apiRequest(
@@ -2958,6 +2995,117 @@ export default function App() {
       await loadAdminData();
     } catch (error) {
       setAdErrors({ submit: error.message });
+    }
+  }
+
+  // ─── Configuration de livraison ─────────────────────────────────────────
+  function updateDeliveryField(path, value) {
+    setDeliveryConfig((current) => {
+      if (!current) return current;
+      const next = { ...current, perKm: { ...current.perKm }, zones: current.zones.map((z) => ({ ...z })) };
+      if (path === "mode") next.mode = value;
+      else if (path.startsWith("perKm.")) next.perKm[path.slice(6)] = value;
+      return next;
+    });
+  }
+
+  function updateDeliveryZone(index, key, value) {
+    setDeliveryConfig((current) => {
+      if (!current) return current;
+      const zones = current.zones.map((z, i) => (i === index ? { ...z, [key]: value } : z));
+      return { ...current, zones };
+    });
+  }
+
+  function addDeliveryZone() {
+    setDeliveryConfig((current) => {
+      if (!current) return current;
+      return { ...current, zones: [...current.zones, { label: "Nouvelle zone", maxDistanceKm: 10, fee: 0 }] };
+    });
+  }
+
+  function removeDeliveryZone(index) {
+    setDeliveryConfig((current) => {
+      if (!current || current.zones.length <= 1) return current;
+      return { ...current, zones: current.zones.filter((_, i) => i !== index) };
+    });
+  }
+
+  async function handleSaveDeliveryConfig() {
+    if (!deliveryConfig) return;
+    setDeliverySaving(true);
+    try {
+      const payload = {
+        mode: deliveryConfig.mode === "PER_KM" ? "PER_KM" : "PER_ZONE",
+        perKm: {
+          baseFee: Number(deliveryConfig.perKm?.baseFee) || 0,
+          pricePerKm: Number(deliveryConfig.perKm?.pricePerKm) || 0,
+          freeUnderKm: Number(deliveryConfig.perKm?.freeUnderKm) || 0,
+        },
+        zones: (deliveryConfig.zones || []).map((z) => ({
+          label: String(z.label || "Zone").trim() || "Zone",
+          maxDistanceKm: Number(z.maxDistanceKm) || 0,
+          fee: Number(z.fee) || 0,
+        })),
+      };
+      const saved = await apiRequest("/api/admin/delivery-config", { method: "PUT", body: JSON.stringify(payload) }, token);
+      setDeliveryConfig(saved);
+      setStatusMessage("Configuration de livraison enregistree.");
+    } catch (error) {
+      setErrorMessage(error.message);
+    } finally {
+      setDeliverySaving(false);
+    }
+  }
+
+  function openSettlementModal(row) {
+    setSettlementTarget(row);
+    setSettlementForm({
+      amount: row?.balance > 0 ? String(row.balance) : "",
+      method: "",
+      note: "",
+    });
+  }
+
+  async function handleRecordSettlement() {
+    if (!settlementTarget) return;
+    const amount = Number(settlementForm.amount);
+    if (!amount || amount <= 0) {
+      setErrorMessage("Saisissez un montant de versement valide.");
+      return;
+    }
+    setSettlementSaving(true);
+    try {
+      await apiRequest(
+        `/api/admin/restaurants/${settlementTarget.restaurantId}/settlements`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            amount,
+            method: settlementForm.method.trim() || undefined,
+            note: settlementForm.note.trim() || undefined,
+          }),
+        },
+        token
+      );
+      setStatusMessage(`Versement de ${amount} enregistré pour ${settlementTarget.name}.`);
+      setSettlementTarget(null);
+      await loadAdminData();
+    } catch (error) {
+      setErrorMessage(error.message);
+    } finally {
+      setSettlementSaving(false);
+    }
+  }
+
+  async function handleDeleteSettlement(entry) {
+    if (!window.confirm("Supprimer ce versement ?")) return;
+    try {
+      await apiRequest(`/api/admin/settlements/${entry.id}`, { method: "DELETE" }, token);
+      setStatusMessage("Versement supprimé.");
+      await loadAdminData();
+    } catch (error) {
+      setErrorMessage(error.message);
     }
   }
 
@@ -3298,6 +3446,8 @@ export default function App() {
             { id: "categories", label: t("categories_nav"), icon: Tags },
             { id: "promotions", label: t("promotions_nav"), icon: Sparkles },
             { id: "ads", label: "Publicités", icon: Megaphone },
+            { id: "delivery", label: "Livraison", icon: Bike },
+            { id: "versements", label: "Versements", icon: Wallet },
             { id: "reports", label: t("reports_nav"), icon: BarChart2 },
             { id: "create", label: t("new_restaurant"), icon: Plus },
           ].map((item) => (
@@ -3477,6 +3627,9 @@ export default function App() {
                           <span>{restaurant.menu.length} {t("dishes")}</span>
                           <span className={`status-pill ${restaurant.isActive ? "success" : "neutral"}`}>
                             {restaurant.isActive ? t("active") : t("inactive")}
+                          </span>
+                          <span className={`status-pill ${isPrinterOnline(restaurant) ? "success" : "neutral"}`}>
+                            🖨 {isPrinterOnline(restaurant) ? "En ligne" : "Hors ligne"}
                           </span>
                         </div>
                       </button>
@@ -3690,6 +3843,9 @@ export default function App() {
                           </button>
                           <button className="ghost small" onClick={() => handlePrintKitchenTicket(order)}>
                             🖨 Ticket
+                          </button>
+                          <button className="ghost small" onClick={() => handleReprintOrder(order.id)}>
+                            🔁 Réimprimer resto
                           </button>
                           <button className="ghost small danger-outline" onClick={() => handleCancelOrder(order)}>
                             Annuler / rejeter
@@ -4912,6 +5068,192 @@ export default function App() {
               </article>
             )}
 
+            {activeView === "delivery" && (
+              <article className="panel">
+                <div className="panel-head">
+                  <div>
+                    <h3>Tarification de la livraison</h3>
+                    <p>Définissez le coût de livraison au kilomètre ou par zone géographique.</p>
+                  </div>
+                  <button className="primary-alt" onClick={handleSaveDeliveryConfig} disabled={deliverySaving || !deliveryConfig}>
+                    {deliverySaving ? "Enregistrement…" : "Enregistrer"}
+                  </button>
+                </div>
+
+                {!deliveryConfig ? (
+                  <p className="muted" style={{ padding: "24px 0", textAlign: "center" }}>Chargement de la configuration…</p>
+                ) : (
+                  <div className="stack" style={{ gap: 18 }}>
+                    {/* Choix du mode */}
+                    <div className="inline-actions" style={{ gap: 8 }}>
+                      <button
+                        className={`ghost ${deliveryConfig.mode === "PER_ZONE" ? "selected" : ""}`}
+                        onClick={() => updateDeliveryField("mode", "PER_ZONE")}
+                      >
+                        Par zone
+                      </button>
+                      <button
+                        className={`ghost ${deliveryConfig.mode === "PER_KM" ? "selected" : ""}`}
+                        onClick={() => updateDeliveryField("mode", "PER_KM")}
+                      >
+                        Au kilomètre
+                      </button>
+                    </div>
+
+                    {deliveryConfig.mode === "PER_KM" ? (
+                      <div className="split form-grid">
+                        <FormField label="Frais de base (DA)" hint="Ajouté à chaque livraison payante.">
+                          <input type="number" min="0" value={deliveryConfig.perKm?.baseFee ?? 0}
+                            onChange={(e) => updateDeliveryField("perKm.baseFee", e.target.value)} />
+                        </FormField>
+                        <FormField label="Prix par km (DA)">
+                          <input type="number" min="0" value={deliveryConfig.perKm?.pricePerKm ?? 0}
+                            onChange={(e) => updateDeliveryField("perKm.pricePerKm", e.target.value)} />
+                        </FormField>
+                        <FormField label="Gratuit sous (km)" hint="Livraison offerte en dessous de cette distance.">
+                          <input type="number" min="0" value={deliveryConfig.perKm?.freeUnderKm ?? 0}
+                            onChange={(e) => updateDeliveryField("perKm.freeUnderKm", e.target.value)} />
+                        </FormField>
+                      </div>
+                    ) : (
+                      <div className="stack" style={{ gap: 10 }}>
+                        <div className="panel-subhead">
+                          <h4 className="table-headline">Zones (par distance croissante)</h4>
+                          <button className="ghost small" onClick={addDeliveryZone}>+ Ajouter une zone</button>
+                        </div>
+                        {deliveryConfig.zones.map((zone, index) => (
+                          <div key={index} className="split form-grid" style={{ alignItems: "end", gap: 10 }}>
+                            <FormField label="Nom de la zone">
+                              <input value={zone.label}
+                                onChange={(e) => updateDeliveryZone(index, "label", e.target.value)} />
+                            </FormField>
+                            <FormField label="Jusqu'à (km)">
+                              <input type="number" min="0" value={zone.maxDistanceKm}
+                                onChange={(e) => updateDeliveryZone(index, "maxDistanceKm", e.target.value)} />
+                            </FormField>
+                            <FormField label="Frais (DA)">
+                              <input type="number" min="0" value={zone.fee}
+                                onChange={(e) => updateDeliveryZone(index, "fee", e.target.value)} />
+                            </FormField>
+                            <button className="ghost small" onClick={() => removeDeliveryZone(index)}
+                              disabled={deliveryConfig.zones.length <= 1}>Supprimer</button>
+                          </div>
+                        ))}
+                        <p className="muted" style={{ fontSize: 12 }}>
+                          La dernière zone (distance la plus grande) s'applique au-delà de toutes les autres.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </article>
+            )}
+
+            {activeView === "versements" && (
+              <article className="panel">
+                <div className="panel-head">
+                  <div>
+                    <h3>Versements des restaurants</h3>
+                    <p>Ce que chaque restaurant doit à la plateforme (commission, frais ou abonnement) et ce qu'il a déjà versé.</p>
+                  </div>
+                  <button className="ghost" onClick={() => loadAdminData()}>{t("refresh")}</button>
+                </div>
+
+                {(() => {
+                  const rows = billingOverview.restaurants || [];
+                  const totalDue = rows.reduce((s, r) => s + (r.amountDue || 0), 0);
+                  const totalPaid = rows.reduce((s, r) => s + (r.totalPaid || 0), 0);
+                  const totalBalance = rows.reduce((s, r) => s + (r.balance || 0), 0);
+                  return (
+                    <div className="stack" style={{ gap: 16 }}>
+                      <section className="stats-grid">
+                        <article className="stat-card"><p>Total dû</p><strong>{formatMoney(totalDue)}</strong></article>
+                        <article className="stat-card"><p>Total versé</p><strong>{formatMoney(totalPaid)}</strong></article>
+                        <article className="stat-card"><p>Solde restant</p><strong>{formatMoney(totalBalance)}</strong></article>
+                      </section>
+
+                      {rows.length === 0 ? (
+                        <p className="muted" style={{ padding: "24px 0", textAlign: "center" }}>Aucun restaurant à facturer pour le moment.</p>
+                      ) : (
+                        <div className="data-table-wrap">
+                          <table className="data-table">
+                            <thead>
+                              <tr>
+                                <th>Restaurant</th>
+                                <th>Plan</th>
+                                <th>Commandes</th>
+                                <th>CA livré</th>
+                                <th>Dû</th>
+                                <th>Versé</th>
+                                <th>Solde</th>
+                                <th></th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {rows.map((row) => (
+                                <tr key={row.restaurantId}>
+                                  <td><strong>{row.name}</strong></td>
+                                  <td><span className="muted">{row.planLabel}</span></td>
+                                  <td>{row.deliveredCount}/{row.ordersCount}</td>
+                                  <td>{formatMoney(row.grossSales)}</td>
+                                  <td>{formatMoney(row.amountDue)}</td>
+                                  <td>{formatMoney(row.totalPaid)}</td>
+                                  <td>
+                                    <strong style={{ color: row.balance > 0 ? "#dc2626" : "#16a34a" }}>
+                                      {formatMoney(row.balance)}
+                                    </strong>
+                                  </td>
+                                  <td>
+                                    <button className="primary-alt" onClick={() => openSettlementModal(row)}>
+                                      + Versement
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+
+                      <div className="panel-subhead">
+                        <h4 className="table-headline">Derniers versements</h4>
+                      </div>
+                      {(billingOverview.settlements || []).length === 0 ? (
+                        <p className="muted" style={{ fontSize: 13 }}>Aucun versement enregistré.</p>
+                      ) : (
+                        <div className="data-table-wrap">
+                          <table className="data-table">
+                            <thead>
+                              <tr><th>Date</th><th>Restaurant</th><th>Montant</th><th>Méthode</th><th>Note</th><th></th></tr>
+                            </thead>
+                            <tbody>
+                              {billingOverview.settlements.map((s) => {
+                                const resto = rows.find((r) => r.restaurantId === s.restaurantId);
+                                return (
+                                  <tr key={s.id}>
+                                    <td>{formatOrderCreatedAt(s.paidAt)}</td>
+                                    <td>{resto?.name || s.restaurantId}</td>
+                                    <td><strong>{formatMoney(s.amount)}</strong></td>
+                                    <td>{s.method || "—"}</td>
+                                    <td>{s.note || "—"}</td>
+                                    <td>
+                                      <button className="ghost small" title="Supprimer" onClick={() => handleDeleteSettlement(s)}>
+                                        <Trash2 size={16} />
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </article>
+            )}
+
             {activeView === "reports" && (
               <article className="panel">
                 <div className="panel-head">
@@ -5065,6 +5407,55 @@ export default function App() {
             </div>
           </FormSection>
         </form>
+      </AdminDialog>
+
+      <AdminDialog
+        open={Boolean(settlementTarget)}
+        title="Enregistrer un versement"
+        subtitle={settlementTarget ? `${settlementTarget.name} — solde restant ${formatMoney(settlementTarget.balance)}` : ""}
+        eyebrowLabel="Versements"
+        onClose={() => setSettlementTarget(null)}
+        actions={
+          <>
+            <button type="button" className="btn-modal-ghost" onClick={() => setSettlementTarget(null)}>
+              Annuler
+            </button>
+            <button type="button" className="btn-modal-primary" onClick={handleRecordSettlement} disabled={settlementSaving}>
+              {settlementSaving ? "Enregistrement…" : "Enregistrer"}
+            </button>
+          </>
+        }
+      >
+        <div className="stack compact-stack form-layout">
+          <FormSection title="Détails du versement" hint="Montant reçu du restaurant pour régler ce qu'il doit à la plateforme.">
+            <FormField label="Montant (Da)">
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={settlementForm.amount}
+                onChange={(event) => setSettlementForm({ ...settlementForm, amount: event.target.value })}
+                placeholder="0.00"
+              />
+            </FormField>
+            <div className="split form-grid">
+              <FormField label="Méthode" hint="Espèces, virement, chèque…">
+                <input
+                  value={settlementForm.method}
+                  onChange={(event) => setSettlementForm({ ...settlementForm, method: event.target.value })}
+                  placeholder="Espèces"
+                />
+              </FormField>
+              <FormField label="Note (optionnel)">
+                <input
+                  value={settlementForm.note}
+                  onChange={(event) => setSettlementForm({ ...settlementForm, note: event.target.value })}
+                  placeholder="Réf. / commentaire"
+                />
+              </FormField>
+            </div>
+          </FormSection>
+        </div>
       </AdminDialog>
 
       <AdminDialog

@@ -14,6 +14,12 @@ export type DeliveryTier = {
   fee: number;
 };
 
+export type DeliveryConfig = {
+  mode: "PER_KM" | "PER_ZONE";
+  perKm: { baseFee: number; pricePerKm: number; freeUnderKm: number };
+  zones: DeliveryTier[];
+};
+
 export type MenuOptionChoice = {
   id: string;
   name: string;

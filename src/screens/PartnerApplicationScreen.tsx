@@ -7,11 +7,6 @@ import { api } from "../services/api";
 import { PartnerApplicationInput, PartnerApplicationType } from "../types";
 
 const vehicleOptions = ["Moto", "Voiture", "Velo electrique"];
-const billingPlans = [
-  { id: "FIXED_PER_ORDER", label: "Frais fixe / commande" },
-  { id: "PERCENTAGE_PER_ORDER", label: "Pourcentage / montant" },
-  { id: "MONTHLY_SUBSCRIPTION", label: "Abonnement mensuel" },
-] as const;
 
 type Props = {
   route: {
@@ -50,12 +45,10 @@ export function PartnerApplicationScreen({ route }: Props) {
   const isRestaurant = form.type === "RESTAURANT";
   const canSubmit = useMemo(() => {
     const baseValid = form.applicantName.trim() && form.email.trim() && form.phone.trim() && form.city.trim();
-    const restaurantPlanValid =
-      (form.billingPlanType === "PERCENTAGE_PER_ORDER" && String(form.billingPercentage || "").trim()) ||
-      (form.billingPlanType === "MONTHLY_SUBSCRIPTION" && String(form.monthlySubscriptionFee || "").trim()) ||
-      ((!form.billingPlanType || form.billingPlanType === "FIXED_PER_ORDER") && String(form.billingFixedFee || "").trim());
+    // Le plan de facturation (restaurant) et la rémunération (livreur) sont
+    // désormais définis par l'administrateur, pas saisis à l'inscription.
     return Boolean(isRestaurant
-      ? baseValid && form.businessName?.trim() && form.address?.trim() && restaurantPlanValid
+      ? baseValid && form.businessName?.trim() && form.address?.trim()
       : baseValid && form.vehicle?.trim());
   }, [form, isRestaurant]);
 
@@ -75,7 +68,18 @@ export function PartnerApplicationScreen({ route }: Props) {
 
     setSubmitting(true);
     try {
-      await api.submitPartnerApplication(form);
+      // On n'envoie pas les champs commerciaux gérés par l'admin
+      // (plan de facturation restaurant, rémunération livreur).
+      const {
+        billingPlanType: _bpt,
+        billingFixedFee: _bff,
+        billingPercentage: _bp,
+        monthlySubscriptionFee: _msf,
+        payPerDelivery: _ppd,
+        payPerKm: _ppk,
+        ...payload
+      } = form;
+      await api.submitPartnerApplication(payload);
       pushNotification({
         title: t("application_success"),
         message: t("application_success_msg"),
@@ -126,50 +130,6 @@ export function PartnerApplicationScreen({ route }: Props) {
               <TextInput value={form.businessName} onChangeText={(value) => setField("businessName", value)} placeholder={t("business_name")} style={[styles.input, { textAlign: isRTL ? "right" : "left" }]} />
               <TextInput value={form.restaurantCategory} onChangeText={(value) => setField("restaurantCategory", value)} placeholder={t("restaurant_category")} style={[styles.input, { textAlign: isRTL ? "right" : "left" }]} />
               <TextInput value={form.address} onChangeText={(value) => setField("address", value)} placeholder={t("applicant_address")} style={[styles.input, { textAlign: isRTL ? "right" : "left" }]} />
-              <View style={styles.vehicleSection}>
-                <Text style={[styles.vehicleLabel, { textAlign: isRTL ? "right" : "left" }]}>{t("business_plan")}</Text>
-                <View style={styles.vehicleRow}>
-                  {billingPlans.map((plan) => {
-                    const active = (form.billingPlanType || "FIXED_PER_ORDER") === plan.id;
-                    return (
-                      <ScalePressable
-                        key={plan.id}
-                        containerStyle={[styles.vehicleChip, active && styles.vehicleChipActive]}
-                        onPress={() => setField("billingPlanType", plan.id)}
-                      >
-                        <Text style={[styles.vehicleChipText, active && styles.vehicleChipTextActive]}>{plan.label}</Text>
-                      </ScalePressable>
-                    );
-                  })}
-                </View>
-              </View>
-              {(form.billingPlanType || "FIXED_PER_ORDER") === "FIXED_PER_ORDER" ? (
-                <TextInput
-                  value={String(form.billingFixedFee || "")}
-                  onChangeText={(value) => setField("billingFixedFee", value)}
-                  placeholder={t("fixed_fee_per_order")}
-                  keyboardType="numeric"
-                  style={[styles.input, { textAlign: isRTL ? "right" : "left" }]}
-                />
-              ) : null}
-              {form.billingPlanType === "PERCENTAGE_PER_ORDER" ? (
-                <TextInput
-                  value={String(form.billingPercentage || "")}
-                  onChangeText={(value) => setField("billingPercentage", value)}
-                  placeholder={t("percentage_per_order")}
-                  keyboardType="numeric"
-                  style={[styles.input, { textAlign: isRTL ? "right" : "left" }]}
-                />
-              ) : null}
-              {form.billingPlanType === "MONTHLY_SUBSCRIPTION" ? (
-                <TextInput
-                  value={String(form.monthlySubscriptionFee || "")}
-                  onChangeText={(value) => setField("monthlySubscriptionFee", value)}
-                  placeholder={t("monthly_subscription")}
-                  keyboardType="numeric"
-                  style={[styles.input, { textAlign: isRTL ? "right" : "left" }]}
-                />
-              ) : null}
             </>
           ) : (
             <>
@@ -193,22 +153,6 @@ export function PartnerApplicationScreen({ route }: Props) {
                 </View>
               </View>
               <TextInput value={form.zone} onChangeText={(value) => setField("zone", value)} placeholder={t("courier_zone")} style={[styles.input, { textAlign: isRTL ? "right" : "left" }]} />
-              <View style={styles.choiceRow}>
-                <TextInput
-                  value={String(form.payPerDelivery || "")}
-                  onChangeText={(value) => setField("payPerDelivery", value)}
-                  placeholder={t("courier_pay_per_delivery")}
-                  keyboardType="numeric"
-                  style={[styles.input, styles.splitInput, { textAlign: isRTL ? "right" : "left" }]}
-                />
-                <TextInput
-                  value={String(form.payPerKm || "")}
-                  onChangeText={(value) => setField("payPerKm", value)}
-                  placeholder={t("courier_pay_per_km")}
-                  keyboardType="numeric"
-                  style={[styles.input, styles.splitInput, { textAlign: isRTL ? "right" : "left" }]}
-                />
-              </View>
             </>
           )}
 

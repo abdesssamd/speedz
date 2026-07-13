@@ -60,6 +60,18 @@ const DELIVERY_TIERS = [
   { label: "Zone standard", maxDistanceKm: 8, fee: 4.5 },
   { label: "Zone etendue", maxDistanceKm: Number.POSITIVE_INFINITY, fee: 7 }
 ];
+
+// Configuration de livraison par défaut (mode zone, alignée sur DELIVERY_TIERS).
+const DELIVERY_CONFIG_DEFAULT = {
+  mode: "PER_ZONE",
+  perKm: { baseFee: 0, pricePerKm: 30, freeUnderKm: 1 },
+  zones: [
+    { label: "Livraison offerte", maxDistanceKm: 2, fee: 0 },
+    { label: "Zone proche", maxDistanceKm: 5, fee: 2 },
+    { label: "Zone standard", maxDistanceKm: 8, fee: 4.5 },
+    { label: "Zone etendue", maxDistanceKm: 9999, fee: 7 }
+  ]
+};
 const ACTIVE_ORDER_STATUSES = ["Confirmed", "Preparing", "OnTheWay"];
 
 const uploadsDir = path.join(__dirname, "uploads");
@@ -268,13 +280,13 @@ function calculateDistanceKm(from, to) {
 
 function getDeliveryQuote(userCoordinates, restaurantCoordinates) {
   const distanceKm = calculateDistanceKm(userCoordinates, restaurantCoordinates);
-  const tier = DELIVERY_TIERS.find((entry) => distanceKm <= entry.maxDistanceKm) || DELIVERY_TIERS[DELIVERY_TIERS.length - 1];
+  const { fee, label } = computeDeliveryFee(distanceKm);
   const estimatedMinutes = Math.max(18, Math.round(12 + distanceKm * 4.5));
 
   return {
     distanceKm,
-    fee: tier.fee,
-    tierLabel: tier.label,
+    fee,
+    tierLabel: label,
     estimatedMinutes,
     estimatedLabel: `${estimatedMinutes}-${estimatedMinutes + 8} min`
   };
@@ -643,6 +655,51 @@ function getPushToken(userId) {
   return entry?.token || null;
 }
 
+// ─── Configuration de livraison (stockage fichier, sans migration) ────────────
+const deliveryConfigFile = path.join(dataDir, "delivery-config.json");
+let deliveryConfigCache = null;
+
+function readDeliveryConfig() {
+  if (deliveryConfigCache) return deliveryConfigCache;
+  try {
+    if (fs.existsSync(deliveryConfigFile)) {
+      const raw = JSON.parse(fs.readFileSync(deliveryConfigFile, "utf8"));
+      deliveryConfigCache = { ...DELIVERY_CONFIG_DEFAULT, ...raw };
+    } else {
+      deliveryConfigCache = DELIVERY_CONFIG_DEFAULT;
+    }
+  } catch {
+    deliveryConfigCache = DELIVERY_CONFIG_DEFAULT;
+  }
+  return deliveryConfigCache;
+}
+
+function writeDeliveryConfig(config) {
+  deliveryConfigCache = config;
+  fs.writeFileSync(deliveryConfigFile, JSON.stringify(config, null, 2), "utf8");
+}
+
+// Calcule les frais de livraison selon le mode configuré (au km ou par zone).
+function computeDeliveryFee(distanceKm, config = readDeliveryConfig()) {
+  if (config.mode === "PER_KM") {
+    const perKm = config.perKm || DELIVERY_CONFIG_DEFAULT.perKm;
+    const baseFee = Number(perKm.baseFee) || 0;
+    const pricePerKm = Number(perKm.pricePerKm) || 0;
+    const freeUnderKm = Number(perKm.freeUnderKm) || 0;
+    if (distanceKm <= freeUnderKm) {
+      return { fee: 0, label: "Livraison offerte" };
+    }
+    const fee = Number((baseFee + distanceKm * pricePerKm).toFixed(2));
+    return { fee, label: `${distanceKm} km` };
+  }
+
+  const zones = (config.zones && config.zones.length ? config.zones : DELIVERY_CONFIG_DEFAULT.zones)
+    .slice()
+    .sort((a, b) => a.maxDistanceKm - b.maxDistanceKm);
+  const zone = zones.find((entry) => distanceKm <= entry.maxDistanceKm) || zones[zones.length - 1];
+  return { fee: Number(zone.fee) || 0, label: zone.label };
+}
+
 // ─── Publicités (stockage fichier, sans migration de schéma) ──────────────────
 const adsFile = path.join(dataDir, "ads.json");
 
@@ -679,6 +736,96 @@ function isAdLive(ad, now = new Date()) {
   if (ad.startsAt && new Date(ad.startsAt) > now) return false;
   if (ad.endsAt && new Date(ad.endsAt) < now) return false;
   return true;
+}
+
+// ─── Versements restaurant (stockage fichier, sans migration de schéma) ───────
+// Suit ce que chaque restaurant a réglé à la plateforme (ex. commission %).
+const settlementsFile = path.join(dataDir, "restaurant-settlements.json");
+
+function readSettlements() {
+  try {
+    if (!fs.existsSync(settlementsFile)) return [];
+    return JSON.parse(fs.readFileSync(settlementsFile, "utf8")) || [];
+  } catch {
+    return [];
+  }
+}
+
+function writeSettlements(items) {
+  fs.writeFileSync(settlementsFile, JSON.stringify(items, null, 2), "utf8");
+}
+
+function serializeSettlement(entry) {
+  return {
+    id: entry.id,
+    restaurantId: entry.restaurantId,
+    amount: Number(entry.amount) || 0,
+    method: entry.method || null,
+    note: entry.note || null,
+    paidAt: entry.paidAt || entry.createdAt,
+    createdAt: entry.createdAt,
+  };
+}
+
+// Nombre de mois entiers écoulés depuis une date (min. 1), pour l'abonnement.
+function fullMonthsSince(date, now = new Date()) {
+  if (!date) return 1;
+  const start = new Date(date);
+  let months = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+  if (now.getDate() >= start.getDate()) months += 1;
+  return Math.max(1, months);
+}
+
+/**
+ * Calcule la facturation d'un restaurant : ce qu'il doit à la plateforme selon
+ * son plan (commission %, frais fixe, ou abonnement) sur ses commandes livrées.
+ * `orders` = commandes du restaurant (déjà filtrées ou non).
+ */
+function computeRestaurantBilling(restaurant, orders) {
+  const restaurantOrders = orders.filter((order) => order.restaurantId === restaurant.id);
+  const delivered = restaurantOrders.filter((order) => order.status === "Delivered");
+  const grossSales = Number(delivered.reduce((sum, order) => sum + (order.subtotal || 0), 0).toFixed(2));
+
+  let amountDue = 0;
+  let planLabel = "";
+  const planType = restaurant.billingPlanType || "FIXED_PER_ORDER";
+
+  if (planType === "PERCENTAGE_PER_ORDER") {
+    const pct = Number(restaurant.billingPercentage || 0);
+    amountDue = Number((grossSales * (pct / 100)).toFixed(2));
+    planLabel = `Commission ${pct}%`;
+  } else if (planType === "MONTHLY_SUBSCRIPTION") {
+    const monthlyFee = Number(restaurant.monthlySubscriptionFee || 0);
+    amountDue = Number((monthlyFee * fullMonthsSince(restaurant.createdAt)).toFixed(2));
+    planLabel = `Abonnement ${monthlyFee.toFixed(2)} / mois`;
+  } else {
+    const fixedFee = Number(restaurant.billingFixedFee || 0);
+    amountDue = Number((delivered.length * fixedFee).toFixed(2));
+    planLabel = `Frais fixe ${fixedFee.toFixed(2)} / commande`;
+  }
+
+  return {
+    restaurantId: restaurant.id,
+    planType,
+    planLabel,
+    planSummary: getBillingPlanSummary(restaurant),
+    ordersCount: restaurantOrders.length,
+    deliveredCount: delivered.length,
+    grossSales,
+    amountDue,
+  };
+}
+
+// Assemble facturation + versements + solde pour un restaurant.
+function buildRestaurantBillingStatement(restaurant, orders, settlements) {
+  const billing = computeRestaurantBilling(restaurant, orders);
+  const mine = settlements
+    .filter((entry) => entry.restaurantId === restaurant.id)
+    .map(serializeSettlement)
+    .sort((a, b) => new Date(b.paidAt) - new Date(a.paidAt));
+  const totalPaid = Number(mine.reduce((sum, entry) => sum + entry.amount, 0).toFixed(2));
+  const balance = Number((billing.amountDue - totalPaid).toFixed(2));
+  return { ...billing, totalPaid, balance, settlements: mine };
 }
 
 /**
@@ -2919,6 +3066,48 @@ app.post("/api/restaurant/printer/heartbeat", requireRestaurantApiToken, async (
   res.json({ ok: true, restaurant: serializeRestaurant(restaurant) });
 });
 
+// QR code de commande du magasin (à imprimer/afficher pour les clients).
+app.get("/api/restaurant/printer/qr", requireRestaurantApiToken, async (req, res) => {
+  const restaurant = req.restaurantAuth;
+  const qrCodeToken = restaurant.qrCodeToken || generateOpaqueToken("qr");
+  if (!restaurant.qrCodeToken) {
+    await prisma.restaurant.update({
+      where: { id: restaurant.id },
+      data: { qrCodeToken },
+    });
+  }
+  res.json({
+    restaurantName: restaurant.name,
+    qrToken: qrCodeToken,
+    url: getRestaurantQrLandingUrl(qrCodeToken),
+  });
+});
+
+// Facturation vue par le restaurant (via son token) : commandes, ce qu'il doit
+// à la plateforme, ses versements, son solde, et le lien de menu à partager.
+app.get("/api/restaurant/billing", requireRestaurantApiToken, async (req, res) => {
+  const restaurant = req.restaurantAuth;
+  const orders = await prisma.order.findMany({
+    where: { restaurantId: restaurant.id },
+    select: { id: true, restaurantId: true, subtotal: true, total: true, status: true, createdAt: true },
+    orderBy: { createdAt: "desc" },
+  });
+  const statement = buildRestaurantBillingStatement(restaurant, orders, readSettlements());
+  const qrCodeToken = restaurant.qrCodeToken || null;
+  res.json({
+    ...statement,
+    restaurantName: restaurant.name,
+    menuShareUrl: qrCodeToken ? getRestaurantQrLandingUrl(qrCodeToken) : null,
+    recentOrders: orders.slice(0, 20).map((order) => ({
+      id: order.id,
+      subtotal: order.subtotal,
+      total: order.total,
+      status: order.status,
+      createdAt: order.createdAt.toISOString(),
+    })),
+  });
+});
+
 app.get("/api/loyalty", async (_req, res) => {
   const payload = await fetchBootstrapPayload();
   res.json({
@@ -2938,6 +3127,20 @@ app.get("/api/promotions", async (req, res) => {
     orderBy: { createdAt: "desc" }
   });
   res.json(promotions.map(serializePromotion));
+});
+
+// Configuration de livraison (publique : l'app mobile l'utilise pour estimer les frais).
+app.get("/api/delivery-config", (_req, res) => {
+  res.json(readDeliveryConfig());
+});
+
+app.get("/api/admin/delivery-config", requireAuth, requireAdmin, (_req, res) => {
+  res.json(readDeliveryConfig());
+});
+
+app.put("/api/admin/delivery-config", requireAuth, requireAdmin, validateBody(Schemas.deliveryConfig), (req, res) => {
+  writeDeliveryConfig(req.body);
+  res.json(readDeliveryConfig());
 });
 
 // Publicités actives, filtrables par emplacement (SPLASH | HOME_BANNER).
@@ -3003,6 +3206,68 @@ app.delete("/api/admin/ads/:id", requireAuth, requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+// ─── Versements & facturation restaurant (admin) ─────────────────────────────
+// Vue d'ensemble : pour chaque restaurant, ce qu'il doit / a versé / son solde.
+app.get("/api/admin/billing-overview", requireAuth, requireAdmin, async (_req, res) => {
+  const [restaurants, orders] = await Promise.all([
+    prisma.restaurant.findMany(),
+    prisma.order.findMany({
+      select: { id: true, restaurantId: true, subtotal: true, status: true, createdAt: true },
+    }),
+  ]);
+  const settlements = readSettlements();
+  const rows = restaurants
+    .map((restaurant) => {
+      const statement = buildRestaurantBillingStatement(restaurant, orders, settlements);
+      return { ...statement, name: restaurant.name, ownerName: restaurant.ownerName || null };
+    })
+    .sort((a, b) => b.balance - a.balance);
+  res.json({
+    restaurants: rows,
+    settlements: settlements.map(serializeSettlement).sort((a, b) => new Date(b.paidAt) - new Date(a.paidAt)),
+  });
+});
+
+// Enregistre un versement reçu d'un restaurant.
+app.post(
+  "/api/admin/restaurants/:id/settlements",
+  requireAuth,
+  requireAdmin,
+  validateBody(Schemas.createSettlement),
+  async (req, res) => {
+    const restaurant = await prisma.restaurant.findUnique({ where: { id: req.params.id } });
+    if (!restaurant) {
+      res.status(404).json({ message: "Restaurant introuvable." });
+      return;
+    }
+    const settlements = readSettlements();
+    const now = new Date().toISOString();
+    const entry = {
+      id: crypto.randomUUID(),
+      restaurantId: restaurant.id,
+      amount: Number(req.body.amount),
+      method: req.body.method || null,
+      note: req.body.note || null,
+      paidAt: req.body.paidAt || now,
+      createdAt: now,
+    };
+    settlements.unshift(entry);
+    writeSettlements(settlements);
+    res.status(201).json(serializeSettlement(entry));
+  }
+);
+
+app.delete("/api/admin/settlements/:id", requireAuth, requireAdmin, (req, res) => {
+  const settlements = readSettlements();
+  const next = settlements.filter((entry) => entry.id !== req.params.id);
+  if (next.length === settlements.length) {
+    res.status(404).json({ message: "Versement introuvable." });
+    return;
+  }
+  writeSettlements(next);
+  res.json({ ok: true });
+});
+
 app.get("/api/menu-categories", async (_req, res) => {
   const categories = await prisma.menuCategory.findMany({
     where: { isActive: true },
@@ -3043,19 +3308,8 @@ app.post("/api/applications", validateBody(Schemas.createApplication), async (re
   const monthlySubscriptionFee =
     body.monthlySubscriptionFee !== undefined ? Number(body.monthlySubscriptionFee) : null;
 
-  if (type === "RESTAURANT") {
-    const isPlanValid =
-      (billingPlanType === "FIXED_PER_ORDER" && billingFixedFee !== null && !Number.isNaN(billingFixedFee)) ||
-      (billingPlanType === "PERCENTAGE_PER_ORDER" && billingPercentage !== null && !Number.isNaN(billingPercentage)) ||
-      (billingPlanType === "MONTHLY_SUBSCRIPTION" &&
-        monthlySubscriptionFee !== null &&
-        !Number.isNaN(monthlySubscriptionFee));
-
-    if (!isPlanValid) {
-      res.status(400).json({ message: "Plan de facturation restaurant invalide." });
-      return;
-    }
-  }
+  // Le plan de facturation est désormais paramétré par l'admin après réception
+  // de la demande — il n'est plus exigé à l'inscription.
 
   const applications = readPartnerApplications();
   const application = {
@@ -3862,6 +4116,20 @@ app.get("/api/admin/orders", requireAuth, requireAdmin, wrapAsync(async (req, re
 app.patch("/api/admin/orders/:id/status", requireAuth, requireAdmin, validateBody(Schemas.updateOrderStatus), wrapAsync(updateAdminOrderStatus));
 
 app.patch("/api/admin/orders/:id/assign-courier", requireAuth, requireAdmin, validateBody(Schemas.assignCourier), wrapAsync(assignAdminCourier));
+
+// Ré-impression : remet la commande dans la file de l'agent d'impression.
+app.post("/api/admin/orders/:id/reprint", requireAuth, requireAdmin, wrapAsync(async (req, res) => {
+  const order = await prisma.order.findUnique({ where: { id: req.params.id } });
+  if (!order) {
+    throw new ApiError(404, "Commande introuvable.", "ORDER_NOT_FOUND");
+  }
+  await prisma.order.update({
+    where: { id: req.params.id },
+    data: { printerPrintedAt: null },
+  });
+  await logAdminAction(req, "order.reprint", "order", req.params.id, {});
+  ok(res, { ok: true });
+}));
 
 app.get("/api/admin/reports/summary", requireAuth, requireAdmin, wrapAsync(async (_req, res) => {
   const [orders, customers, couriers, promotions, menuItems] = await Promise.all([

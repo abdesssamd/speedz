@@ -1,4 +1,4 @@
-import { Coordinates, DeliveryQuote, DeliveryTier } from "../types";
+import { Coordinates, DeliveryConfig, DeliveryQuote, DeliveryTier } from "../types";
 
 export const DELIVERY_TIERS: DeliveryTier[] = [
   { label: "Livraison offerte", maxDistanceKm: 2, fee: 0 },
@@ -6,6 +6,28 @@ export const DELIVERY_TIERS: DeliveryTier[] = [
   { label: "Zone standard", maxDistanceKm: 8, fee: 4.5 },
   { label: "Zone etendue", maxDistanceKm: Number.POSITIVE_INFINITY, fee: 7 },
 ];
+
+// Config dynamique (paramétrée par l'admin), injectée au démarrage via setDeliveryConfig.
+let activeDeliveryConfig: DeliveryConfig | null = null;
+
+export function setDeliveryConfig(config: DeliveryConfig | null) {
+  activeDeliveryConfig = config;
+}
+
+function computeFee(distanceKm: number): { fee: number; label: string } {
+  const config = activeDeliveryConfig;
+  if (config?.mode === "PER_KM" && config.perKm) {
+    const { baseFee = 0, pricePerKm = 0, freeUnderKm = 0 } = config.perKm;
+    if (distanceKm <= freeUnderKm) return { fee: 0, label: "Livraison offerte" };
+    return { fee: Number((baseFee + distanceKm * pricePerKm).toFixed(2)), label: `${distanceKm} km` };
+  }
+
+  const zones = (config?.zones?.length ? config.zones : DELIVERY_TIERS)
+    .slice()
+    .sort((a, b) => a.maxDistanceKm - b.maxDistanceKm);
+  const zone = zones.find((entry) => distanceKm <= entry.maxDistanceKm) ?? zones[zones.length - 1];
+  return { fee: Number(zone.fee) || 0, label: zone.label };
+}
 
 const EARTH_RADIUS_KM = 6371;
 
@@ -26,13 +48,13 @@ export function calculateDistanceKm(from: Coordinates, to: Coordinates) {
 
 export function getDeliveryQuote(userCoordinates: Coordinates, restaurantCoordinates: Coordinates): DeliveryQuote {
   const distanceKm = calculateDistanceKm(userCoordinates, restaurantCoordinates);
-  const tier = DELIVERY_TIERS.find((entry) => distanceKm <= entry.maxDistanceKm) ?? DELIVERY_TIERS[DELIVERY_TIERS.length - 1];
+  const { fee, label } = computeFee(distanceKm);
   const estimatedMinutes = Math.max(18, Math.round(12 + distanceKm * 4.5));
 
   return {
     distanceKm,
-    fee: tier.fee,
-    tierLabel: tier.label,
+    fee,
+    tierLabel: label,
     estimatedMinutes,
     estimatedLabel: `${estimatedMinutes}-${estimatedMinutes + 8} min`,
   };
