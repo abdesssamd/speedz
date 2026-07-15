@@ -41,7 +41,11 @@
       "Bash(timeout 8 node -e \"process.env.SKIP_LISTEN='1'; require\\('./server.js'\\); console.log\\('LOADED OK'\\);\")",
       "Bash(powershell.exe -NoProfile -Command \"Get-PSDrive E | Select-Object Used,Free\")",
       "Bash(python -m py_compile speedz_printer_gui.py printer_agent.py)",
-      "Bash(python3 -m py_compile speedz_printer_gui.py printer_agent.py)"
+      "Bash(python3 -m py_compile speedz_printer_gui.py printer_agent.py)",
+      "Bash(timeout 8 node -e \"require\\('./server.js'\\); console.log\\('LOADED OK'\\);\")",
+      "PowerShell(Get-NetTCPConnection -LocalPort 4100 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Write-Output \"Killing PID $_\"; Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }; Start-Sleep -Seconds 1; Write-Output \"cleared\")",
+      "PowerShell(Get-NetTCPConnection -LocalPort 4100 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }; Write-Output \"cleared\")",
+      "Bash(npm --prefix admin run build)"
     ]
   }
 }

@@ -72,7 +72,12 @@ const DELIVERY_CONFIG_DEFAULT = {
     { label: "Zone etendue", maxDistanceKm: 9999, fee: 7 }
   ]
 };
-const ACTIVE_ORDER_STATUSES = ["Confirmed", "Preparing", "OnTheWay"];
+const ACTIVE_ORDER_STATUSES = ["AwaitingCourier", "Accepted", "Confirmed", "Preparing", "OnTheWay"];
+
+// Dispatch livreur : fenêtre d'exclusivité pour les livreurs favoris du client
+// avant d'ouvrir la course à tous les livreurs de la zone du restaurant.
+const FAVORITE_WINDOW_MS = Number(process.env.COURIER_FAVORITE_WINDOW_MS || 60_000);
+const DISPATCH_RADIUS_KM = Number(process.env.COURIER_DISPATCH_RADIUS_KM || 8);
 
 const uploadsDir = path.join(__dirname, "uploads");
 fs.mkdirSync(uploadsDir, { recursive: true });
@@ -332,6 +337,13 @@ function normalizePhoneNumber(value) {
   return String(value || "").trim().replace(/\s+/g, "");
 }
 
+// Identifiant public du livreur = les 6 derniers chiffres de son téléphone.
+// Partagé verbalement par le livreur pour que le client le retrouve en favori.
+function courierCode(phone) {
+  const digits = String(phone || "").replace(/\D/g, "");
+  return digits.slice(-6);
+}
+
 function generateVerificationCode() {
   return `${Math.floor(100000 + Math.random() * 900000)}`;
 }
@@ -379,7 +391,8 @@ function getBillingPlanSummary(input) {
 }
 
 function getRestaurantQrLandingUrl(qrCodeToken) {
-  return `${DEFAULT_QR_WEBAPP_URL}/qr/${qrCodeToken}`;
+  // Retire un éventuel slash final de QR_WEBAPP_URL pour éviter "//qr/".
+  return `${DEFAULT_QR_WEBAPP_URL.replace(/\/+$/, "")}/qr/${qrCodeToken}`;
 }
 
 function getRequestPublicBaseUrl(req) {
@@ -558,6 +571,7 @@ function serializeCourier(record) {
     id: record.id,
     name: record.name,
     phone: record.phone,
+    code: courierCode(record.phone),
     vehicle: record.vehicle,
     status: record.status,
     payPerDelivery: record.payPerDelivery,
@@ -814,6 +828,36 @@ function computeRestaurantBilling(restaurant, orders) {
     grossSales,
     amountDue,
   };
+}
+
+// ─── Liaison menu POS ↔ SpeedZ (mapping d'IDs, stockage fichier) ─────────────
+// Permet une synchro bidirectionnelle stable : on garde la correspondance entre
+// l'ID produit du logiciel de caisse (externalId) et l'ID de l'article SpeedZ.
+const posMenuLinksFile = path.join(dataDir, "pos-menu-links.json");
+
+function readPosMenuLinks() {
+  try {
+    if (!fs.existsSync(posMenuLinksFile)) return {};
+    return JSON.parse(fs.readFileSync(posMenuLinksFile, "utf8")) || {};
+  } catch {
+    return {};
+  }
+}
+
+function writePosMenuLinks(map) {
+  fs.writeFileSync(posMenuLinksFile, JSON.stringify(map, null, 2), "utf8");
+}
+
+// Retourne { [externalId]: speedzItemId } pour un restaurant.
+function getRestaurantItemLinks(restaurantId) {
+  const all = readPosMenuLinks();
+  return (all[restaurantId] && all[restaurantId].items) || {};
+}
+
+function setRestaurantItemLinks(restaurantId, items) {
+  const all = readPosMenuLinks();
+  all[restaurantId] = { items };
+  writePosMenuLinks(all);
 }
 
 // Assemble facturation + versements + solde pour un restaurant.
@@ -1302,39 +1346,45 @@ async function queueRestaurantAccessEmail({
     return;
   }
 
-  const outbox = readEmailOutbox();
-  outbox.unshift({
-    id: `mail_${Date.now()}`,
-    to: ownerEmail,
-    subject: "FoodDelyvry - Acces a votre espace restaurant",
-    text: `Bonjour ${ownerName || restaurantName}, votre espace restaurant est pret.\nRestaurant: ${restaurantName}\nEmail: ${loginEmail}\nMot de passe temporaire: ${temporaryPassword}\nToken API: ${apiToken}\nLien QR: ${qrCodeUrl}\nMerci de vous connecter puis de changer votre mot de passe.`,
-    status: "QUEUED",
-    createdAt: new Date().toISOString(),
-  });
-  writeEmailOutbox(outbox);
+  // Envoi réel via SMTP (sendEmailMessage écrit lui-même dans l'outbox avec le
+  // vrai statut SENT/REJECTED). Best-effort : un échec d'email ne doit pas
+  // empêcher la création du restaurant.
+  try {
+    await sendEmailMessage({
+      to: ownerEmail,
+      subject: "SpeedZ - Acces a votre espace restaurant",
+      text: `Bonjour ${ownerName || restaurantName}, votre espace restaurant est pret.\nRestaurant: ${restaurantName}\nEmail: ${loginEmail}\nMot de passe temporaire: ${temporaryPassword}\nToken API: ${apiToken}\nLien QR: ${qrCodeUrl}\nMerci de vous connecter puis de changer votre mot de passe.`,
+      metadata: { kind: "restaurant-access", restaurantName },
+    });
+  } catch (error) {
+    console.error("[email] Envoi de l'accès restaurant échoué:", error.message);
+  }
 }
 
 async function queueApplicationEmail(application, status) {
   const planSummary = application.type === "RESTAURANT" ? getBillingPlanSummary(application) : null;
-  const outbox = readEmailOutbox();
-  outbox.unshift({
-    id: `mail_${Date.now()}`,
-    to: application.email,
-    subject:
-      status === "ACCEPTED"
-        ? "FoodDelyvry - Votre candidature a ete acceptee"
-        : "FoodDelyvry - Mise a jour de votre candidature",
-    text:
-      status === "ACCEPTED"
-        ? application.type === "RESTAURANT"
-          ? `Bonjour ${application.applicantName}, votre compte restaurant a ete valide.\nPlan: ${planSummary}\nToken API: ${application.generatedApiToken}\nLien QR: ${application.qrCodeUrl}\nCe token sert de cle d'activation pour le logiciel d'impression.`
-          : `Bonjour ${application.applicantName}, votre candidature ${application.type} a ete acceptee.`
-        : `Bonjour ${application.applicantName}, votre candidature ${application.type} a ete refusee.`,
-    status: "QUEUED",
-    applicationId: application.id,
-    createdAt: new Date().toISOString(),
-  });
-  writeEmailOutbox(outbox);
+  const subject =
+    status === "ACCEPTED"
+      ? "SpeedZ - Votre candidature a ete acceptee"
+      : "SpeedZ - Mise a jour de votre candidature";
+  const text =
+    status === "ACCEPTED"
+      ? application.type === "RESTAURANT"
+        ? `Bonjour ${application.applicantName}, votre compte restaurant a ete valide.\nPlan: ${planSummary}\nToken API: ${application.generatedApiToken}\nLien QR: ${application.qrCodeUrl}\nCe token sert de cle d'activation pour le logiciel d'impression.`
+        : `Bonjour ${application.applicantName}, votre candidature ${application.type} a ete acceptee.`
+      : `Bonjour ${application.applicantName}, votre candidature ${application.type} a ete refusee.`;
+
+  // Envoi réel via SMTP (best-effort). sendEmailMessage écrit dans l'outbox.
+  try {
+    await sendEmailMessage({
+      to: application.email,
+      subject,
+      text,
+      metadata: { kind: "application-status", applicationId: application.id, status },
+    });
+  } catch (error) {
+    console.error("[email] Envoi du statut de candidature échoué:", error.message);
+  }
 }
 
 async function ensureApplicationEntity(application) {
@@ -1735,11 +1785,95 @@ async function getFirstAvailableCourier() {
   });
 }
 
+// Notification push envoyée à un livreur (token Expo stocké sur son profil).
+async function sendCourierPush(courier, { title, body, data }) {
+  if (!courier?.pushToken) return;
+  await sendExpoPush({ to: courier.pushToken, title, body, data });
+}
+
+// Un livreur est « dans la zone » du restaurant si sa dernière position connue
+// est à moins de DISPATCH_RADIUS_KM. Sans position connue, on le considère éligible
+// (il verra la course via le polling) pour ne jamais bloquer une livraison.
+function isCourierInRestaurantZone(courier, restaurant) {
+  if (courier.currentLat == null || courier.currentLng == null) return true;
+  if (restaurant?.latitude == null || restaurant?.longitude == null) return true;
+  const distanceKm = calculateDistanceKm(
+    { latitude: courier.currentLat, longitude: courier.currentLng },
+    { latitude: restaurant.latitude, longitude: restaurant.longitude }
+  );
+  return distanceKm <= DISPATCH_RADIUS_KM;
+}
+
+// Récupère les livreurs favoris du client (uniquement ceux prêts à recevoir une course).
+async function getFavoriteCouriersForUser(userId) {
+  if (!userId) return [];
+  const favorites = await prisma.courierFavorite.findMany({
+    where: { userId },
+    include: { courier: true },
+  });
+  return favorites
+    .map((favorite) => favorite.courier)
+    .filter((courier) => courier && courier.status !== "OFFLINE");
+}
+
+/**
+ * Dispatch d'une commande DELIVERY nouvellement créée.
+ * - Si le client a des livreurs favoris : notification immédiate à ces favoris,
+ *   qui disposent d'une fenêtre d'exclusivité (FAVORITE_WINDOW_MS).
+ * - Sans favori : notification immédiate à tous les livreurs de la zone.
+ * - À l'expiration de la fenêtre, si la course n'a pas été prise, on notifie
+ *   tous les livreurs de la zone.
+ * La visibilité réelle des courses est gérée dans GET /api/courier/jobs (source de
+ * vérité basée sur createdAt) ; le push ne sert qu'à l'immédiateté.
+ */
+async function dispatchDeliveryOrder(orderId) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { restaurant: true },
+  });
+  if (!order || order.channel !== "DELIVERY" || order.status !== "AwaitingCourier") return;
+
+  const favoriteCouriers = await getFavoriteCouriersForUser(order.userId);
+  const pushPayload = {
+    title: "Nouvelle course 🛵",
+    body: `Commande à récupérer chez ${order.restaurant?.name || "un restaurant"}.`,
+    data: { type: "courier-new-job", orderId: order.id },
+  };
+
+  if (favoriteCouriers.length > 0) {
+    await Promise.all(favoriteCouriers.map((courier) => sendCourierPush(courier, pushPayload)));
+    // Escalade : après la fenêtre d'exclusivité, ouvrir à toute la zone si non prise.
+    setTimeout(() => {
+      notifyZoneCouriers(orderId, pushPayload).catch((error) =>
+        console.error("[dispatch] escalade zone:", error?.message || error)
+      );
+    }, FAVORITE_WINDOW_MS).unref?.();
+  } else {
+    await notifyZoneCouriers(orderId, pushPayload);
+  }
+}
+
+// Notifie tous les livreurs disponibles de la zone du restaurant, si la course
+// est toujours en attente d'un livreur.
+async function notifyZoneCouriers(orderId, pushPayload) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { restaurant: true },
+  });
+  if (!order || order.status !== "AwaitingCourier" || order.courierId) return;
+
+  const couriers = await prisma.courier.findMany({
+    where: { status: { in: ["AVAILABLE", "ON_DELIVERY"] } },
+  });
+  const zoneCouriers = couriers.filter((courier) => isCourierInRestaurantZone(courier, order.restaurant));
+  await Promise.all(zoneCouriers.map((courier) => sendCourierPush(courier, pushPayload)));
+}
+
 async function fetchBootstrapPayload(userId) {
   const [user, restaurants, loyaltyEntries, orders, promotions, menuCategories] = await Promise.all([
     prisma.user.findUnique({
       where: userId ? { id: userId } : { email: DEMO_USER_EMAIL },
-      include: { favorites: true, addresses: true }
+      include: { favorites: true, addresses: true, courierFavorites: { include: { courier: true } } }
     }),
     prisma.restaurant.findMany({
       where: { isActive: true },
@@ -1785,6 +1919,8 @@ async function fetchBootstrapPayload(userId) {
     notificationPreferences: serializeNotificationPreferences(user),
     restaurants: restaurants.map(serializeRestaurant),
     favorites: (user?.favorites || []).map((favorite) => favorite.restaurantId),
+    favoriteCouriers: (user?.courierFavorites || []).map((favorite) => serializeCourierPublic(favorite.courier)),
+    favoriteCourierIds: (user?.courierFavorites || []).map((favorite) => favorite.courierId),
     orders: orders.map(serializeOrder),
     promotions: promotions.map(serializePromotion),
     menuCategories: menuCategories.map(serializeMenuCategory),
@@ -1843,16 +1979,21 @@ async function createOrderRecord({
   tableLabel = null,
   userId,
 }) {
-  const [restaurant, customer, summary, courier] = await Promise.all([
+  const [restaurant, customer, summary] = await Promise.all([
     prisma.restaurant.findUnique({ where: { id: restaurantId } }),
     prisma.user.findUnique({ where: { id: userId } }),
     computeSummary({ restaurantId, cart, userCoordinates, promoCode, orderChannel, userId }),
-    orderChannel === "DELIVERY" ? getFirstAvailableCourier() : Promise.resolve(null)
   ]);
 
   if (!restaurant || !customer || !summary) {
     return null;
   }
+
+  // Les commandes en livraison démarrent en AwaitingCourier (aucun livreur, non
+  // imprimées) : elles sont proposées aux livreurs (favoris d'abord, cf.
+  // dispatchDeliveryOrder) et ne s'impriment qu'une fois confirmées par le livreur.
+  // Les commandes sur place (QR_ONSITE) sont confirmées et imprimées immédiatement.
+  const initialStatus = orderChannel === "DELIVERY" ? "AwaitingCourier" : "Confirmed";
 
   const order = await prisma.order.create({
     data: {
@@ -1870,10 +2011,10 @@ async function createOrderRecord({
       notes: draft.notes || null,
       channel: orderChannel,
       tableLabel,
-      status: "Confirmed",
+      status: initialStatus,
       estimatedDeliveryLabel: summary.estimatedDeliveryLabel,
       items: cart,
-      courierId: courier?.id || null,
+      courierId: null,
       promotionId: summary.promotion?.id || null
     },
     include: { restaurant: true, courier: true, user: true }
@@ -1890,6 +2031,14 @@ async function createOrderRecord({
   });
 
   await emitOrderRealtime(order.id, "order/created");
+
+  if (order.channel === "DELIVERY") {
+    // Best-effort : ne jamais bloquer la réponse commande sur le dispatch/push.
+    dispatchDeliveryOrder(order.id).catch((error) =>
+      console.error("[dispatch] échec:", error?.message || error)
+    );
+  }
+
   return order;
 }
 
@@ -2570,6 +2719,81 @@ app.post("/api/favorites/toggle", optionalAuth, async (req, res) => {
   });
 });
 
+// Vue publique d'un livreur pour le client : jamais le téléphone complet, seulement
+// le code à 6 chiffres partagé verbalement.
+function serializeCourierPublic(record) {
+  return {
+    id: record.id,
+    name: record.name,
+    code: courierCode(record.phone),
+    vehicle: record.vehicle,
+    zoneLabel: record.zoneLabel,
+    status: record.status,
+  };
+}
+
+// Recherche d'un livreur par son code (6 derniers chiffres du téléphone).
+// Renvoie une liste car plusieurs livreurs peuvent partager les mêmes 6 chiffres.
+app.get("/api/couriers/search", optionalAuth, async (req, res) => {
+  const code = String(req.query.code || "").replace(/\D/g, "");
+  if (code.length < 4) {
+    res.status(400).json({ message: "Code livreur invalide (au moins 4 chiffres)." });
+    return;
+  }
+  const couriers = await prisma.courier.findMany({ orderBy: { createdAt: "asc" } });
+  const matches = couriers.filter((courier) => courierCode(courier.phone) === code);
+  res.json({ couriers: matches.map(serializeCourierPublic) });
+});
+
+// Liste des livreurs favoris du client.
+app.get("/api/couriers/favorites", optionalAuth, async (req, res) => {
+  const user = await getAuthenticatedUser(req);
+  if (!user) {
+    res.status(404).json({ message: "Utilisateur introuvable." });
+    return;
+  }
+  const favorites = await prisma.courierFavorite.findMany({
+    where: { userId: user.id },
+    include: { courier: true },
+    orderBy: { createdAt: "desc" },
+  });
+  res.json({
+    couriers: favorites.map((favorite) => serializeCourierPublic(favorite.courier)),
+    favoriteCourierIds: favorites.map((favorite) => favorite.courierId),
+  });
+});
+
+// Ajoute / retire un livreur des favoris du client.
+app.post("/api/couriers/:id/favorite/toggle", optionalAuth, async (req, res) => {
+  const courierId = req.params.id;
+  const [user, courier] = await Promise.all([
+    getAuthenticatedUser(req),
+    prisma.courier.findUnique({ where: { id: courierId } }),
+  ]);
+
+  if (!user || !courier) {
+    res.status(404).json({ message: "Livreur ou utilisateur introuvable." });
+    return;
+  }
+
+  const existing = await prisma.courierFavorite.findUnique({
+    where: { userId_courierId: { userId: user.id, courierId } },
+  });
+
+  if (existing) {
+    await prisma.courierFavorite.delete({ where: { id: existing.id } });
+  } else {
+    await prisma.courierFavorite.create({ data: { userId: user.id, courierId } });
+  }
+
+  const favorites = await prisma.courierFavorite.findMany({ where: { userId: user.id } });
+  res.json({
+    favoriteCourierIds: favorites.map((favorite) => favorite.courierId),
+    changedCourier: serializeCourierPublic(courier),
+    isFavorite: !existing,
+  });
+});
+
 app.post("/api/cart/quote", optionalAuth, validateBody(Schemas.cartQuote), async (req, res) => {
   const { restaurantId, cart, userCoordinates, promoCode, orderChannel } = req.body || {};
   if (!restaurantId || !Array.isArray(cart) || !userCoordinates) {
@@ -2815,10 +3039,20 @@ app.get("/qr/:qrToken", async (req, res) => {
 
 app.post("/api/courier/auth", validateBody(Schemas.createCourier.pick({ phone: true })), async (req, res) => {
   const phone = normalizePhoneNumber(req.body?.phone);
-  const courier = await prisma.courier.findFirst({
+  const digits = phone.replace(/\D/g, "");
+  // Recherche robuste : on compare les numéros normalisés (les livreurs peuvent être
+  // enregistrés avec des espaces ou un format différent de la saisie de connexion).
+  let courier = await prisma.courier.findFirst({
     where: { phone },
     include: { orders: true },
   });
+  if (!courier) {
+    const all = await prisma.courier.findMany({ include: { orders: true } });
+    courier =
+      all.find((entry) => normalizePhoneNumber(entry.phone) === phone) ||
+      all.find((entry) => entry.phone.replace(/\D/g, "") === digits) ||
+      null;
+  }
 
   if (!courier) {
     res.status(404).json({ message: "Livreur introuvable." });
@@ -2847,14 +3081,44 @@ app.get("/api/courier/jobs", requireCourierAuth, async (req, res) => {
     await emitCourierRealtime(courierId);
   }
 
-  const availableOrders = await prisma.order.findMany({
+  const awaitingOrders = await prisma.order.findMany({
     where: {
       channel: "DELIVERY",
       courierId: null,
-      status: { in: ["Confirmed", "Preparing"] }
+      status: "AwaitingCourier"
     },
     include: { restaurant: true, user: { include: { addresses: true } } },
     orderBy: { createdAt: "asc" }
+  });
+
+  // Dispatch favoris-d'abord : pendant FAVORITE_WINDOW_MS après la création, une
+  // course dont le client a des livreurs favoris n'est visible que par ces favoris.
+  // Passé ce délai (ou sans favori), elle s'ouvre à tous les livreurs de la zone.
+  const orderUserIds = [...new Set(awaitingOrders.map((order) => order.userId))];
+  const favoriteLinks = orderUserIds.length
+    ? await prisma.courierFavorite.findMany({
+        where: { userId: { in: orderUserIds } },
+        select: { userId: true, courierId: true },
+      })
+    : [];
+  const usersWithFavorites = new Set(favoriteLinks.map((link) => link.userId));
+  const usersWhoFavoritedThisCourier = new Set(
+    favoriteLinks.filter((link) => link.courierId === courierId).map((link) => link.userId)
+  );
+  const now = Date.now();
+
+  const availableOrders = awaitingOrders.filter((order) => {
+    const withinFavoriteWindow = now - order.createdAt.getTime() < FAVORITE_WINDOW_MS;
+    const clientHasFavorites = usersWithFavorites.has(order.userId);
+    const isFavoriteOfClient = usersWhoFavoritedThisCourier.has(order.userId);
+
+    if (clientHasFavorites && withinFavoriteWindow) {
+      // Fenêtre d'exclusivité : réservée aux livreurs favoris du client.
+      return isFavoriteOfClient;
+    }
+    // Sinon : ouverte aux livreurs de la zone (les favoris restent prioritaires
+    // dans l'affichage car ils l'ont vue en premier).
+    return isFavoriteOfClient || isCourierInRestaurantZone(courier, order.restaurant);
   });
 
   const courierCoords =
@@ -2907,18 +3171,62 @@ app.get("/api/courier/jobs", requireCourierAuth, async (req, res) => {
   const activeJobs = courier.orders
     .filter((order) => order.status !== "Delivered")
     .map((order) => formatCourierJob(order, true));
-  const history = courier.orders
-    .filter((order) => order.status === "Delivered")
-    .map((order) => formatCourierJob(order, true));
+  const deliveredOrders = courier.orders.filter((order) => order.status === "Delivered");
+  const history = deliveredOrders
+    .map((order) => formatCourierJob(order, true))
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+
+  // KPI livreur : gains et livraisons du jour (basés sur la date de mise à jour,
+  // renseignée au passage en "Delivered").
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+  const deliveredToday = deliveredOrders.filter((order) => order.updatedAt >= startOfDay);
+  const round2 = (n) => Number(n.toFixed(2));
+  const stats = {
+    status: courier.status,
+    todayEarnings: round2(
+      deliveredToday.reduce((sum, order) => sum + calculateCourierCompensation(order, courier).total, 0)
+    ),
+    todayDeliveries: deliveredToday.length,
+    totalDeliveries: deliveredOrders.length,
+    totalEarnings: round2(
+      deliveredOrders.reduce((sum, order) => sum + calculateCourierCompensation(order, courier).total, 0)
+    ),
+  };
+
+  // Un livreur hors ligne ne reçoit pas de nouvelles courses (mais garde ses courses actives).
+  const offeredJobs =
+    courier.status === "OFFLINE"
+      ? []
+      : availableOrders
+          .map((order) => formatCourierJob(order, false))
+          .sort((a, b) => (a.pickupDistanceKm ?? 999) - (b.pickupDistanceKm ?? 999));
 
   res.json({
     courier: serializeCourier(courier),
-    availableJobs: availableOrders
-      .map((order) => formatCourierJob(order, false))
-      .sort((a, b) => (a.pickupDistanceKm ?? 999) - (b.pickupDistanceKm ?? 999)),
+    stats,
+    availableJobs: offeredJobs,
     activeJobs,
     history,
   });
+});
+
+// Bascule de disponibilité du livreur : en ligne (AVAILABLE = "en travail") / hors ligne.
+// Ne modifie pas un livreur actuellement en course (ON_DELIVERY).
+app.post("/api/courier/availability", requireCourierAuth, async (req, res) => {
+  const online = Boolean(req.body?.online);
+  const current = req.courierAuth.status;
+  if (current === "ON_DELIVERY") {
+    res.status(409).json({ message: "Vous avez une course en cours." });
+    return;
+  }
+  const courier = await prisma.courier.update({
+    where: { id: req.courierAuth.id },
+    data: { status: online ? "AVAILABLE" : "OFFLINE" },
+    include: { orders: true },
+  });
+  await emitCourierRealtime(courier.id, "courier/availability-updated");
+  res.json({ courier: serializeCourier(courier) });
 });
 
 app.post("/api/courier/jobs/:id/accept", requireCourierAuth, async (req, res) => {
@@ -2942,11 +3250,13 @@ app.post("/api/courier/jobs/:id/accept", requireCourierAuth, async (req, res) =>
     return;
   }
 
+  // « Prendre » la course : elle passe en Accepted (assignée au livreur, toujours
+  // pas imprimée). L'impression au restaurant n'est déclenchée qu'à la confirmation.
   const updatedOrder = await prisma.order.update({
     where: { id: order.id },
     data: {
       courierId,
-      status: order.status === "Confirmed" ? "OnTheWay" : order.status,
+      status: order.status === "AwaitingCourier" ? "Accepted" : order.status,
     },
     include: { restaurant: true, user: { include: { addresses: true } }, courier: true }
   });
@@ -2968,6 +3278,123 @@ app.post("/api/courier/jobs/:id/accept", requireCourierAuth, async (req, res) =>
       compensation: calculateCourierCompensation(updatedOrder, courier),
     }
   });
+});
+
+// « Confirmer » la course prise : passe la commande en Confirmed, ce qui déclenche
+// l'impression du ticket au restaurant. Renvoie le téléphone client pour l'appel.
+app.post("/api/courier/jobs/:id/confirm", requireCourierAuth, async (req, res) => {
+  const courierId = req.courierAuth.id;
+
+  const [courier, order] = await Promise.all([
+    prisma.courier.findUnique({ where: { id: courierId } }),
+    prisma.order.findUnique({
+      where: { id: req.params.id },
+      include: { restaurant: true, user: { include: { addresses: true } }, courier: true }
+    })
+  ]);
+
+  if (!courier || !order || order.channel !== "DELIVERY") {
+    res.status(404).json({ message: "Course introuvable." });
+    return;
+  }
+
+  if (order.courierId !== courierId) {
+    res.status(403).json({ message: "Cette course n'est pas la votre." });
+    return;
+  }
+
+  if (order.status !== "Accepted") {
+    res.status(409).json({ message: "Cette course ne peut plus etre confirmee." });
+    return;
+  }
+
+  const updatedOrder = await prisma.order.update({
+    where: { id: order.id },
+    data: { status: "Confirmed" },
+    include: { restaurant: true, user: { include: { addresses: true } }, courier: true }
+  });
+
+  await emitOrderRealtime(updatedOrder.id, "order/confirmed");
+  await emitCourierRealtime(courierId, "courier/job-confirmed");
+
+  res.json({
+    job: {
+      ...serializeOrder(updatedOrder),
+      customerName: updatedOrder.user.name,
+      customerPhone: updatedOrder.user.phone,
+      destinationAddress: updatedOrder.address,
+      compensation: calculateCourierCompensation(updatedOrder, courier),
+    }
+  });
+});
+
+// Progression du statut d'une course par le livreur assigné : OnTheWay puis Delivered.
+// À la livraison, le livreur repasse AVAILABLE.
+const COURIER_STATUS_TRANSITIONS = {
+  Confirmed: ["OnTheWay"],
+  OnTheWay: ["Delivered"],
+};
+
+app.post("/api/courier/jobs/:id/status", requireCourierAuth, async (req, res) => {
+  const courierId = req.courierAuth.id;
+  const nextStatus = String(req.body?.status || "").trim();
+
+  const order = await prisma.order.findUnique({
+    where: { id: req.params.id },
+    include: { restaurant: true, user: { include: { addresses: true } }, courier: true },
+  });
+
+  if (!order || order.channel !== "DELIVERY") {
+    res.status(404).json({ message: "Course introuvable." });
+    return;
+  }
+  if (order.courierId !== courierId) {
+    res.status(403).json({ message: "Cette course n'est pas la votre." });
+    return;
+  }
+  const allowed = COURIER_STATUS_TRANSITIONS[order.status] || [];
+  if (!allowed.includes(nextStatus)) {
+    res.status(409).json({ message: "Transition de statut non autorisee." });
+    return;
+  }
+
+  const updatedOrder = await prisma.order.update({
+    where: { id: order.id },
+    data: { status: nextStatus },
+    include: { restaurant: true, user: { include: { addresses: true } }, courier: true },
+  });
+
+  if (nextStatus === "Delivered") {
+    await prisma.courier.update({ where: { id: courierId }, data: { status: "AVAILABLE" } });
+  }
+
+  await emitOrderRealtime(updatedOrder.id, "order/status-updated");
+  await emitCourierRealtime(courierId, "courier/status-updated");
+  await notifyOrderStatus(updatedOrder);
+
+  res.json({
+    job: {
+      ...serializeOrder(updatedOrder),
+      customerName: updatedOrder.user.name,
+      customerPhone: updatedOrder.user.phone,
+      destinationAddress: updatedOrder.address,
+      compensation: calculateCourierCompensation(updatedOrder, req.courierAuth),
+    },
+  });
+});
+
+// Enregistre le token Expo Push du livreur (pour la notification des nouvelles courses).
+app.post("/api/courier/push-token", requireCourierAuth, async (req, res) => {
+  const token = String(req.body?.token || "").trim();
+  if (!/^ExponentPushToken\[.+\]$/.test(token)) {
+    res.status(400).json({ message: "Token de notification invalide." });
+    return;
+  }
+  await prisma.courier.update({
+    where: { id: req.courierAuth.id },
+    data: { pushToken: token },
+  });
+  res.json({ ok: true });
 });
 
 app.post("/api/courier/location", requireCourierAuth, async (req, res) => {
@@ -3107,6 +3534,154 @@ app.get("/api/restaurant/billing", requireRestaurantApiToken, async (req, res) =
     })),
   });
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// INTÉGRATION LOGICIEL DE CAISSE (POS) — API appelée par le logiciel du resto.
+// Auth : en-tête `x-api-token: <token du restaurant>`. Voir printer-agent/POS_API.md
+// ════════════════════════════════════════════════════════════════════════════
+
+// 1) Récupérer les commandes en ligne SpeedZ pour les injecter dans la caisse.
+//    Polling : passer ?since=<ISO> (dernière commande vue) pour n'avoir que les
+//    nouvelles. Optionnel : ?status=Confirmed&limit=200.
+app.get("/api/restaurant/orders", requireRestaurantApiToken, async (req, res) => {
+  const restaurant = req.restaurantAuth;
+  const since = req.query.since ? new Date(String(req.query.since)) : null;
+  const statusFilter = req.query.status ? String(req.query.status) : null;
+  const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
+
+  const where = { restaurantId: restaurant.id };
+  if (since && !Number.isNaN(since.getTime())) {
+    where.createdAt = { gt: since };
+  }
+  if (statusFilter) {
+    where.status = statusFilter;
+  }
+
+  const orders = await prisma.order.findMany({
+    where,
+    include: { restaurant: true, courier: true, user: true },
+    orderBy: { createdAt: "asc" },
+    take: limit,
+  });
+
+  res.json(
+    orders.map((order) => ({
+      ...serializeOrder(order),
+      customerName: order.user?.name || null,
+      customerPhone: order.user?.phone || null,
+    }))
+  );
+});
+
+// 2) Lire le menu SpeedZ (sens SpeedZ → caisse). Inclut l'externalId connu pour
+//    que la caisse fasse correspondre ses produits.
+app.get("/api/restaurant/menu", requireRestaurantApiToken, async (req, res) => {
+  const restaurant = req.restaurantAuth;
+  const [items, categories] = await Promise.all([
+    prisma.menuItem.findMany({
+      where: { restaurantId: restaurant.id, deletedAt: null },
+      orderBy: { name: "asc" },
+    }),
+    prisma.menuCategory.findMany({ orderBy: { sortOrder: "asc" } }),
+  ]);
+
+  const links = getRestaurantItemLinks(restaurant.id);
+  const idToExternal = Object.fromEntries(Object.entries(links).map(([ext, id]) => [id, ext]));
+
+  res.json({
+    categories: categories.map((c) => ({ name: c.name, sortOrder: c.sortOrder, isActive: c.isActive })),
+    items: items.map((item) => ({
+      id: item.id,
+      externalId: idToExternal[item.id] || null,
+      name: item.name,
+      description: item.description,
+      price: item.price,
+      category: item.category,
+      isAvailable: item.isAvailable,
+      stock: item.stock,
+      updatedAt: item.updatedAt ? item.updatedAt.toISOString() : null,
+    })),
+  });
+});
+
+// 3) Pousser le menu de la caisse vers SpeedZ (sens caisse → SpeedZ).
+//    Upsert par externalId (ID produit de la caisse). deleted:true = retrait.
+app.post(
+  "/api/restaurant/menu/sync",
+  requireRestaurantApiToken,
+  validateBody(Schemas.syncMenu),
+  async (req, res) => {
+    const restaurant = req.restaurantAuth;
+    const body = req.body;
+    const links = getRestaurantItemLinks(restaurant.id);
+    const summary = { created: 0, updated: 0, deleted: 0, categories: 0 };
+
+    // Catégories : crée celles qui n'existent pas (MenuCategory a un nom unique).
+    for (const category of body.categories || []) {
+      const existing = await prisma.menuCategory.findUnique({ where: { name: category.name } });
+      if (!existing) {
+        await prisma.menuCategory.create({
+          data: {
+            name: category.name,
+            sortOrder: Number(category.sortOrder) || 0,
+            isActive: category.isActive !== false,
+          },
+        });
+        summary.categories += 1;
+      }
+    }
+
+    // Articles : upsert par externalId via le mapping fichier.
+    const mappings = [];
+    for (const incoming of body.items || []) {
+      const externalId = String(incoming.externalId);
+      const linkedId = links[externalId];
+
+      if (incoming.deleted) {
+        if (linkedId) {
+          await prisma.menuItem
+            .update({ where: { id: linkedId }, data: { deletedAt: new Date() } })
+            .catch(() => {});
+          delete links[externalId];
+          summary.deleted += 1;
+        }
+        continue;
+      }
+
+      const data = {
+        name: incoming.name,
+        description: incoming.description || "",
+        price: Number(incoming.price) || 0,
+        category: incoming.category || "Divers",
+        image: incoming.image || "",
+        isAvailable: incoming.isAvailable !== false,
+        stock: incoming.stock !== undefined ? Number(incoming.stock) : 0,
+      };
+
+      let itemId = linkedId;
+      const exists = linkedId
+        ? await prisma.menuItem.findUnique({ where: { id: linkedId } })
+        : null;
+
+      if (exists && !exists.deletedAt) {
+        await prisma.menuItem.update({ where: { id: linkedId }, data });
+        summary.updated += 1;
+      } else {
+        const created = await prisma.menuItem.create({
+          data: { id: `pos_${restaurant.id}_${externalId}`.slice(0, 60), restaurantId: restaurant.id, options: [], ...data },
+        });
+        itemId = created.id;
+        links[externalId] = itemId;
+        summary.created += 1;
+      }
+      mappings.push({ externalId, id: itemId });
+    }
+
+    setRestaurantItemLinks(restaurant.id, links);
+    broadcastAdminResource("menu-synced", { restaurantId: restaurant.id, ...summary });
+    res.json({ ok: true, ...summary, mappings });
+  }
+);
 
 app.get("/api/loyalty", async (_req, res) => {
   const payload = await fetchBootstrapPayload();
@@ -3586,6 +4161,29 @@ app.get("/api/admin/restaurants/:id/qr-code", requireAuth, requireAdmin, wrapAsy
   const qrUrl = getRestaurantQrLandingUrl(qrCodeToken);
   const qrDataUrl = await QRCode.toDataURL(qrUrl, { margin: 1, width: 320 });
   res.json({ qrCodeToken, qrUrl, qrDataUrl });
+}));
+
+// Régénère le token API du restaurant (celui utilisé par l'agent imprimante).
+// L'ancien token cesse immédiatement de fonctionner ; le resto doit re-coller
+// le nouveau dans l'agent SpeedZPrinter.
+app.post("/api/admin/restaurants/:id/regenerate-token", requireAuth, requireAdmin, wrapAsync(async (req, res) => {
+  const restaurant = await prisma.restaurant.findUnique({ where: { id: req.params.id } });
+  if (!restaurant) {
+    throw new ApiError(404, "Restaurant introuvable.", "RESTAURANT_NOT_FOUND");
+  }
+
+  const apiToken = generateOpaqueToken("fdrest");
+  const qrCodeToken = restaurant.qrCodeToken || generateOpaqueToken("qr");
+  const updated = await prisma.restaurant.update({
+    where: { id: restaurant.id },
+    data: { apiToken, qrCodeToken },
+    include: { menuItems: true },
+  });
+
+  const qrUrl = getRestaurantQrLandingUrl(qrCodeToken);
+  const qrDataUrl = await QRCode.toDataURL(qrUrl, { margin: 1, width: 320 });
+  await logAdminAction(req, "restaurant.token_regenerated", "restaurant", restaurant.id, {});
+  res.json({ restaurant: serializeRestaurant(updated), apiToken, qrCodeToken, qrUrl, qrDataUrl });
 }));
 
 app.post("/api/admin/restaurants", requireAuth, requireAdmin, wrapAsync(async (req, res) => {

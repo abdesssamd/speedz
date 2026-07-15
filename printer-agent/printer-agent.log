@@ -1,0 +1,201 @@
+2026-07-13 09:49:14,526 INFO Connecte au restaurant : REsta Plannet
+2026-07-13 09:49:15,281 INFO Aucune imprimante -> ticket ecrit dans E:\SpeedZ\printer-agent\ticket-1783932555.bin
+2026-07-13 09:49:15,378 INFO Commande #FNSU76 imprimee
+2026-07-13 09:49:15,379 INFO Aucune imprimante -> ticket ecrit dans E:\SpeedZ\printer-agent\ticket-1783932555.bin
+2026-07-13 09:49:15,474 INFO Commande #PGPSWT imprimee
+2026-07-13 09:49:15,475 INFO Aucune imprimante -> ticket ecrit dans E:\SpeedZ\printer-agent\ticket-1783932555.bin
+2026-07-13 09:49:15,567 INFO Commande #XH0KXX imprimee
+2026-07-13 09:50:51,745 INFO Aucune imprimante -> ticket ecrit dans E:\SpeedZ\printer-agent\ticket-1783932651.bin
+2026-07-13 09:50:52,917 INFO Commande #T0X4L1 imprimee
+2026-07-13 11:26:17,034 INFO Connecte au restaurant : REsta Plannet
+2026-07-13 11:27:33,577 INFO Aucune imprimante -> ticket ecrit dans E:\SpeedZ\printer-agent\ticket-1783938453.bin
+2026-07-13 11:27:33,715 INFO Commande #YMW2F3 imprimee
+2026-07-13 11:41:10,274 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/orders
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 321, in loop
+    orders = self.fetch_orders()
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 143, in fetch_orders
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/orders
+2026-07-13 11:41:16,621 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-13 11:41:22,793 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-13 11:42:55,787 INFO Connecte au restaurant : REsta Plannet
+2026-07-13 11:42:59,655 INFO Aucune imprimante -> ticket ecrit dans E:\SpeedZ\printer-agent\ticket-1783939379.bin
+2026-07-13 11:42:59,655 INFO QR code du magasin imprime
+2026-07-13 11:47:00,603 INFO Aucune imprimante -> ticket ecrit dans E:\SpeedZ\printer-agent\ticket-1783939620.bin
+2026-07-13 11:47:00,717 INFO Commande #T0X4L1 imprimee
+2026-07-13 11:47:18,590 INFO Aucune imprimante -> ticket ecrit dans E:\SpeedZ\printer-agent\ticket-1783939638.bin
+2026-07-13 11:47:18,703 INFO Commande #T0X4L1 imprimee
+2026-07-13 11:47:35,590 INFO Aucune imprimante -> ticket ecrit dans E:\SpeedZ\printer-agent\ticket-1783939655.bin
+2026-07-13 11:47:35,700 INFO Commande #XH0KXX imprimee
+2026-07-13 11:52:45,072 INFO Aucune imprimante -> ticket ecrit dans E:\SpeedZ\printer-agent\ticket-1783939965.bin
+2026-07-13 11:52:45,073 INFO QR code du magasin imprime
+2026-07-13 11:52:48,354 INFO Aucune imprimante -> ticket ecrit dans E:\SpeedZ\printer-agent\ticket-1783939968.bin
+2026-07-13 11:52:48,354 INFO QR code du magasin imprime
+2026-07-13 12:00:51,544 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/orders
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 321, in loop
+    orders = self.fetch_orders()
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 143, in fetch_orders
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/orders
+2026-07-13 12:01:00,782 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/orders
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 321, in loop
+    orders = self.fetch_orders()
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 143, in fetch_orders
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/orders
+2026-07-13 12:01:07,297 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/orders
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 321, in loop
+    orders = self.fetch_orders()
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 143, in fetch_orders
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/orders
+2026-07-13 12:49:18,683 ERROR Erreur de polling: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=20)
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+  File "C:\Python314\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 292, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\socket.py", line 725, in readinto
+    return self._sock.recv_into(b)
+           ~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Python314\Lib\ssl.py", line 1304, in recv_into
+    return self.read(nbytes, buffer)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\ssl.py", line 1138, in read
+    return self._sslobj.read(len, buffer)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+TimeoutError: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 486, in send
+    resp = conn.urlopen(
+        method=request.method,
+    ...<9 lines>...
+        chunked=chunked,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+        method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\retry.py", line 490, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\util.py", line 39, in reraise
+    raise value
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 536, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 367, in _raise_timeout
+    raise ReadTimeoutError(
+        self, url, f"Read timed out. (read timeout={timeout_value})"
+    ) from err
+urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=20)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 321, in loop
+    orders = self.fetch_orders()
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 138, in fetch_orders
+    response = self.session.get(
+        f"{self.base_url}/api/restaurant/printer/orders",
+        headers=self.headers,
+        timeout=20,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 602, in get
+    return self.request("GET", url, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 532, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=20)
+2026-07-13 13:20:59,494 INFO Connecte au restaurant : REsta Plannet
+2026-07-13 13:21:17,504 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/orders
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 321, in loop
+    orders = self.fetch_orders()
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 143, in fetch_orders
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/orders
+2026-07-13 13:21:25,961 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/orders
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 321, in loop
+    orders = self.fetch_orders()
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 143, in fetch_orders
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/orders
+2026-07-13 13:21:32,425 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-13 13:22:50,187 INFO Aucune imprimante -> ticket ecrit dans E:\SpeedZ\printer-agent\ticket-1783945370.bin
+2026-07-13 13:22:50,377 INFO Commande #WCG7HB imprimee

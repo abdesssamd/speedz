@@ -6,9 +6,8 @@ import {
   CartItem,
   CartSummary,
   CheckoutDraft,
-  CourierDashboard,
-  CourierSession,
   DeliveryConfig,
+  PublicCourier,
   Gender,
   LoyaltyEntry,
   Order,
@@ -112,14 +111,9 @@ function getApiBaseUrl() {
 const API_BASE_URL = getApiBaseUrl();
 export const WS_BASE_URL = API_BASE_URL.replace(/^http/i, "ws");
 let authToken: string | null = null;
-let courierToken: string | null = null;
 
 export function setApiAuthToken(token: string | null) {
   authToken = token;
-}
-
-export function setCourierAuthToken(token: string | null) {
-  courierToken = token;
 }
 
 const REQUEST_TIMEOUT_MS = 20000;
@@ -158,9 +152,22 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as
-      | { message?: string; error?: { message?: string } }
+      | {
+          message?: string;
+          error?: { message?: string };
+          errors?: Array<{ field?: string; message?: string }>;
+        }
       | null;
-    throw new Error(errorBody?.error?.message ?? errorBody?.message ?? "Erreur réseau");
+    // Détail de validation (422) : on précise le(s) champ(s) fautif(s).
+    const fieldDetail = errorBody?.errors?.length
+      ? errorBody.errors
+          .map((entry) => (entry.field ? `${entry.field}: ${entry.message}` : entry.message))
+          .filter(Boolean)
+          .join(" • ")
+      : null;
+    throw new Error(
+      fieldDetail ?? errorBody?.error?.message ?? errorBody?.message ?? "Erreur réseau"
+    );
   }
 
   return response.json() as Promise<T>;
@@ -170,7 +177,6 @@ export const api = {
   baseUrl: API_BASE_URL,
   wsBaseUrl: WS_BASE_URL,
   setAuthToken: setApiAuthToken,
-  setCourierToken: setCourierAuthToken,
   bootstrap() {
     return request<BootstrapResponse>("/api/bootstrap");
   },
@@ -352,40 +358,21 @@ export const api = {
       body: JSON.stringify(input),
     });
   },
-  authenticateCourier(phone: string) {
-    return request<CourierSession>("/api/courier/auth", {
-      method: "POST",
-      body: JSON.stringify({ phone }),
-    }).then((payload) => {
-      setCourierAuthToken(payload.token);
-      return payload;
-    });
-  },
-  logoutCourier() {
-    setCourierAuthToken(null);
-  },
-  getCourierJobs(input: { lat?: number; lng?: number }) {
-    const params = new URLSearchParams();
-    if (input.lat !== undefined) params.set("lat", String(input.lat));
-    if (input.lng !== undefined) params.set("lng", String(input.lng));
-    return request<CourierDashboard>(`/api/courier/jobs?${params.toString()}`, {
-      headers: courierToken ? { Authorization: `Bearer ${courierToken}` } : {},
-    });
-  },
-  acceptCourierJob(orderId: string) {
-    return request<{ job: Order & { customerName?: string; customerPhone?: string; destinationAddress?: string } }>(
-      `/api/courier/jobs/${orderId}/accept`,
-      {
-        method: "POST",
-        headers: courierToken ? { Authorization: `Bearer ${courierToken}` } : {},
-      }
+  // Recherche d'un livreur par son code (6 derniers chiffres du téléphone).
+  searchCouriers(code: string) {
+    return request<{ couriers: PublicCourier[] }>(
+      `/api/couriers/search?code=${encodeURIComponent(code)}`
     );
   },
-  updateCourierLocation(input: { latitude: number; longitude: number }) {
-    return request<{ ok: boolean }>("/api/courier/location", {
-      method: "POST",
-      headers: courierToken ? { Authorization: `Bearer ${courierToken}` } : {},
-      body: JSON.stringify(input),
-    });
+  getFavoriteCouriers() {
+    return request<{ couriers: PublicCourier[]; favoriteCourierIds: string[] }>(
+      "/api/couriers/favorites"
+    );
+  },
+  toggleFavoriteCourier(courierId: string) {
+    return request<{ favoriteCourierIds: string[]; changedCourier: PublicCourier; isFavorite: boolean }>(
+      `/api/couriers/${courierId}/favorite/toggle`,
+      { method: "POST" }
+    );
   },
 };

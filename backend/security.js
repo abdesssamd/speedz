@@ -442,6 +442,34 @@ const Schemas = {
     restaurantId: z.string().nullable().optional(),
   }),
 
+  // POS: synchronisation du menu depuis le logiciel de caisse (caisse → SpeedZ)
+  syncMenu: z.object({
+    categories: z
+      .array(
+        z.object({
+          name: z.string().min(1).max(100).trim(),
+          sortOrder: z.number().int().min(0).optional(),
+          isActive: z.boolean().optional(),
+        })
+      )
+      .optional(),
+    items: z
+      .array(
+        z.object({
+          externalId: z.union([z.string(), z.number()]).transform((v) => String(v)),
+          name: z.string().min(1).max(200).trim(),
+          description: z.string().max(1000).optional(),
+          price: z.coerce.number().min(0).max(1000000),
+          category: z.string().max(100).optional(),
+          image: z.string().max(2000).optional(),
+          isAvailable: z.boolean().optional(),
+          stock: z.coerce.number().int().min(0).optional(),
+          deleted: z.boolean().optional(),
+        })
+      )
+      .max(2000),
+  }),
+
   // Admin: enregistrer un versement d'un restaurant
   createSettlement: z.object({
     amount: z.coerce.number().positive("Montant invalide").max(10000000),

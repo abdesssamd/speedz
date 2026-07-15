@@ -167,6 +167,79 @@
     @apply bg-orange-500 shadow-[0_0_0_4px_rgba(249,115,22,0.18)];
   }
 
+  /* Menu compte dans la navbar (langue, thème, profil, mot de passe, déconnexion) */
+  .account-menu {
+    @apply relative inline-flex;
+  }
+
+  .account-trigger {
+    @apply inline-flex items-center gap-2;
+  }
+
+  .account-avatar {
+    @apply inline-flex items-center justify-center w-7 h-7 rounded-full bg-orange-500/15 text-orange-600;
+  }
+
+  .dark .account-avatar {
+    @apply text-orange-300;
+  }
+
+  .account-name {
+    @apply text-sm font-semibold max-w-[140px] truncate;
+  }
+
+  .account-caret {
+    @apply transition-transform duration-200;
+  }
+
+  .account-caret.open {
+    @apply rotate-180;
+  }
+
+  .account-backdrop {
+    @apply fixed inset-0 z-40 cursor-default;
+  }
+
+  .account-dropdown {
+    @apply absolute right-0 top-[calc(100%+8px)] z-50 w-64 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl flex flex-col gap-3;
+  }
+
+  .dark .account-dropdown {
+    @apply border-slate-700 bg-slate-900;
+  }
+
+  .account-identity {
+    @apply flex flex-col gap-1 pb-3 border-b border-slate-100;
+  }
+
+  .dark .account-identity {
+    @apply border-slate-800;
+  }
+
+  .account-identity strong {
+    @apply text-sm text-slate-900;
+  }
+
+  .dark .account-identity strong {
+    @apply text-slate-100;
+  }
+
+  .account-email {
+    @apply text-xs text-slate-500 truncate;
+  }
+
+  .account-actions {
+    @apply flex flex-col gap-2;
+  }
+
+  .account-logout {
+    @apply text-red-600;
+  }
+
+  .dark .account-logout {
+    @apply text-red-400;
+  }
+
   .stats-grid {
     @apply grid gap-4;
     grid-template-columns: repeat(4, minmax(0, 1fr));

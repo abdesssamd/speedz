@@ -138,7 +138,13 @@ export type CartItem = {
   specialInstructions?: string;
 };
 
-export type OrderStatus = "Confirmed" | "Preparing" | "On the way" | "Delivered";
+export type OrderStatus =
+  | "AwaitingCourier"
+  | "Accepted"
+  | "Confirmed"
+  | "Preparing"
+  | "On the way"
+  | "Delivered";
 
 export type PaymentMethod = "Card" | "Cash" | "Apple Pay";
 
@@ -348,4 +354,15 @@ export type CourierDashboard = {
 export type CourierSession = {
   token: string;
   courier: CourierDashboard["courier"];
+};
+
+// Vue publique d'un livreur côté client (recherche / favoris) : pas de téléphone,
+// seulement le code à 6 chiffres partagé verbalement par le livreur.
+export type PublicCourier = {
+  id: string;
+  name: string;
+  code: string;
+  vehicle: string;
+  zoneLabel?: string | null;
+  status: string;
 };

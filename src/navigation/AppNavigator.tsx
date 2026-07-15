@@ -12,7 +12,7 @@ import { AddressesScreen } from "../screens/AddressesScreen";
 import { CartScreen } from "../screens/CartScreen";
 import { CheckoutScreen } from "../screens/CheckoutScreen";
 import { ConfirmOrderScreen } from "../screens/ConfirmOrderScreen";
-import { CourierHubScreen } from "../screens/CourierHubScreen";
+import { FavoriteCouriersScreen } from "../screens/FavoriteCouriersScreen";
 import { HelpScreen } from "../screens/HelpScreen";
 import { HomeScreen } from "../screens/HomeScreen";
 import { InviteScreen } from "../screens/InviteScreen";
@@ -32,8 +32,8 @@ export type RootStackParamList = {
   Restaurant: { restaurantId: string };
   Checkout: undefined;
   ConfirmOrder: { draft: CheckoutDraft };
-  PartnerApplication: { type?: "RESTAURANT" | "COURIER" } | undefined;
-  CourierHub: undefined;
+  PartnerApplication: { type?: "RESTAURANT" } | undefined;
+  FavoriteCouriers: undefined;
   RestaurantHub: undefined;
   Addresses: undefined;
   Notifications: undefined;
@@ -164,7 +164,7 @@ export function AppNavigator() {
           component={PartnerApplicationScreen}
           options={{ title: t("nav_partner_application") }}
         />
-        <Stack.Screen name="CourierHub" component={CourierHubScreen} options={{ title: t("courier_hub") }} />
+        <Stack.Screen name="FavoriteCouriers" component={FavoriteCouriersScreen} options={{ title: t("favorite_couriers") }} />
         <Stack.Screen name="RestaurantHub" component={RestaurantHubScreen} options={{ title: t("restaurant_hub") }} />
         <Stack.Screen name="Addresses" component={AddressesScreen} options={{ title: t("nav_addresses") }} />
         <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: t("nav_notifications") }} />

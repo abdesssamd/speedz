@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "SpeedZ Livreur",
+    "slug": "speedz-courier",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0F172A"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.microtech.speedz.courier",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "SpeedZ Livreur utilise votre position pour vous proposer les courses proches et partager votre position pendant la livraison."
+      }
+    },
+    "android": {
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
+      "package": "com.microtech.speedz.courier"
+    },
+    "plugins": [
+      "expo-location",
+      [
+        "expo-notifications",
+        {
+          "color": "#FF7622"
+        }
+      ]
+    ]
+  }
+}

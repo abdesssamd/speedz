@@ -6,8 +6,6 @@ import { useApp } from "../context/AppContext";
 import { api } from "../services/api";
 import { PartnerApplicationInput, PartnerApplicationType } from "../types";
 
-const vehicleOptions = ["Moto", "Voiture", "Velo electrique"];
-
 type Props = {
   route: {
     params?: {
@@ -36,10 +34,11 @@ const createInitialForm = (type: PartnerApplicationType): PartnerApplicationInpu
   notes: "",
 });
 
-export function PartnerApplicationScreen({ route }: Props) {
-  const initialType = route.params?.type ?? "RESTAURANT";
+export function PartnerApplicationScreen(_props: Props) {
+  // L'inscription livreur se fait désormais dans l'application dédiée SpeedZ Livreur :
+  // cet écran ne gère plus que les candidatures restaurant.
   const { t, isRTL, pushNotification } = useApp();
-  const [form, setForm] = useState<PartnerApplicationInput>(createInitialForm(initialType));
+  const [form, setForm] = useState<PartnerApplicationInput>(createInitialForm("RESTAURANT"));
   const [submitting, setSubmitting] = useState(false);
 
   const isRestaurant = form.type === "RESTAURANT";
@@ -48,7 +47,7 @@ export function PartnerApplicationScreen({ route }: Props) {
     // Le plan de facturation (restaurant) et la rémunération (livreur) sont
     // désormais définis par l'administrateur, pas saisis à l'inscription.
     return Boolean(isRestaurant
-      ? baseValid && form.businessName?.trim() && form.address?.trim()
+      ? baseValid && form.businessName?.trim() && form.restaurantCategory?.trim() && form.address?.trim()
       : baseValid && form.vehicle?.trim());
   }, [form, isRestaurant]);
 
@@ -56,13 +55,17 @@ export function PartnerApplicationScreen({ route }: Props) {
     setForm((current) => ({ ...current, [key]: value }));
   };
 
-  const switchType = (type: PartnerApplicationType) => {
-    setForm((current) => ({ ...createInitialForm(type), applicantName: current.applicantName, email: current.email, phone: current.phone, city: current.city }));
-  };
-
   const submit = async () => {
-    if (!canSubmit || submitting) {
-      pushNotification({ title: t("application_error"), message: t("application_error_msg"), tone: "error" });
+    if (submitting) {
+      return;
+    }
+    // Champs obligatoires manquants : message clair (ce n'est PAS une erreur backend).
+    if (!canSubmit) {
+      pushNotification({
+        title: t("application_error"),
+        message: t("application_incomplete_msg"),
+        tone: "error",
+      });
       return;
     }
 
@@ -86,8 +89,14 @@ export function PartnerApplicationScreen({ route }: Props) {
         tone: "success",
       });
       setForm(createInitialForm(form.type));
-    } catch {
-      pushNotification({ title: t("application_error"), message: t("application_error_msg"), tone: "error" });
+    } catch (error) {
+      // Surface la vraie raison (validation serveur ou réseau) au lieu d'un
+      // message générique trompeur « connexion backend requise ».
+      pushNotification({
+        title: t("application_error"),
+        message: (error as Error)?.message || t("application_error_msg"),
+        tone: "error",
+      });
     } finally {
       setSubmitting(false);
     }
@@ -101,60 +110,15 @@ export function PartnerApplicationScreen({ route }: Props) {
           <Text style={[styles.subtitle, { textAlign: isRTL ? "right" : "left" }]}>{t("application_subtitle")}</Text>
         </AnimatedCard>
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { textAlign: isRTL ? "right" : "left" }]}>{t("choose_profile")}</Text>
-          <View style={styles.choiceRow}>
-            <ScalePressable
-              containerStyle={[styles.choiceCard, isRestaurant && styles.choiceCardActive]}
-              onPress={() => switchType("RESTAURANT")}
-            >
-              <Text style={[styles.choiceText, isRestaurant && styles.choiceTextActive]}>{t("restaurant_profile")}</Text>
-            </ScalePressable>
-            <ScalePressable
-              containerStyle={[styles.choiceCard, !isRestaurant && styles.choiceCardActive]}
-              onPress={() => switchType("COURIER")}
-            >
-              <Text style={[styles.choiceText, !isRestaurant && styles.choiceTextActive]}>{t("courier_profile")}</Text>
-            </ScalePressable>
-          </View>
-        </View>
-
         <AnimatedCard style={styles.formCard}>
           <TextInput value={form.applicantName} onChangeText={(value) => setField("applicantName", value)} placeholder={t("applicant_name")} style={[styles.input, { textAlign: isRTL ? "right" : "left" }]} />
           <TextInput value={form.email} onChangeText={(value) => setField("email", value)} placeholder={t("applicant_email")} keyboardType="email-address" autoCapitalize="none" style={[styles.input, { textAlign: isRTL ? "right" : "left" }]} />
           <TextInput value={form.phone} onChangeText={(value) => setField("phone", value)} placeholder={t("applicant_phone")} keyboardType="phone-pad" style={[styles.input, { textAlign: isRTL ? "right" : "left" }]} />
           <TextInput value={form.city} onChangeText={(value) => setField("city", value)} placeholder={t("applicant_city")} style={[styles.input, { textAlign: isRTL ? "right" : "left" }]} />
 
-          {isRestaurant ? (
-            <>
-              <TextInput value={form.businessName} onChangeText={(value) => setField("businessName", value)} placeholder={t("business_name")} style={[styles.input, { textAlign: isRTL ? "right" : "left" }]} />
-              <TextInput value={form.restaurantCategory} onChangeText={(value) => setField("restaurantCategory", value)} placeholder={t("restaurant_category")} style={[styles.input, { textAlign: isRTL ? "right" : "left" }]} />
-              <TextInput value={form.address} onChangeText={(value) => setField("address", value)} placeholder={t("applicant_address")} style={[styles.input, { textAlign: isRTL ? "right" : "left" }]} />
-            </>
-          ) : (
-            <>
-              <View style={styles.vehicleSection}>
-                <Text style={[styles.vehicleLabel, { textAlign: isRTL ? "right" : "left" }]}>{t("courier_vehicle")}</Text>
-                <View style={styles.vehicleRow}>
-                  {vehicleOptions.map((vehicle) => {
-                    const active = form.vehicle === vehicle;
-                    return (
-                      <ScalePressable
-                        key={vehicle}
-                        containerStyle={[styles.vehicleChip, active && styles.vehicleChipActive]}
-                        onPress={() => setField("vehicle", vehicle)}
-                      >
-                        <Text style={[styles.vehicleChipText, active && styles.vehicleChipTextActive]}>
-                          {vehicle === "Moto" ? t("scooter") : vehicle === "Voiture" ? t("car") : t("ebike")}
-                        </Text>
-                      </ScalePressable>
-                    );
-                  })}
-                </View>
-              </View>
-              <TextInput value={form.zone} onChangeText={(value) => setField("zone", value)} placeholder={t("courier_zone")} style={[styles.input, { textAlign: isRTL ? "right" : "left" }]} />
-            </>
-          )}
+          <TextInput value={form.businessName} onChangeText={(value) => setField("businessName", value)} placeholder={t("business_name")} style={[styles.input, { textAlign: isRTL ? "right" : "left" }]} />
+          <TextInput value={form.restaurantCategory} onChangeText={(value) => setField("restaurantCategory", value)} placeholder={t("restaurant_category")} style={[styles.input, { textAlign: isRTL ? "right" : "left" }]} />
+          <TextInput value={form.address} onChangeText={(value) => setField("address", value)} placeholder={t("applicant_address")} style={[styles.input, { textAlign: isRTL ? "right" : "left" }]} />
 
           <TextInput
             value={form.notes}

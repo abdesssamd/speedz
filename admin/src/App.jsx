@@ -4,6 +4,7 @@ import {
   BarChart2,
   Bike,
   Check,
+  ChevronDown,
   Clock,
   Download,
   Edit3,
@@ -1015,6 +1016,7 @@ export default function App() {
   const [showPromotionModal, setShowPromotionModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
   const [deleteCategoryTarget, setDeleteCategoryTarget] = useState(null);
   const [selectedMenuItem, setSelectedMenuItem] = useState(null);
   const [selectedCourier, setSelectedCourier] = useState(null);
@@ -3565,43 +3567,6 @@ export default function App() {
             </button>
           ))}
         </nav>
-
-        <div className="side-card">
-          <div className="inline-actions">
-            <button className="ghost small" onClick={() => setLanguage("fr")}>{t("french")}</button>
-            <button className="ghost small" onClick={() => setLanguage("ar")}>{t("arabic")}</button>
-            <button
-              className="ghost small"
-              onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
-              aria-label="Toggle theme"
-            >
-              {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-            </button>
-          </div>
-          <span className="chip chip-dark">{user?.role}</span>
-          <h3>{user?.name}</h3>
-          <p>{user?.email}</p>
-          <div className="side-card-actions">
-            <button className="ghost full" onClick={openProfileModal}>
-              <span className="inline-flex items-center gap-2">
-                <User size={14} />
-                Profil
-              </span>
-            </button>
-            <button className="ghost full" onClick={openPasswordModal}>
-              <span className="inline-flex items-center gap-2">
-                <Lock size={14} />
-                Mot de passe
-              </span>
-            </button>
-          </div>
-          <button className="ghost full" onClick={handleLogout}>
-            <span className="inline-flex items-center gap-2">
-              <Power size={14} />
-              {t("logout")}
-            </span>
-          </button>
-        </div>
       </aside>
 
       <section className="workspace">
@@ -3624,6 +3589,93 @@ export default function App() {
               setRestaurantCreateErrors({});
               setShowCreateModal(true);
             }}>{t("add_restaurant")}</button>
+
+            {/* Menu compte (langue, thème, profil, mot de passe, déconnexion) déplacé
+                de la sidebar vers la navbar pour un rendu plus professionnel. */}
+            <div className="account-menu">
+              <button
+                className="ghost account-trigger"
+                onClick={() => setShowAccountMenu((open) => !open)}
+                aria-haspopup="menu"
+                aria-expanded={showAccountMenu}
+              >
+                <span className="account-avatar">
+                  <User size={15} />
+                </span>
+                <span className="account-name">{user?.name}</span>
+                <ChevronDown size={15} className={`account-caret ${showAccountMenu ? "open" : ""}`} />
+              </button>
+
+              {showAccountMenu ? (
+                <>
+                  <button
+                    className="account-backdrop"
+                    aria-label="Fermer le menu"
+                    onClick={() => setShowAccountMenu(false)}
+                  />
+                  <div className="account-dropdown" role="menu">
+                    <div className="account-identity">
+                      <span className="chip chip-dark">{user?.role}</span>
+                      <strong>{user?.name}</strong>
+                      <span className="account-email">{user?.email}</span>
+                    </div>
+
+                    <div className="account-prefs">
+                      <div className="inline-actions">
+                        <button className="ghost small" onClick={() => setLanguage("fr")}>{t("french")}</button>
+                        <button className="ghost small" onClick={() => setLanguage("ar")}>{t("arabic")}</button>
+                        <button
+                          className="ghost small"
+                          onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
+                          aria-label="Toggle theme"
+                        >
+                          {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="account-actions">
+                      <button
+                        className="ghost full"
+                        onClick={() => {
+                          setShowAccountMenu(false);
+                          openProfileModal();
+                        }}
+                      >
+                        <span className="inline-flex items-center gap-2">
+                          <User size={14} />
+                          Profil
+                        </span>
+                      </button>
+                      <button
+                        className="ghost full"
+                        onClick={() => {
+                          setShowAccountMenu(false);
+                          openPasswordModal();
+                        }}
+                      >
+                        <span className="inline-flex items-center gap-2">
+                          <Lock size={14} />
+                          Mot de passe
+                        </span>
+                      </button>
+                      <button
+                        className="ghost full account-logout"
+                        onClick={() => {
+                          setShowAccountMenu(false);
+                          handleLogout();
+                        }}
+                      >
+                        <span className="inline-flex items-center gap-2">
+                          <Power size={14} />
+                          {t("logout")}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : null}
+            </div>
           </div>
         </header>
 

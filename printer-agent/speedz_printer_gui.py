@@ -231,9 +231,9 @@ class PrinterGUI:
         win = tk.Toplevel(self.root)
         self.account_win = win
         win.title("SpeedZ - Mon compte")
-        win.geometry("420x520")
+        win.geometry("440x680")
         win.configure(bg="#0F0F12")
-        win.minsize(380, 460)
+        win.minsize(400, 560)
 
         pad = tk.Frame(win, bg="#0F0F12", padx=20, pady=18)
         pad.pack(fill="both", expand=True)
@@ -294,6 +294,25 @@ class PrinterGUI:
             link.insert(0, url)
             link.config(state="readonly")
             link.pack(fill="x", ipady=6)
+
+        # Detail des dernieres commandes.
+        orders = data.get("recentOrders") or []
+        tk.Label(self.account_body, text=f"Dernieres commandes ({len(orders)})", font=("Segoe UI", 9, "bold"),
+                 fg="#F3F4F6", bg="#0F0F12").pack(anchor="w", pady=(14, 2))
+        if not orders:
+            tk.Label(self.account_body, text="Aucune commande pour le moment.", font=("Segoe UI", 9),
+                     fg="#9CA3AF", bg="#0F0F12").pack(anchor="w")
+        else:
+            listing = scrolledtext.ScrolledText(self.account_body, height=9, font=("Consolas", 8),
+                                                bg="#151519", fg="#D1D5DB", relief="flat")
+            listing.pack(fill="both", expand=True, pady=(2, 0))
+            for order in orders:
+                oid = str(order.get("id", ""))[-6:]
+                status = order.get("status", "")
+                total = money(order.get("total", 0))
+                created = str(order.get("createdAt", "")).replace("T", " ")[:16]
+                listing.insert("end", f"#{oid}  {status:<12} {total:>12}   {created}\n")
+            listing.config(state="disabled")
 
     def _copy_menu_link(self):
         if not self.account_menu_url:

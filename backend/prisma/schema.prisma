@@ -27,6 +27,8 @@ enum AuthProvider {
 }
 
 enum OrderStatus {
+  AwaitingCourier
+  Accepted
   Confirmed
   Preparing
   OnTheWay
@@ -86,6 +88,7 @@ model User {
   addresses      UserAddress[]
   authChallenges AuthChallenge[]
   managedRestaurant Restaurant? @relation("RestaurantManager", fields: [managedRestaurantId], references: [id], onDelete: SetNull)
+  courierFavorites CourierFavorite[]
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 }
@@ -221,9 +224,22 @@ model Courier {
   currentLat   Float?
   currentLng   Float?
   zoneLabel    String?
+  pushToken    String?
   orders       Order[]
+  favoritedBy  CourierFavorite[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+}
+
+model CourierFavorite {
+  id        String   @id @default(cuid())
+  userId    String
+  courierId String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courier   Courier  @relation(fields: [courierId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, courierId])
 }
 
 model Promotion {
