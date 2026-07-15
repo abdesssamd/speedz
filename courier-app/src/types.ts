@@ -26,7 +26,8 @@ export type CourierJob = {
   total: number;
   itemsCount: number;
   createdAt: string;
-  compensation: { total: number; base: number; perKm: number };
+  // Optionnel : absent si le backend n'a pas encore le calcul de rémunération.
+  compensation?: { total: number; base: number; perKm: number } | null;
   customer?: { name: string; phone: string; address: string } | null;
 };
 

@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-nati
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "./src/api";
 import { CourierProvider, useCourier } from "./src/CourierContext";
+import { startRingtone, stopRingtone } from "./src/ringtone";
 import { ActiveScreen } from "./src/screens/ActiveScreen";
 import { AuthScreen } from "./src/screens/AuthScreen";
 import { JobsScreen } from "./src/screens/JobsScreen";
@@ -32,12 +33,26 @@ function Dashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
 
+  // IDs de courses déjà vues : on ne sonne que pour les nouvelles arrivées.
+  const seenJobIdsRef = useRef<Set<string>>(new Set());
+
   const load = useCallback(async () => {
     try {
       const coords = location ?? (await refreshLocation());
       const payload = await api.getJobs({ lat: coords?.latitude, lng: coords?.longitude });
       setDashboard(payload);
       setCourier(payload.courier);
+
+      // Sonnerie type appel : bips répétés tant que le livreur n'a pas réagi.
+      const seen = seenJobIdsRef.current;
+      const jobs = payload.availableJobs ?? [];
+      const hasNewJob = jobs.some((job) => !seen.has(job.id));
+      jobs.forEach((job) => seen.add(job.id));
+      if (hasNewJob) {
+        startRingtone();
+      } else if (jobs.length === 0) {
+        stopRingtone();
+      }
     } catch {
       // conserve l'état précédent en cas d'échec réseau
     } finally {
@@ -63,6 +78,7 @@ function Dashboard() {
   useEffect(() => {
     const received = Notifications.addNotificationReceivedListener(() => load());
     responseRef.current = Notifications.addNotificationResponseReceivedListener(() => {
+      stopRingtone();
       setTab("jobs");
       load();
     });
@@ -99,7 +115,17 @@ function Dashboard() {
       </View>
 
       <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-        <TabButton label="Courses" icon="🛵" active={tab === "jobs"} badge={availableJobs.length} onPress={() => setTab("jobs")} />
+        <TabButton
+          label="Courses"
+          icon="🛵"
+          active={tab === "jobs"}
+          badge={availableJobs.length}
+          onPress={() => {
+            // Ouvrir l'onglet Courses = le livreur a vu la demande : on coupe la sonnerie.
+            stopRingtone();
+            setTab("jobs");
+          }}
+        />
         <TabButton label="En cours" icon="📦" active={tab === "active"} badge={activeJobs.length} onPress={() => setTab("active")} />
         <TabButton label="Profil" icon="👤" active={tab === "profile"} onPress={() => setTab("profile")} />
       </View>

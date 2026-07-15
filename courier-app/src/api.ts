@@ -6,6 +6,11 @@ import { Courier, CourierDashboard, CourierJob, CourierSession } from "./types";
 const PRODUCTION_API_URL = "https://speedz.microtechdz13.com";
 
 function getDevServerHost(): string | null {
+  // Sur le web, l'app est servie par Metro : on repart de l'hôte de la page.
+  if (Platform.OS === "web" && typeof window !== "undefined" && window.location?.hostname) {
+    return window.location.hostname;
+  }
+
   const expoHost =
     Constants.expoConfig?.hostUri ||
     (Constants as any).manifest2?.extra?.expoClient?.hostUri ||
@@ -23,10 +28,11 @@ function getApiBaseUrl(): string {
   if (configuredUrl) return configuredUrl.replace(/\/$/, "");
   if (!__DEV__) return PRODUCTION_API_URL;
 
+  // Port du backend SpeedZ en local (voir backend/.env : PORT=4100).
   const host = getDevServerHost();
-  if (host && !["localhost", "127.0.0.1"].includes(host)) return `http://${host}:4000`;
-  if (Platform.OS === "android") return "http://10.0.2.2:4000";
-  return "http://localhost:4000";
+  if (host && !["localhost", "127.0.0.1"].includes(host)) return `http://${host}:4100`;
+  if (Platform.OS === "android") return "http://10.0.2.2:4100";
+  return "http://localhost:4100";
 }
 
 const API_BASE_URL = getApiBaseUrl();
@@ -70,10 +76,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 export const api = {
   baseUrl: API_BASE_URL,
   setCourierToken,
-  authenticate(phone: string) {
+  authenticate(phone: string, password: string) {
     return request<CourierSession>("/api/courier/auth", {
       method: "POST",
-      body: JSON.stringify({ phone }),
+      body: JSON.stringify({ phone, password }),
     });
   },
   register(input: {
@@ -82,6 +88,7 @@ export const api = {
     phone: string;
     city: string;
     vehicle: string;
+    password: string;
     zone?: string;
     notes?: string;
   }) {
@@ -94,6 +101,7 @@ export const api = {
         phone: input.phone,
         city: input.city,
         vehicle: input.vehicle,
+        password: input.password,
         zone: input.zone || undefined,
         notes: input.notes || undefined,
       }),

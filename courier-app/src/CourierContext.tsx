@@ -16,7 +16,7 @@ type CourierContextValue = {
   token: string | null;
   courier: Courier | null;
   location: Coordinates | null;
-  login: (phone: string) => Promise<Courier>;
+  login: (phone: string, password: string) => Promise<Courier>;
   logout: () => Promise<void>;
   setCourier: (courier: Courier) => void;
   refreshLocation: () => Promise<Coordinates | null>;
@@ -117,8 +117,8 @@ export function CourierProvider({ children }: { children: React.ReactNode }) {
     };
   }, [token]);
 
-  const login = useCallback(async (phone: string): Promise<Courier> => {
-    const session = await api.authenticate(phone);
+  const login = useCallback(async (phone: string, password: string): Promise<Courier> => {
+    const session = await api.authenticate(phone, password);
     api.setCourierToken(session.token);
     setToken(session.token);
     setCourierState(session.courier);

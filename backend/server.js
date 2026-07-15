@@ -1410,7 +1410,7 @@ async function queueApplicationEmail(application, status) {
     status === "ACCEPTED"
       ? application.type === "RESTAURANT"
         ? `Bonjour ${application.applicantName}, votre compte restaurant a ete valide.\nPlan: ${planSummary}\nToken API: ${application.generatedApiToken}\nLien QR: ${application.qrCodeUrl}\nCe token sert de cle d'activation pour le logiciel d'impression.`
-        : `Bonjour ${application.applicantName}, votre candidature ${application.type} a ete acceptee.`
+        : `Bonjour ${application.applicantName}, votre compte livreur SpeedZ a ete valide.\n\nConnexion : ouvrez l'application SpeedZ Livreur et connectez-vous avec votre numero de telephone (${application.phone}).\n\nVotre code livreur : ${courierCode(application.phone)}\nPartagez ce code a vos clients pour qu'ils vous ajoutent en favori : vous serez alors prioritaire sur leurs commandes.`
       : `Bonjour ${application.applicantName}, votre candidature ${application.type} a ete refusee.`;
 
   // Envoi réel via SMTP (best-effort). sendEmailMessage écrit dans l'outbox.
@@ -1436,6 +1436,7 @@ async function ensureApplicationEntity(application) {
       data: {
         name: application.applicantName,
         phone: application.phone,
+        passwordHash: application.passwordHash || null,
         vehicle: application.vehicle || "Scooter",
         status: "AVAILABLE",
         payPerDelivery: Number(application.payPerDelivery || 3),
@@ -3096,8 +3097,13 @@ app.get("/qr/:qrToken", async (req, res) => {
 </html>`);
 });
 
-app.post("/api/courier/auth", validateBody(Schemas.createCourier.pick({ phone: true })), async (req, res) => {
+// Connexion livreur : téléphone + mot de passe.
+// Compat comptes créés par l'admin sans mot de passe : le premier login
+// enregistre le mot de passe saisi et verrouille le compte.
+// (Prévu : remplacement par un OTP WhatsApp/SMS quand l'API sera intégrée.)
+app.post("/api/courier/auth", validateBody(Schemas.courierAuth), async (req, res) => {
   const phone = normalizePhoneNumber(req.body?.phone);
+  const password = String(req.body?.password || "");
   const digits = phone.replace(/\D/g, "");
   // Recherche robuste : on compare les numéros normalisés (les livreurs peuvent être
   // enregistrés avec des espaces ou un format différent de la saisie de connexion).
@@ -3114,8 +3120,22 @@ app.post("/api/courier/auth", validateBody(Schemas.createCourier.pick({ phone: t
   }
 
   if (!courier) {
-    res.status(404).json({ message: "Livreur introuvable." });
+    res.status(404).json({ message: "Livreur introuvable. Verifiez le numero ou attendez la validation de votre compte." });
     return;
+  }
+
+  if (courier.passwordHash) {
+    const isValid = await bcrypt.compare(password, courier.passwordHash);
+    if (!isValid) {
+      res.status(401).json({ message: "Mot de passe incorrect." });
+      return;
+    }
+  } else {
+    // Premier login d'un compte sans mot de passe : on enregistre celui saisi.
+    await prisma.courier.update({
+      where: { id: courier.id },
+      data: { passwordHash: await bcrypt.hash(password, 10) },
+    });
   }
 
   res.json({
@@ -3961,6 +3981,10 @@ app.post("/api/applications", validateBody(Schemas.createApplication), async (re
   // Le plan de facturation est désormais paramétré par l'admin après réception
   // de la demande — il n'est plus exigé à l'inscription.
 
+  // Mot de passe livreur : hashé immédiatement, jamais stocké en clair.
+  const passwordHash =
+    type === "COURIER" && body.password ? await bcrypt.hash(String(body.password), 10) : null;
+
   const applications = readPartnerApplications();
   const application = {
     id: `app_${Date.now()}`,
@@ -3969,6 +3993,7 @@ app.post("/api/applications", validateBody(Schemas.createApplication), async (re
     email,
     phone,
     city,
+    passwordHash,
     businessName: body.businessName?.trim() || null,
     restaurantCategory: body.restaurantCategory?.trim() || null,
     address: body.address?.trim() || null,
@@ -4009,7 +4034,11 @@ async function listAdminApplications(req, res) {
   }
 
   applications.sort((left, right) => new Date(right.createdAt || 0) - new Date(left.createdAt || 0));
-  ok(res, paginated(applications.slice(skip, skip + limit), applications.length, { page, limit }));
+  // Ne jamais exposer le hash du mot de passe livreur, même à l'admin.
+  const sanitized = applications
+    .slice(skip, skip + limit)
+    .map(({ passwordHash, ...rest }) => rest);
+  ok(res, paginated(sanitized, applications.length, { page, limit }));
 }
 
 async function updateAdminApplication(req, res) {
@@ -4093,7 +4122,8 @@ async function updateAdminApplication(req, res) {
     linkedEntityId: updatedApplication.linkedEntityId || null,
   });
 
-  ok(res, updatedApplication);
+  const { passwordHash: _hash, ...safeApplication } = updatedApplication;
+  ok(res, safeApplication);
 }
 
 async function updateAdminCustomer(req, res) {

@@ -217,6 +217,7 @@ model Courier {
   id           String        @id @default(cuid())
   name         String
   phone        String
+  passwordHash String?
   vehicle      String
   status       CourierStatus @default(AVAILABLE)
   payPerDelivery Float       @default(3)

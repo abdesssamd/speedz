@@ -1,5 +1,27 @@
 [
   {
+    "id": "app_1784153660312",
+    "type": "COURIER",
+    "applicantName": "Brahim Benaiache",
+    "email": "anaslaraveldev@gmail.com",
+    "phone": "+213666776677",
+    "city": "TLEMCEN",
+    "businessName": null,
+    "restaurantCategory": null,
+    "address": null,
+    "billingPlanType": null,
+    "billingFixedFee": null,
+    "billingPercentage": null,
+    "monthlySubscriptionFee": null,
+    "vehicle": "MOTO",
+    "zone": "3",
+    "payPerDelivery": null,
+    "payPerKm": null,
+    "notes": null,
+    "status": "PENDING",
+    "createdAt": "2026-07-15T22:14:20.312Z"
+  },
+  {
     "id": "app_1775298022585",
     "type": "RESTAURANT",
     "applicantName": "Échappatoire",

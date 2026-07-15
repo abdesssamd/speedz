@@ -308,11 +308,19 @@ const Schemas = {
       city: z.string().min(2).max(100),
       vehicle: z.string().min(2).max(100),
       zone: z.string().max(100).optional(),
+      // Mot de passe choisi à l'inscription (hashé côté serveur, jamais stocké en clair).
+      password: z.string().min(6).max(100).optional(),
       payPerDelivery: z.number().min(0).optional(),
       payPerKm: z.number().min(0).optional(),
       notes: z.string().max(1000).optional(),
     }),
   ]),
+
+  // POST /api/courier/auth — connexion livreur : téléphone + mot de passe
+  courierAuth: z.object({
+    phone: Shared.phone,
+    password: z.string().min(6).max(100),
+  }),
 
   // POST /api/admin/promotions
   createPromotion: z.object({

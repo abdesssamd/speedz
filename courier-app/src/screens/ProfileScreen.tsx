@@ -102,7 +102,7 @@ export function ProfileScreen({
           <Card key={job.id} style={styles.deliveryCard}>
             <View style={styles.deliveryTop}>
               <Text style={styles.deliveryResto}>{job.restaurantName}</Text>
-              <Text style={styles.deliveryPay}>+{job.compensation.total.toFixed(2)} €</Text>
+              <Text style={styles.deliveryPay}>+{(job.compensation?.total ?? 0).toFixed(2)} €</Text>
             </View>
             <Text style={styles.deliveryAddr} numberOfLines={1}>{job.destinationAddress}</Text>
             <Text style={styles.deliveryDate}>{formatDate(job.createdAt)}</Text>

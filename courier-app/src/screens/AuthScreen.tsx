@@ -24,6 +24,7 @@ export function AuthScreen() {
 
   // Connexion
   const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
 
   // Inscription
   const [form, setForm] = useState({
@@ -33,6 +34,7 @@ export function AuthScreen() {
     city: "",
     vehicle: "",
     zone: "",
+    password: "",
   });
   const setField = (key: keyof typeof form, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -44,9 +46,13 @@ export function AuthScreen() {
       setError("Saisissez votre numéro de téléphone.");
       return;
     }
+    if (password.length < 6) {
+      setError("Le mot de passe doit contenir au moins 6 caractères.");
+      return;
+    }
     setLoading(true);
     try {
-      await login(phone.trim());
+      await login(phone.trim(), password);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Connexion impossible.");
     } finally {
@@ -61,6 +67,10 @@ export function AuthScreen() {
       setError("Nom, email, téléphone, ville et véhicule sont obligatoires.");
       return;
     }
+    if (form.password.length < 6) {
+      setError("Choisissez un mot de passe d'au moins 6 caractères.");
+      return;
+    }
     setLoading(true);
     try {
       await api.register(form);
@@ -69,6 +79,7 @@ export function AuthScreen() {
       );
       setMode("login");
       setPhone(form.phone);
+      setPassword(form.password);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Inscription impossible.");
     } finally {
@@ -102,9 +113,17 @@ export function AuthScreen() {
               placeholder="+33 6 12 34 56 78"
               keyboardType="phone-pad"
             />
+            <Field
+              label="Mot de passe"
+              value={password}
+              onChangeText={setPassword}
+              placeholder="••••••••"
+              secureTextEntry
+            />
             <PrimaryButton label="Se connecter" onPress={handleLogin} loading={loading} />
             <Text style={styles.hint}>
-              Connectez-vous avec le numéro de téléphone enregistré par l'administrateur.
+              Connectez-vous avec votre numéro de téléphone et votre mot de passe une fois votre
+              compte validé par l'administrateur.
             </Text>
           </View>
         ) : (
@@ -115,6 +134,7 @@ export function AuthScreen() {
             <Field label="Ville" value={form.city} onChangeText={(v) => setField("city", v)} placeholder="Paris" />
             <Field label="Véhicule" value={form.vehicle} onChangeText={(v) => setField("vehicle", v)} placeholder="Scooter, Vélo, Voiture…" />
             <Field label="Zone (optionnel)" value={form.zone} onChangeText={(v) => setField("zone", v)} placeholder="Paris 9" />
+            <Field label="Mot de passe" value={form.password} onChangeText={(v) => setField("password", v)} placeholder="6 caractères minimum" secureTextEntry />
             <PrimaryButton label="Envoyer ma demande" onPress={handleRegister} loading={loading} />
             <Text style={styles.hint}>
               Votre code livreur sera les 6 derniers chiffres de votre téléphone.

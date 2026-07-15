@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { api } from "../api";
 import { Badge, Card, PrimaryButton } from "../components";
+import { stopRingtone } from "../ringtone";
 import { theme } from "../theme";
 import { CourierJob } from "../types";
 
@@ -20,6 +21,7 @@ export function JobsScreen({
   const [error, setError] = useState<string | null>(null);
 
   const accept = async (job: CourierJob) => {
+    stopRingtone(); // le livreur a réagi : plus besoin de sonner
     setError(null);
     setAcceptingId(job.id);
     try {
@@ -52,14 +54,17 @@ export function JobsScreen({
           <Card key={job.id} style={styles.job}>
             <View style={styles.jobHeader}>
               <Text style={styles.restaurant}>{job.restaurantName}</Text>
-              <Badge label={`${job.compensation.total.toFixed(2)} €`} color={theme.colors.success} />
+              {/* Champs défensifs : un backend plus ancien peut ne pas renvoyer compensation. */}
+              {job.compensation?.total != null ? (
+                <Badge label={`${job.compensation.total.toFixed(2)} €`} color={theme.colors.success} />
+              ) : null}
             </View>
-            <Row icon="📦" text={`${job.itemsCount} article(s) • ${job.total.toFixed(2)} €`} />
-            <Row icon="🏬" text={`Retrait : ${job.pickupAddress}`} />
-            <Row icon="📍" text={`Livraison : ${job.destinationAddress}`} />
+            <Row icon="📦" text={`${job.itemsCount ?? 0} article(s) • ${(job.total ?? 0).toFixed(2)} €`} />
+            <Row icon="🏬" text={`Retrait : ${job.pickupAddress ?? "—"}`} />
+            <Row icon="📍" text={`Livraison : ${job.destinationAddress ?? "—"}`} />
             <Row
               icon="🛵"
-              text={`${job.deliveryDistanceKm.toFixed(1)} km${
+              text={`${(job.deliveryDistanceKm ?? 0).toFixed(1)} km${
                 job.pickupDistanceKm != null ? ` • ${job.pickupDistanceKm.toFixed(1)} km de vous` : ""
               }`}
             />
