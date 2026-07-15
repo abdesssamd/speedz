@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "SpeedZ Livreur",
-    "slug": "speedz-courier",
+    "slug": "speedz-livreur",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -36,6 +36,12 @@
           "color": "#FF7622"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "3e6f8fd0-b9eb-45bb-ac14-9c7656c75772"
+      }
+    },
+    "owner": "abdessamad213"
   }
 }

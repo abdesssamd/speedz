@@ -109,7 +109,6 @@ export function ProfileScreen() {
           {[
             { label: t("apply_restaurant"), route: "PartnerApplication" as const, params: { type: "RESTAURANT" as const }, color: "#FF7622", icon: "storefront-outline" as const },
             { label: t("favorite_couriers"), route: "FavoriteCouriers" as const, params: undefined, color: "#0F766E", icon: "bicycle-outline" as const },
-            { label: t("open_restaurant_hub"), route: "RestaurantHub" as const, params: undefined, color: "#7C3AED", icon: "restaurant-outline" as const },
           ].map((btn) => (
             <ScalePressable
               key={btn.label}

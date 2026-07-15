@@ -22,7 +22,6 @@ import { OrdersScreen } from "../screens/OrdersScreen";
 import { PartnerApplicationScreen } from "../screens/PartnerApplicationScreen";
 import { ProfileScreen } from "../screens/ProfileScreen";
 import { RestaurantScreen } from "../screens/RestaurantScreen";
-import { RestaurantHubScreen } from "../screens/RestaurantHubScreen";
 import { SearchScreen } from "../screens/SearchScreen";
 import { CheckoutDraft } from "../types";
 
@@ -34,7 +33,6 @@ export type RootStackParamList = {
   ConfirmOrder: { draft: CheckoutDraft };
   PartnerApplication: { type?: "RESTAURANT" } | undefined;
   FavoriteCouriers: undefined;
-  RestaurantHub: undefined;
   Addresses: undefined;
   Notifications: undefined;
   Language: undefined;
@@ -58,7 +56,9 @@ function TabsNavigator() {
   const insets = useSafeAreaInsets();
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const bottomInset = Math.max(insets.bottom, Platform.OS === "android" ? 10 : 0);
-  const tabBarHeight = 64 + bottomInset;
+  // Hauteur utile (hors inset) : pastille d'icône 32px + label ~16px + respirations.
+  // En dessous de ~72px les icônes se font rogner par la barre.
+  const tabBarHeight = 72 + bottomInset;
 
   return (
     <Tabs.Navigator
@@ -71,7 +71,7 @@ function TabsNavigator() {
           borderTopWidth: 0,
           backgroundColor: "#FFFDF9",
           paddingBottom: bottomInset,
-          paddingTop: 8,
+          paddingTop: 6,
           paddingHorizontal: 6,
           borderTopLeftRadius: 24,
           borderTopRightRadius: 24,
@@ -85,11 +85,11 @@ function TabsNavigator() {
         tabBarLabelStyle: {
           fontWeight: "800",
           fontSize: 11,
-          marginTop: 0,
-          marginBottom: 2,
+          marginTop: 2,
+          marginBottom: 0,
         },
         tabBarItemStyle: {
-          paddingVertical: 2,
+          paddingVertical: 0,
         },
         tabBarIcon: ({ color, focused }) => {
           // Icônes pleines quand actif, contour quand inactif : plus lisible.
@@ -106,12 +106,15 @@ function TabsNavigator() {
             <View
               style={{
                 backgroundColor: focused ? "#FFF1E8" : "transparent",
-                paddingHorizontal: 12,
-                paddingVertical: 6,
+                paddingHorizontal: 14,
+                height: 32,
+                minWidth: 48,
+                alignItems: "center",
+                justifyContent: "center",
                 borderRadius: 999,
               }}
             >
-              <Ionicons name={focused ? activeIcon : inactiveIcon} size={24} color={color} />
+              <Ionicons name={focused ? activeIcon : inactiveIcon} size={22} color={color} />
             </View>
           );
         },
@@ -165,7 +168,6 @@ export function AppNavigator() {
           options={{ title: t("nav_partner_application") }}
         />
         <Stack.Screen name="FavoriteCouriers" component={FavoriteCouriersScreen} options={{ title: t("favorite_couriers") }} />
-        <Stack.Screen name="RestaurantHub" component={RestaurantHubScreen} options={{ title: t("restaurant_hub") }} />
         <Stack.Screen name="Addresses" component={AddressesScreen} options={{ title: t("nav_addresses") }} />
         <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: t("nav_notifications") }} />
         <Stack.Screen name="Language" component={LanguageScreen} options={{ title: t("nav_language") }} />

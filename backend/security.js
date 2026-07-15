@@ -406,6 +406,13 @@ const Schemas = {
   }),
 
   // Admin: configuration de livraison (au km ou par zone)
+  // Admin: programme de fidélité global (points administrés par l'admin)
+  loyaltyConfig: z.object({
+    enabled: z.boolean(),
+    pointsPerEuro: z.number().min(0).max(1000),
+    minOrderTotal: z.number().min(0).max(100000),
+  }),
+
   deliveryConfig: z.object({
     mode: z.enum(["PER_KM", "PER_ZONE"]),
     perKm: z.object({

@@ -669,6 +669,45 @@ function getPushToken(userId) {
   return entry?.token || null;
 }
 
+// ─── Programme de fidélité (stockage fichier, administré par l'admin) ─────────
+// Les points ne sont plus dérivés d'un taux par restaurant : un unique programme
+// global, paramétré par l'admin, décide s'il y a des points et combien.
+const LOYALTY_CONFIG_DEFAULT = {
+  enabled: true,
+  pointsPerEuro: 1,
+  minOrderTotal: 0,
+};
+const loyaltyConfigFile = path.join(dataDir, "loyalty-config.json");
+let loyaltyConfigCache = null;
+
+function readLoyaltyConfig() {
+  if (loyaltyConfigCache) return loyaltyConfigCache;
+  try {
+    if (fs.existsSync(loyaltyConfigFile)) {
+      const raw = JSON.parse(fs.readFileSync(loyaltyConfigFile, "utf8"));
+      loyaltyConfigCache = { ...LOYALTY_CONFIG_DEFAULT, ...raw };
+    } else {
+      loyaltyConfigCache = LOYALTY_CONFIG_DEFAULT;
+    }
+  } catch {
+    loyaltyConfigCache = LOYALTY_CONFIG_DEFAULT;
+  }
+  return loyaltyConfigCache;
+}
+
+function writeLoyaltyConfig(config) {
+  loyaltyConfigCache = config;
+  fs.writeFileSync(loyaltyConfigFile, JSON.stringify(config, null, 2), "utf8");
+}
+
+// Points gagnés pour un sous-total, selon le programme configuré par l'admin.
+// Programme désactivé ou commande sous le minimum ⇒ aucun point.
+function computeLoyaltyPoints(subtotal, config = readLoyaltyConfig()) {
+  if (!config.enabled) return 0;
+  if (Number(subtotal) < Number(config.minOrderTotal || 0)) return 0;
+  return Math.max(0, Math.round(Number(subtotal) * Number(config.pointsPerEuro || 0)));
+}
+
 // ─── Configuration de livraison (stockage fichier, sans migration) ────────────
 const deliveryConfigFile = path.join(dataDir, "delivery-config.json");
 let deliveryConfigCache = null;
@@ -1714,7 +1753,8 @@ async function computeSummary({ restaurantId, cart, userCoordinates, promoCode, 
   const serviceFee = orderChannel === "QR_ONSITE" ? 0 : calculateServiceFee(subtotal);
   const discountAmount = calculatePromotionDiscount({ promotion, subtotal });
   const total = Number((subtotal + appliedDelivery.fee + serviceFee - discountAmount).toFixed(2));
-  const pointsToEarn = Math.round(subtotal * restaurant.pointsPerEuro);
+  // Points : programme global administré par l'admin (plus de taux par restaurant).
+  const pointsToEarn = computeLoyaltyPoints(subtotal);
 
   const appliedPromotion = discountAmount > 0 ? promotion : null;
 
@@ -1775,6 +1815,32 @@ async function emitCourierRealtime(courierId, eventType = "courier/location-upda
       customerEmail: order.user.email,
       promotionCode: order.promotion?.code || null,
     })),
+  });
+}
+
+/**
+ * Crédite les points de fidélité d'une commande livrée.
+ * Idempotent : LoyaltyEntry.orderId est unique, une commande ne crédite qu'une fois
+ * (utile car le passage en "Delivered" peut venir du livreur comme de l'admin).
+ * Aucun point si le programme est désactivé ou si la commande n'en rapportait pas.
+ */
+async function creditLoyaltyPointsForOrder(orderId) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { restaurant: true, loyaltyEntry: true },
+  });
+  if (!order || order.status !== "Delivered") return;
+  if (order.loyaltyEntry) return;
+  if (!order.pointsEarned || order.pointsEarned <= 0) return;
+
+  await prisma.loyaltyEntry.create({
+    data: {
+      userId: order.userId,
+      orderId: order.id,
+      restaurantName: order.restaurant?.name || "SpeedZ",
+      points: order.pointsEarned,
+      description: `Points gagnes sur la commande ${order.id}`,
+    },
   });
 }
 
@@ -2020,15 +2086,8 @@ async function createOrderRecord({
     include: { restaurant: true, courier: true, user: true }
   });
 
-  await prisma.loyaltyEntry.create({
-    data: {
-      userId: customer.id,
-      orderId: order.id,
-      restaurantName: restaurant.name,
-      points: order.pointsEarned,
-      description: `Points gagnes sur la commande ${order.id}`
-    }
-  });
+  // Les points ne sont PAS crédités ici : ils le sont au passage en "Delivered"
+  // (voir creditLoyaltyPointsForOrder), pour qu'une commande annulée ne rapporte rien.
 
   await emitOrderRealtime(order.id, "order/created");
 
@@ -3366,6 +3425,7 @@ app.post("/api/courier/jobs/:id/status", requireCourierAuth, async (req, res) =>
 
   if (nextStatus === "Delivered") {
     await prisma.courier.update({ where: { id: courierId }, data: { status: "AVAILABLE" } });
+    await creditLoyaltyPointsForOrder(updatedOrder.id);
   }
 
   await emitOrderRealtime(updatedOrder.id, "order/status-updated");
@@ -3716,6 +3776,21 @@ app.get("/api/admin/delivery-config", requireAuth, requireAdmin, (_req, res) => 
 app.put("/api/admin/delivery-config", requireAuth, requireAdmin, validateBody(Schemas.deliveryConfig), (req, res) => {
   writeDeliveryConfig(req.body);
   res.json(readDeliveryConfig());
+});
+
+// ─── Programme de fidélité (points) : entièrement administré par l'admin ───────
+app.get("/api/loyalty-config", (_req, res) => {
+  res.json(readLoyaltyConfig());
+});
+
+app.get("/api/admin/loyalty-config", requireAuth, requireAdmin, (_req, res) => {
+  res.json(readLoyaltyConfig());
+});
+
+app.put("/api/admin/loyalty-config", requireAuth, requireAdmin, validateBody(Schemas.loyaltyConfig), async (req, res) => {
+  writeLoyaltyConfig(req.body);
+  await logAdminAction(req, "loyalty_config.updated", "loyalty-config", "global", req.body);
+  res.json(readLoyaltyConfig());
 });
 
 // Publicités actives, filtrables par emplacement (SPLASH | HOME_BANNER).
@@ -4112,6 +4187,9 @@ async function updateAdminOrderStatus(req, res) {
     },
     include: { restaurant: true, courier: true }
   });
+  if (order.status === "Delivered") {
+    await creditLoyaltyPointsForOrder(order.id);
+  }
   await emitOrderRealtime(order.id, "order/status-updated");
   await notifyOrderStatus(order);
   await logAdminAction(req, "order.status_updated", "order", order.id, {

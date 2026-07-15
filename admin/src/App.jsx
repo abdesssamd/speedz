@@ -1,6 +1,7 @@
 import { createPortal } from "react-dom";
 import { cloneElement, isValidElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Award,
   BarChart2,
   Bike,
   Check,
@@ -1063,6 +1064,8 @@ export default function App() {
   });
   const [deliveryConfig, setDeliveryConfig] = useState(null);
   const [deliverySaving, setDeliverySaving] = useState(false);
+  const [loyaltyConfig, setLoyaltyConfig] = useState(null);
+  const [loyaltySaving, setLoyaltySaving] = useState(false);
   const [billingOverview, setBillingOverview] = useState({ restaurants: [], settlements: [] });
   const [settlementTarget, setSettlementTarget] = useState(null);
   const [settlementForm, setSettlementForm] = useState({ amount: "", method: "", note: "" });
@@ -1930,6 +1933,7 @@ export default function App() {
         reportResult,
         adsResult,
         deliveryResult,
+        loyaltyResult,
         billingResult,
       ] = await Promise.all([
         loadResource("restaurants", "/api/admin/restaurants", []),
@@ -1943,6 +1947,7 @@ export default function App() {
         loadResource("rapports", "/api/admin/reports/summary", null),
         loadResource("publicites", "/api/admin/ads", []),
         loadResource("livraison", "/api/admin/delivery-config", null),
+        loadResource("fidelite", "/api/admin/loyalty-config", null),
         loadResource("versements", "/api/admin/billing-overview", { restaurants: [], settlements: [] }),
       ]);
 
@@ -1958,6 +1963,7 @@ export default function App() {
         reportResult,
         adsResult,
         deliveryResult,
+        loyaltyResult,
         billingResult,
       ].filter((result) => result.error);
 
@@ -2001,6 +2007,9 @@ export default function App() {
       setAds(asList(adsResult.data));
       if (deliveryResult.data) {
         setDeliveryConfig(deliveryResult.data);
+      }
+      if (loyaltyResult.data) {
+        setLoyaltyConfig(loyaltyResult.data);
       }
       if (billingResult.data) {
         setBillingOverview({
@@ -3148,6 +3157,27 @@ export default function App() {
     }
   }
 
+  // Programme de fidelite : c'est l'admin qui decide s'il y a des points et combien.
+  // Les points sont credites au client au passage de la commande en "Livree".
+  async function handleSaveLoyaltyConfig() {
+    if (!loyaltyConfig) return;
+    setLoyaltySaving(true);
+    try {
+      const payload = {
+        enabled: Boolean(loyaltyConfig.enabled),
+        pointsPerEuro: Number(loyaltyConfig.pointsPerEuro) || 0,
+        minOrderTotal: Number(loyaltyConfig.minOrderTotal) || 0,
+      };
+      const saved = await apiRequest("/api/admin/loyalty-config", { method: "PUT", body: JSON.stringify(payload) }, token);
+      setLoyaltyConfig(saved);
+      setStatusMessage("Programme de fidelite enregistre.");
+    } catch (error) {
+      setErrorMessage(error.message);
+    } finally {
+      setLoyaltySaving(false);
+    }
+  }
+
   function openSettlementModal(row) {
     setSettlementTarget(row);
     setSettlementForm({
@@ -3537,6 +3567,7 @@ export default function App() {
             { id: "promotions", label: t("promotions_nav"), icon: Sparkles },
             { id: "ads", label: "Publicités", icon: Megaphone },
             { id: "delivery", label: "Livraison", icon: Bike },
+            { id: "loyalty", label: "Fidélité", icon: Award },
             { id: "versements", label: "Versements", icon: Wallet },
             { id: "reports", label: t("reports_nav"), icon: BarChart2 },
             { id: "create", label: t("new_restaurant"), icon: Plus },
@@ -5300,6 +5331,82 @@ export default function App() {
                         </p>
                       </div>
                     )}
+                  </div>
+                )}
+              </article>
+            )}
+
+            {activeView === "loyalty" && (
+              <article className="panel">
+                <div className="panel-head">
+                  <div>
+                    <h3>Programme de fidélité</h3>
+                    <p>
+                      Vous décidez si les clients gagnent des points et combien. Les points sont
+                      crédités uniquement quand la commande passe en « Livrée ».
+                    </p>
+                  </div>
+                  <button className="primary-alt" onClick={handleSaveLoyaltyConfig} disabled={loyaltySaving || !loyaltyConfig}>
+                    {loyaltySaving ? "Enregistrement…" : "Enregistrer"}
+                  </button>
+                </div>
+
+                {!loyaltyConfig ? (
+                  <p className="muted" style={{ padding: "24px 0", textAlign: "center" }}>Chargement de la configuration…</p>
+                ) : (
+                  <div className="stack" style={{ gap: 18 }}>
+                    <div className="inline-actions" style={{ gap: 8 }}>
+                      <button
+                        className={`ghost ${loyaltyConfig.enabled ? "selected" : ""}`}
+                        onClick={() => setLoyaltyConfig((c) => ({ ...c, enabled: true }))}
+                      >
+                        Programme actif
+                      </button>
+                      <button
+                        className={`ghost ${!loyaltyConfig.enabled ? "selected" : ""}`}
+                        onClick={() => setLoyaltyConfig((c) => ({ ...c, enabled: false }))}
+                      >
+                        Désactivé (aucun point)
+                      </button>
+                    </div>
+
+                    <div className="form-grid">
+                      <label>
+                        <span>Points par euro dépensé</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          value={loyaltyConfig.pointsPerEuro ?? 0}
+                          disabled={!loyaltyConfig.enabled}
+                          onChange={(event) =>
+                            setLoyaltyConfig((c) => ({ ...c, pointsPerEuro: event.target.value }))
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>Commande minimum (€) pour gagner des points</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.5"
+                          value={loyaltyConfig.minOrderTotal ?? 0}
+                          disabled={!loyaltyConfig.enabled}
+                          onChange={(event) =>
+                            setLoyaltyConfig((c) => ({ ...c, minOrderTotal: event.target.value }))
+                          }
+                        />
+                      </label>
+                    </div>
+
+                    <p className="muted" style={{ fontSize: 12 }}>
+                      {loyaltyConfig.enabled
+                        ? `Exemple : une commande de 25 € (sous-total) crédite ${Math.max(
+                            0,
+                            Math.round(25 * (Number(loyaltyConfig.pointsPerEuro) || 0))
+                          )} point(s) au client, une fois la commande livrée.`
+                        : "Programme désactivé : aucune commande ne rapporte de points."}
+                    </p>
                   </div>
                 )}
               </article>

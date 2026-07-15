@@ -44,9 +44,13 @@ const JE = {
   border: "#F0F0F0",
 };
 
-const STEP_ORDER = ["Confirmed", "Preparing", "On the way", "Delivered"];
+// Une commande en livraison commence en "AwaitingCourier" (recherche d'un livreur),
+// puis "Accepted" (un livreur l'a prise) : les deux forment la 1re étape du suivi,
+// avant que le livreur ne confirme la commande au restaurant.
+const STEP_ORDER = ["AwaitingCourier", "Confirmed", "Preparing", "On the way", "Delivered"];
 
 function stepIndex(status: string) {
+  if (status === "Accepted") return 0;
   return STEP_ORDER.indexOf(status);
 }
 
@@ -55,6 +59,7 @@ function JETracker({ status, language, isRTL }: { status: string; language: Lang
   const t = useTrackerStyles();
   const currentIdx = stepIndex(status);
   const steps = [
+    { key: "AwaitingCourier", label: translateStatus(language, "AwaitingCourier"), icon: "search-outline" as const },
     { key: "Confirmed", label: translateStatus(language, "Confirmed"), icon: "checkmark-circle-outline" as const },
     { key: "Preparing", label: translateStatus(language, "Preparing"), icon: "restaurant-outline" as const },
     { key: "On the way", label: translateStatus(language, "On the way"), icon: "bicycle-outline" as const },
