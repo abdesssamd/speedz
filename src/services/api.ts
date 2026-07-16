@@ -183,6 +183,10 @@ export const api = {
   bootstrap() {
     return request<BootstrapResponse>("/api/bootstrap");
   },
+  // Rafraîchissement léger du suivi de commande (sans recharger tout le bootstrap).
+  getMyOrders() {
+    return request<{ orders: Order[] }>("/api/my-orders");
+  },
   requestPhoneCode(input: { phone: string; method: AuthMethod }) {
     return request<{
       challengeId: string;

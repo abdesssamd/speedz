@@ -1,8 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import React from "react";
-import { Alert, FlatList, SafeAreaView, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { Animated, FlatList, SafeAreaView, StyleSheet, Text, View } from "react-native";
 import { AnimatedCard } from "../components/AnimatedCard";
 import { ScalePressable } from "../components/ScalePressable";
 import { useApp } from "../context/AppContext";
@@ -12,18 +12,40 @@ import { formatCurrency } from "../services/format";
 
 type ConfirmRoute = RouteProp<RootStackParamList, "ConfirmOrder">;
 
+type SuccessInfo = { id: string; points: number };
+
 export function ConfirmOrderScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<ConfirmRoute>();
-  const { cartRestaurant, cart, getCartSummary, placeOrder, promoCode, t, isRTL } = useApp();
+  const { cartRestaurant, cart, getCartSummary, placeOrder, promoCode, pushNotification, t, isRTL } = useApp();
   const summary = getCartSummary();
   const draft = route.params.draft;
 
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState<SuccessInfo | null>(null);
+
   const onPay = async () => {
-    const result = await placeOrder(draft);
-    if (!result.order) { Alert.alert(t("impossible_order"), result.error ?? t("check_cart")); return; }
-    Alert.alert(t("order_confirmed"), `${result.order.id} ${t("order_created")} ${result.order.pointsEarned} ${t("points")}`,
-      [{ text: t("see_orders"), onPress: () => navigation.navigate("MainTabs") }]);
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      const result = await placeOrder(draft);
+      if (!result.order) {
+        pushNotification({
+          title: t("impossible_order"),
+          message: result.error ?? t("check_cart"),
+          tone: "error",
+        });
+        return;
+      }
+      setSuccess({ id: result.order.id, points: result.order.pointsEarned });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const goToOrders = () => {
+    setSuccess(null);
+    navigation.navigate("MainTabs", { screen: "Orders" });
   };
 
   return (
@@ -98,15 +120,64 @@ export function ConfirmOrderScreen() {
           )}
         />
 
-        <ScalePressable containerStyle={s.payBtn} onPress={onPay}>
+        <ScalePressable containerStyle={[s.payBtn, submitting && s.payBtnDisabled]} onPress={onPay}>
           <View style={s.payBtnLeft}>
             <Ionicons name="checkmark-circle" size={20} color="#FF7622" />
-            <Text style={s.payBtnText}>{t("payment")} & {t("order_confirmed")}</Text>
+            <Text style={s.payBtnText}>{submitting ? t("payment") + "…" : `${t("payment")} & ${t("order_confirmed")}`}</Text>
           </View>
           <Text style={s.payBtnTotal}>{formatCurrency(summary.total)}</Text>
         </ScalePressable>
       </View>
+
+      {success ? <SuccessOverlay info={success} onSeeOrders={goToOrders} t={t} /> : null}
     </SafeAreaView>
+  );
+}
+
+// Écran de succès animé affiché après le passage de la commande (remplace l'alerte système).
+function SuccessOverlay({
+  info,
+  onSeeOrders,
+  t,
+}: {
+  info: SuccessInfo;
+  onSeeOrders: () => void;
+  t: (key: any) => string;
+}) {
+  const scale = useRef(new Animated.Value(0.6)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+  const check = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+      Animated.spring(scale, { toValue: 1, friction: 6, tension: 80, useNativeDriver: true }),
+    ]).start();
+    Animated.spring(check, { toValue: 1, friction: 5, delay: 160, useNativeDriver: true }).start();
+  }, [check, opacity, scale]);
+
+  return (
+    <Animated.View style={[s.overlay, { opacity }]}>
+      <Animated.View style={[s.successCard, { transform: [{ scale }] }]}>
+        <Animated.View style={[s.successBadge, { transform: [{ scale: check }] }]}>
+          <Ionicons name="checkmark" size={46} color="#FFF" />
+        </Animated.View>
+        <Text style={s.successTitle}>{t("order_confirmed")}</Text>
+        <Text style={s.successSub}>{t("order_success_sub")}</Text>
+
+        <View style={s.pointsPill}>
+          <Ionicons name="sparkles" size={15} color="#B45309" />
+          <Text style={s.pointsPillText}>+{info.points} {t("points")}</Text>
+        </View>
+
+        <Text style={s.orderRef}>#{info.id.slice(-6).toUpperCase()}</Text>
+
+        <ScalePressable containerStyle={s.successBtn} onPress={onSeeOrders}>
+          <Text style={s.successBtnText}>{t("see_orders")}</Text>
+          <Ionicons name="arrow-forward" size={18} color="#FFF" />
+        </ScalePressable>
+      </Animated.View>
+    </Animated.View>
   );
 }
 
@@ -148,4 +219,16 @@ const s = StyleSheet.create({
   payBtnLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
   payBtnText: { color: "#FFF", fontWeight: "900", fontSize: 15 },
   payBtnTotal: { color: "#FF7622", fontWeight: "900", fontSize: 16 },
+  payBtnDisabled: { opacity: 0.6 },
+
+  overlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(24,28,46,0.55)", alignItems: "center", justifyContent: "center", padding: 28 },
+  successCard: { width: "100%", maxWidth: 360, backgroundColor: "#FFF", borderRadius: 28, paddingVertical: 30, paddingHorizontal: 24, alignItems: "center", gap: 10, shadowColor: "#000", shadowOpacity: 0.25, shadowRadius: 30, shadowOffset: { width: 0, height: 16 }, elevation: 16 },
+  successBadge: { width: 84, height: 84, borderRadius: 42, backgroundColor: "#22C55E", alignItems: "center", justifyContent: "center", marginBottom: 6, shadowColor: "#22C55E", shadowOpacity: 0.4, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
+  successTitle: { color: "#181C2E", fontSize: 22, fontWeight: "900", textAlign: "center" },
+  successSub: { color: "#898989", fontSize: 14, textAlign: "center", lineHeight: 20 },
+  pointsPill: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FEF3C7", borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7, marginTop: 6 },
+  pointsPillText: { color: "#B45309", fontWeight: "900", fontSize: 14 },
+  orderRef: { color: "#C4C4C4", fontWeight: "800", fontSize: 13, letterSpacing: 1, marginTop: 2 },
+  successBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#FF7622", borderRadius: 18, paddingVertical: 16, paddingHorizontal: 24, marginTop: 14, alignSelf: "stretch", shadowColor: "#FF7622", shadowOpacity: 0.35, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 5 },
+  successBtnText: { color: "#FFF", fontWeight: "900", fontSize: 16 },
 });

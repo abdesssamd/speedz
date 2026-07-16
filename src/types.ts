@@ -144,7 +144,8 @@ export type OrderStatus =
   | "Confirmed"
   | "Preparing"
   | "On the way"
-  | "Delivered";
+  | "Delivered"
+  | "Cancelled";
 
 export type PaymentMethod = "Card" | "Cash" | "Apple Pay";
 

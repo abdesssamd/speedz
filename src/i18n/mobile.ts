@@ -137,6 +137,7 @@ const translations = {
     check_cart: "Verifiez votre panier.",
     order_confirmed: "Commande confirmee",
     order_created: "a ete creee. Vous avez gagne",
+    order_success_sub: "Votre commande est en route vers un livreur. Suivez-la en temps reel.",
     points: "points.",
     see_orders: "Voir mes commandes",
     my_orders: "Mes commandes",
@@ -455,6 +456,7 @@ const translations = {
     check_cart: "تحقق من السلة.",
     order_confirmed: "تم تأكيد الطلب",
     order_created: "تم إنشاؤه. لقد ربحت",
+    order_success_sub: "طلبك في طريقه إلى موصل. تابعه في الوقت الحقيقي.",
     points: "نقطة.",
     see_orders: "عرض طلباتي",
     my_orders: "طلباتي",
@@ -664,8 +666,8 @@ const paymentTranslations: Record<Language, Record<PaymentMethod, string>> = {
 };
 
 const statusTranslations: Record<Language, Record<OrderStatus, string>> = {
-  fr: { AwaitingCourier: "Recherche livreur", Accepted: "Livreur assigne", Confirmed: "Confirmee", Preparing: "Preparation", "On the way": "En route", Delivered: "Livree" },
-  ar: { AwaitingCourier: "البحث عن موصل", Accepted: "تم تعيين موصل", Confirmed: "مؤكد", Preparing: "قيد التحضير", "On the way": "في الطريق", Delivered: "تم التسليم" },
+  fr: { AwaitingCourier: "Recherche livreur", Accepted: "Livreur assigne", Confirmed: "Confirmee", Preparing: "Preparation", "On the way": "En route", Delivered: "Livree", Cancelled: "Annulee" },
+  ar: { AwaitingCourier: "البحث عن موصل", Accepted: "تم تعيين موصل", Confirmed: "مؤكد", Preparing: "قيد التحضير", "On the way": "في الطريق", Delivered: "تم التسليم", Cancelled: "ملغاة" },
 };
 
 export function t(language: Language, key: keyof typeof translations.fr) {

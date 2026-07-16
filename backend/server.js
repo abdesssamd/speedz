@@ -2917,6 +2917,22 @@ app.get("/api/orders", async (_req, res) => {
   res.json(orders.map(serializeOrder));
 });
 
+// Commandes du client authentifié (léger : sert au rafraîchissement automatique du
+// suivi côté app, en complément du temps réel WebSocket).
+app.get("/api/my-orders", optionalAuth, async (req, res) => {
+  const user = await getAuthenticatedUser(req);
+  if (!user) {
+    res.json({ orders: [] });
+    return;
+  }
+  const orders = await prisma.order.findMany({
+    where: { userId: user.id },
+    include: { restaurant: true, courier: true },
+    orderBy: { createdAt: "desc" },
+  });
+  res.json({ orders: orders.map(serializeOrder) });
+});
+
 app.get("/api/public/qr/:qrToken", async (req, res) => {
   const restaurant = await prisma.restaurant.findFirst({
     where: {

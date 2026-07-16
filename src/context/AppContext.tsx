@@ -719,6 +719,44 @@ export function AppProvider({ children }: PropsWithChildren) {
     };
   }, [authReady]);
 
+  // Rafraîchissement automatique du suivi de commande : filet de sécurité si le
+  // WebSocket est indisponible (ex. proxy sans upgrade WS). Tant qu'une commande
+  // est en cours, on interroge « mes commandes » toutes les 12 s et on met à jour
+  // silencieusement le statut — l'utilisateur voit la progression sans rafraîchir.
+  const hasActiveOrder = useMemo(
+    () => orders.some((order) => order.status !== "Delivered" && order.status !== "Cancelled"),
+    [orders]
+  );
+
+  useEffect(() => {
+    if (!authReady || !hasActiveOrder) {
+      return;
+    }
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const { orders: fresh } = await api.getMyOrders();
+        if (cancelled || !fresh?.length) {
+          return;
+        }
+        setOrders((current) => {
+          let next = current;
+          for (const order of fresh) {
+            next = upsertOrder(next, order);
+          }
+          return next;
+        });
+      } catch {
+        // silencieux : le prochain tick réessaiera
+      }
+    };
+    const interval = setInterval(poll, 12000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [authReady, hasActiveOrder]);
+
   const cartRestaurant = useMemo(
     () => restaurants.find((restaurant) => restaurant.id === cart[0]?.restaurantId) ?? null,
     [cart, restaurants]
