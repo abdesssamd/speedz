@@ -158,15 +158,18 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
           errors?: Array<{ field?: string; message?: string }>;
         }
       | null;
-    // Détail de validation (422) : on précise le(s) champ(s) fautif(s).
+    // Détail de validation (422) : messages seuls, sans le nom technique du champ.
     const fieldDetail = errorBody?.errors?.length
       ? errorBody.errors
-          .map((entry) => (entry.field ? `${entry.field}: ${entry.message}` : entry.message))
+          .map((entry) => entry.message)
           .filter(Boolean)
           .join(" • ")
       : null;
     throw new Error(
-      fieldDetail ?? errorBody?.error?.message ?? errorBody?.message ?? "Erreur réseau"
+      fieldDetail ??
+        errorBody?.error?.message ??
+        errorBody?.message ??
+        "Une erreur est survenue. Veuillez réessayer."
     );
   }
 

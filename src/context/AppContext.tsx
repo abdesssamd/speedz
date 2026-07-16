@@ -1,8 +1,8 @@
 import * as Location from "expo-location";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { PropsWithChildren, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { fallbackUserLocation, restaurants as fallbackRestaurants } from "../data/mockData";
-import { t as translate } from "../i18n/mobile";
+import { fallbackUserLocation } from "../data/mockData";
+import { t as translate, translateStatus } from "../i18n/mobile";
 import { calculateServiceFee, getDeliveryQuote, setDeliveryConfig } from "../services/delivery";
 import { api } from "../services/api";
 import { registerForPushNotifications } from "../services/push";
@@ -14,6 +14,7 @@ import {
   LocationState,
   MenuItem,
   Order,
+  OrderStatus,
   PaymentMethod,
   Promotion,
   Restaurant,
@@ -121,6 +122,8 @@ type AppContextValue = {
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
 const AUTH_TOKEN_STORAGE_KEY = "fooddelyvry_mobile_token";
+// Dernier bootstrap réussi, rejoué quand le serveur est injoignable (mode hors-ligne).
+const BOOTSTRAP_CACHE_KEY = "speedz_bootstrap_cache";
 const BYPASS_MOBILE_AUTH_FOR_DEV = false;
 
 function createCartItemId(item: MenuItem, selectedOptions: SelectedOption[], specialInstructions?: string) {
@@ -235,7 +238,7 @@ function createRestaurantAccounts(restaurants: Restaurant[], orders: Order[]) {
     return {
       restaurantId: restaurant.id,
       contactName: restaurant.ownerName ?? "Gerant du restaurant",
-      contactEmail: restaurant.ownerEmail ?? "restaurant@fooddelyvry.app",
+      contactEmail: restaurant.ownerEmail ?? "admin@microtechdz13.com",
       status: "ACTIVE" as const,
       qrValue: restaurant.qrCodeUrl ?? `fooddelyvry://restaurant/${restaurant.id}`,
       menuQrValue: restaurant.qrCodeUrl ?? `fooddelyvry://restaurant/${restaurant.id}/menu`,
@@ -502,10 +505,13 @@ export function AppProvider({ children }: PropsWithChildren) {
     };
   }, []);
 
-  const refreshRemoteData = useCallback(async () => {
-    const payload = await api.bootstrap();
+  // Applique un payload bootstrap (frais ou issu du cache hors-ligne).
+  // bustImages: false quand on recharge depuis le cache, pour laisser le cache
+  // HTTP des images servir les visuels déjà téléchargés.
+  const applyBootstrapPayload = useCallback((payload: Awaited<ReturnType<typeof api.bootstrap>>, bustImages = true) => {
     const cacheBuster = Date.now();
-    const bustImage = (url: string) => `${url}${url.includes('?') ? '&' : '?'}_t=${cacheBuster}`;
+    const bustImage = (url: string) =>
+      bustImages ? `${url}${url.includes('?') ? '&' : '?'}_t=${cacheBuster}` : url;
     const nextRestaurants = payload.restaurants.map((restaurant) => {
       const menu = (restaurant.menu ?? []).map((item) => ({
         ...item,
@@ -550,6 +556,14 @@ export function AppProvider({ children }: PropsWithChildren) {
     setRestaurantAccounts(createRestaurantAccounts(nextRestaurants, payload.orders));
   }, []);
 
+  const refreshRemoteData = useCallback(async () => {
+    const payload = await api.bootstrap();
+    applyBootstrapPayload(payload);
+    // Mémorise les dernières données réelles pour les rejouer si le serveur
+    // devient injoignable (jamais de données de démonstration).
+    AsyncStorage.setItem(BOOTSTRAP_CACHE_KEY, JSON.stringify(payload)).catch(() => undefined);
+  }, [applyBootstrapPayload]);
+
   useEffect(() => {
     requestLocation();
   }, []);
@@ -576,24 +590,17 @@ export function AppProvider({ children }: PropsWithChildren) {
           return;
         }
 
-        const nextRestaurants = fallbackRestaurants.map((restaurant) => ({
-          ...restaurant,
-          menu: syncMenuAvailability(restaurant.menu, createRestaurantIngredients(restaurant)),
-        }));
-        setRestaurants(nextRestaurants);
-        setFavorites([]);
-        setOrders([]);
-        setPointsBalance(0);
-        setPointsHistory([]);
-        setPromotions([]);
-        setMenuCategories(Array.from(new Set(nextRestaurants.map((restaurant) => restaurant.category))));
-        setRestaurantAccounts(createRestaurantAccounts(nextRestaurants, []));
-
-        pushNotification({
-          title: t("backend_offline"),
-          message: t("backend_offline_msg"),
-          tone: "info",
-        });
+        // Serveur injoignable : on rejoue les dernières données réelles mises en
+        // cache. Sans cache, on n'affiche rien (jamais de données de démonstration).
+        // La bannière de connexion informe déjà l'utilisateur de l'état réseau.
+        try {
+          const cached = await AsyncStorage.getItem(BOOTSTRAP_CACHE_KEY);
+          if (cached && !cancelled) {
+            applyBootstrapPayload(JSON.parse(cached), false);
+          }
+        } catch {
+          // cache illisible : on reste sur l'état vide
+        }
       }
     };
 
@@ -675,8 +682,8 @@ export function AppProvider({ children }: PropsWithChildren) {
 
             if (message.type === "order/status-updated") {
               pushNotification({
-                title: "Statut mis a jour",
-                message: `${message.payload.order.restaurantName}: ${message.payload.order.status}`,
+                title: "Suivi de commande",
+                message: `${message.payload.order.restaurantName} : ${translateStatus(language, message.payload.order.status as OrderStatus)}`,
                 tone: "info",
               });
             }
@@ -1019,14 +1026,12 @@ export function AppProvider({ children }: PropsWithChildren) {
       });
 
       pushNotification({
-        title: payload.provider === "smtp" ? "Email envoye" : "OTP prepare",
+        title: "Code envoye",
         message:
-          payload.provider === "smtp"
-            ? "Votre code a ete envoye par email."
-            : payload.demoCode
-              ? `SMTP non configure. Code demo: ${payload.demoCode}`
-              : "Email prepare dans la boite locale du backend.",
-        tone: payload.provider === "smtp" ? "success" : "info",
+          __DEV__ && payload.demoCode
+            ? `Code de test : ${payload.demoCode}`
+            : "Votre code de verification a ete envoye par email.",
+        tone: "success",
       });
 
       return { ok: true, code: payload.demoCode, provider: payload.provider };
@@ -1103,8 +1108,8 @@ export function AppProvider({ children }: PropsWithChildren) {
       pushNotification({
         title: method === "WHATSAPP" ? "Verification WhatsApp" : "Verification SMS",
         message:
-          payload.demoCode
-            ? `Code demo envoye: ${payload.demoCode}`
+          __DEV__ && payload.demoCode
+            ? `Code de test : ${payload.demoCode}`
             : "Code envoye. Verifiez votre messagerie pour continuer.",
         tone: "info",
       });

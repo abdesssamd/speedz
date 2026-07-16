@@ -285,11 +285,11 @@ async function main() {
 
   await prisma.user.create({
     data: {
-      email: "admin@fooddelyvry.app",
+      email: "admin@microtechdz13.com",
       passwordHash: adminPasswordHash,
       firstName: "Admin",
-      lastName: "FoodDelyvry",
-      name: "Admin FoodDelyvry",
+      lastName: "SpeedZ",
+      name: "Admin SpeedZ",
       role: "ADMIN",
       phone: "+33 1 00 00 00 00",
       defaultAddress: "Backoffice Paris",

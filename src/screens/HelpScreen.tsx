@@ -52,7 +52,7 @@ export function HelpScreen() {
             <View style={s.contactIcon}><Ionicons name="mail" size={22} color="#FF7622" /></View>
             <View>
               <Text style={s.contactLabel}>Support direct</Text>
-              <Text style={s.contactEmail}>support@fooddelyvry.app</Text>
+              <Text style={s.contactEmail}>admin@microtechdz13.com</Text>
             </View>
           </View>
           <View style={s.contactArrow}><Ionicons name="arrow-forward" size={16} color="#FF7622" /></View>

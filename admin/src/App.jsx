@@ -919,7 +919,7 @@ function ApplicationActionMenu({ application, onStatusChange, onOpenRestaurant, 
         <X size={14} />
         <span>{translations("rejected")}</span>
       </button>
-      <a className="action-menu-item" href={`mailto:${application.email}?subject=FoodDelyvry`} onClick={() => setIsOpen(false)}>
+      <a className="action-menu-item" href={`mailto:${application.email}?subject=SpeedZ`} onClick={() => setIsOpen(false)}>
         <Mail size={14} />
         <span>{translations("contact")}</span>
       </a>
@@ -976,7 +976,7 @@ export default function App() {
   const [token, setToken] = useState("");
   const [user, setUser] = useState(null);
   const [isRestoringSession, setIsRestoringSession] = useState(true);
-  const [email, setEmail] = useState("admin@fooddelyvry.app");
+  const [email, setEmail] = useState("admin@microtechdz13.com");
   const [password, setPassword] = useState("");
   const [loginErrors, setLoginErrors] = useState({});
   const [restaurants, setRestaurants] = useState([]);
@@ -1532,7 +1532,7 @@ export default function App() {
   }
 
   function getNotificationPreview(email) {
-    const subject = String(email?.subject || "").replace(/^FoodDelyvry\s*-\s*/i, "").trim();
+    const subject = String(email?.subject || "").replace(/^(FoodDelyvry|SpeedZ)\s*-\s*/i, "").trim();
     if (subject) {
       return subject.length > 72 ? `${subject.slice(0, 72).trim()}…` : subject;
     }
@@ -3512,11 +3512,11 @@ export default function App() {
           <h1>{t("login_title")}</h1>
           {t("login_subtitle") ? <p className="muted">{t("login_subtitle")}</p> : null}
           <form onSubmit={handleLogin} className="stack form-layout">
-            <FormField label={t("email")} hint="Exemple: admin@fooddelyvry.app" error={loginErrors.email}>
+            <FormField label={t("email")} hint="Exemple: admin@microtechdz13.com" error={loginErrors.email}>
               <input
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="admin@fooddelyvry.app"
+                placeholder="admin@microtechdz13.com"
                 type="email"
                 required
               />
@@ -3534,7 +3534,7 @@ export default function App() {
           </form>
           <div className="auth-foot">
             <p className="hint">{t("seed_account")}</p>
-            <strong>admin@fooddelyvry.app / admin1234</strong>
+            <strong>admin@microtechdz13.com / admin1234</strong>
           </div>
           {errorMessage ? <p className="error">{errorMessage}</p> : null}
         </section>
@@ -3547,10 +3547,10 @@ export default function App() {
       <aside className="sidebar">
         <div className="brand-block">
           <div className="sidebar-brand-row">
-            <img className="brand-logo sidebar-brand-logo" src={brandLogoUrl} alt="FoodDelyvry" />
+            <img className="brand-logo sidebar-brand-logo" src={brandLogoUrl} alt="SpeedZ" />
           </div>
           <p className="eyebrow">{t("operations_center")}</p>
-          <h1>FoodDelyvry</h1>
+          <h1>SpeedZ</h1>
           <p className="sidebar-copy">{t("sidebar_copy")}</p>
         </div>
 

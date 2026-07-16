@@ -350,7 +350,7 @@ function generateVerificationCode() {
 
 function generateCustomerEmailFromPhone(phone) {
   const digits = normalizePhoneNumber(phone).replace(/\D/g, "");
-  return `customer_${digits || Date.now()}@fooddelyvry.app`;
+  return `customer_${digits || Date.now()}@speedz.app`;
 }
 
 function normalizeEmail(value) {
@@ -2016,7 +2016,7 @@ async function findOrCreateGuestCustomer({ name, phone, restaurantId }) {
     return getDemoUser();
   }
 
-  const generatedEmail = `guest_${normalizedPhone.replace(/\D/g, "") || Date.now()}@fooddelyvry.local`;
+  const generatedEmail = `guest_${normalizedPhone.replace(/\D/g, "") || Date.now()}@speedz.local`;
   const existing = await prisma.user.findUnique({ where: { email: generatedEmail } });
   if (existing) {
     return existing;
@@ -2105,9 +2105,9 @@ async function createOrderRecord({
 app.get("/health", async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    res.json({ ok: true, service: "fooddelyvry-backend", database: "connected" });
+    res.json({ ok: true, service: "speedz-backend", database: "connected" });
   } catch {
-    res.status(500).json({ ok: false, service: "fooddelyvry-backend", database: "disconnected" });
+    res.status(500).json({ ok: false, service: "speedz-backend", database: "disconnected" });
   }
 });
 
@@ -4891,5 +4891,5 @@ app.use((error, _req, res, _next) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`FoodDelyvry backend running on http://localhost:${PORT}`);
+  console.log(`SpeedZ backend running on http://localhost:${PORT}`);
 });

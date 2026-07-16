@@ -14,7 +14,7 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "FoodDelyvry utilise votre position pour calculer les frais de livraison selon la distance."
+        "NSLocationWhenInUseUsageDescription": "SpeedZ utilise votre position pour calculer les frais de livraison selon la distance."
       }
     },
     "android": {
