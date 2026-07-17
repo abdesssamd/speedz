@@ -3,6 +3,7 @@ import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
+import { CourierAdSplash } from "./src/AdViews";
 import { api } from "./src/api";
 import { CourierProvider, useCourier } from "./src/CourierContext";
 import { startRingtone, stopRingtone } from "./src/ringtone";
@@ -13,15 +14,20 @@ import { ProfileScreen } from "./src/screens/ProfileScreen";
 import { theme } from "./src/theme";
 import { CourierDashboard } from "./src/types";
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+// Protégé : une API notifications indisponible ne doit pas empêcher l'app de démarrer.
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    }),
+  });
+} catch {
+  // ignore
+}
 
 type Tab = "jobs" | "active" | "profile";
 
@@ -102,6 +108,7 @@ function Dashboard() {
 
   return (
     <View style={[styles.flex, { paddingTop: insets.top }]}>
+      <CourierAdSplash />
       <View style={styles.body}>
         {tab === "jobs" && (
           <JobsScreen jobs={availableJobs} refreshing={refreshing} onRefresh={refresh} onChanged={refresh} />

@@ -3,6 +3,7 @@ import { cloneElement, isValidElement, useCallback, useEffect, useMemo, useRef, 
 import {
   Award,
   BarChart2,
+  Bell,
   Bike,
   Check,
   ChevronDown,
@@ -33,6 +34,7 @@ import {
 import { AdminDialog } from "./components/AdminDialog";
 import OmniSearch from "./components/OmniSearch";
 import AnalyticsDashboard from "./components/AnalyticsDashboard";
+import RestaurantPortal from "./RestaurantPortal";
 import { API_URL, WS_URL, apiRequest, setCsrfToken, clearCsrfToken, getCsrfToken } from "./lib/api";
 import "./index.css";
 
@@ -1066,6 +1068,9 @@ export default function App() {
   const [deliverySaving, setDeliverySaving] = useState(false);
   const [loyaltyConfig, setLoyaltyConfig] = useState(null);
   const [loyaltySaving, setLoyaltySaving] = useState(false);
+  const [pushForm, setPushForm] = useState({ audience: "ALL", title: "", body: "", userId: "", zoneLabel: "", clientQuery: "" });
+  const [pushSending, setPushSending] = useState(false);
+  const [pushInfo, setPushInfo] = useState({ audiences: { clients: 0, couriers: 0 }, campaigns: [] });
   const [billingOverview, setBillingOverview] = useState({ restaurants: [], settlements: [] });
   const [settlementTarget, setSettlementTarget] = useState(null);
   const [settlementForm, setSettlementForm] = useState({ amount: "", method: "", note: "" });
@@ -1672,6 +1677,14 @@ export default function App() {
       }
     }
   }, [menuCategoryForm, categoryErrors]);
+
+  // Rafraîchit le nombre de destinataires + l'historique à l'ouverture de l'onglet Push.
+  useEffect(() => {
+    if (activeView === "push" && token) {
+      loadPushInfo();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeView, token]);
 
   useEffect(() => {
     const source = selectedPromotion ?? promotionForm;
@@ -3178,6 +3191,50 @@ export default function App() {
     }
   }
 
+  // Charge le nombre de destinataires + l'historique des campagnes push.
+  async function loadPushInfo() {
+    try {
+      const info = await apiRequest("/api/admin/notifications/push", {}, token);
+      setPushInfo(info);
+    } catch {
+      // silencieux : la section reste utilisable même sans historique
+    }
+  }
+
+  // Envoie une notification push aux clients, aux livreurs, ou aux deux.
+  async function handleSendPush() {
+    if (!pushForm.title.trim() || !pushForm.body.trim()) {
+      setErrorMessage("Titre et message sont obligatoires.");
+      return;
+    }
+    if (pushForm.audience === "CLIENT" && !pushForm.userId) {
+      setErrorMessage("Choisissez un client à notifier.");
+      return;
+    }
+    if (pushForm.audience === "COURIER_ZONE" && !pushForm.zoneLabel) {
+      setErrorMessage("Choisissez une zone de livreurs.");
+      return;
+    }
+    setPushSending(true);
+    try {
+      const payload = {
+        audience: pushForm.audience,
+        title: pushForm.title.trim(),
+        body: pushForm.body.trim(),
+        ...(pushForm.audience === "CLIENT" ? { userId: pushForm.userId } : {}),
+        ...(pushForm.audience === "COURIER_ZONE" ? { zoneLabel: pushForm.zoneLabel } : {}),
+      };
+      const res = await apiRequest("/api/admin/notifications/push", { method: "POST", body: JSON.stringify(payload) }, token);
+      setStatusMessage(`Notification envoyee a ${res.campaign.sent} appareil(s).`);
+      setPushForm((current) => ({ ...current, title: "", body: "" }));
+      loadPushInfo();
+    } catch (error) {
+      setErrorMessage(error.message);
+    } finally {
+      setPushSending(false);
+    }
+  }
+
   function openSettlementModal(row) {
     setSettlementTarget(row);
     setSettlementForm({
@@ -3542,6 +3599,10 @@ export default function App() {
     );
   }
 
+  if (user?.role === "RESTAURANT") {
+    return <RestaurantPortal token={token} user={user} onLogout={handleLogout} />;
+  }
+
   return (
     <main className="admin-shell" dir={isRTL ? "rtl" : "ltr"}>
       <aside className="sidebar">
@@ -3563,6 +3624,7 @@ export default function App() {
             { id: "couriers", label: t("couriers_nav"), icon: Bike },
             { id: "applications", label: t("applications_nav"), icon: Inbox },
             { id: "notifications", label: t("notifications_nav"), icon: Mail },
+            { id: "push", label: "Push", icon: Bell },
             { id: "categories", label: t("categories_nav"), icon: Tags },
             { id: "promotions", label: t("promotions_nav"), icon: Sparkles },
             { id: "ads", label: "Publicités", icon: Megaphone },
@@ -5230,7 +5292,12 @@ export default function App() {
                         <div className="order-head">
                           <div>
                             <strong>{ad.title}</strong>
-                            <p>{ad.placement === "SPLASH" ? "Affiche à l'ouverture" : "Bannière accueil"}</p>
+                            <p>{{
+                              SPLASH: "Client · Affiche à l'ouverture",
+                              HOME_BANNER: "Client · Bannière accueil",
+                              COURIER_SPLASH: "Livreur · Affiche à l'ouverture",
+                              COURIER_BANNER: "Livreur · Bannière courses",
+                            }[ad.placement] || ad.placement}</p>
                           </div>
                           <span className={`status-pill ${ad.isActive ? "success" : "neutral"}`}>
                             {ad.isActive ? t("active") : t("inactive")}
@@ -5409,6 +5476,146 @@ export default function App() {
                     </p>
                   </div>
                 )}
+              </article>
+            )}
+
+            {activeView === "push" && (
+              <article className="panel">
+                <div className="panel-head">
+                  <div>
+                    <h3>Notifications push</h3>
+                    <p>Envoyez une notification aux clients, aux livreurs, ou aux deux.</p>
+                  </div>
+                  <button className="ghost" onClick={loadPushInfo}>{t("refresh")}</button>
+                </div>
+
+                <div className="stack" style={{ gap: 18 }}>
+                  {/* Cible */}
+                  <div className="stack" style={{ gap: 8 }}>
+                    <label className="field-label">Destinataires</label>
+                    <div className="inline-actions" style={{ gap: 8, flexWrap: "wrap" }}>
+                      {[
+                        { id: "ALL", label: `Tous (${pushInfo.audiences.clients + pushInfo.audiences.couriers})` },
+                        { id: "CLIENTS", label: `Clients (${pushInfo.audiences.clients})` },
+                        { id: "COURIERS", label: `Livreurs (${pushInfo.audiences.couriers})` },
+                        { id: "CLIENT", label: "Un client précis" },
+                        { id: "COURIER_ZONE", label: "Livreurs d'une zone" },
+                      ].map((opt) => (
+                        <button
+                          key={opt.id}
+                          className={`ghost ${pushForm.audience === opt.id ? "selected" : ""}`}
+                          onClick={() => setPushForm((c) => ({ ...c, audience: opt.id }))}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Sélecteur client précis */}
+                  {pushForm.audience === "CLIENT" && (
+                    <div className="stack" style={{ gap: 8 }}>
+                      <input
+                        placeholder="Rechercher un client (nom ou email)…"
+                        value={pushForm.clientQuery}
+                        onChange={(event) => setPushForm((c) => ({ ...c, clientQuery: event.target.value }))}
+                      />
+                      <select
+                        value={pushForm.userId}
+                        onChange={(event) => setPushForm((c) => ({ ...c, userId: event.target.value }))}
+                      >
+                        <option value="">— Choisir un client —</option>
+                        {sortedCustomers
+                          .filter((cust) => {
+                            const q = pushForm.clientQuery.trim().toLowerCase();
+                            return !q || `${cust.name || ""} ${cust.email || ""}`.toLowerCase().includes(q);
+                          })
+                          .slice(0, 100)
+                          .map((cust) => (
+                            <option key={cust.id} value={cust.id}>
+                              {cust.name} {cust.email ? `— ${cust.email}` : ""}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Sélecteur zone livreurs */}
+                  {pushForm.audience === "COURIER_ZONE" && (
+                    <div className="stack" style={{ gap: 8 }}>
+                      <select
+                        value={pushForm.zoneLabel}
+                        onChange={(event) => setPushForm((c) => ({ ...c, zoneLabel: event.target.value }))}
+                      >
+                        <option value="">— Choisir une zone —</option>
+                        {courierZones.map((zone) => (
+                          <option key={zone} value={zone}>{zone}</option>
+                        ))}
+                      </select>
+                      {courierZones.length === 0 ? (
+                        <p className="muted" style={{ fontSize: 12 }}>Aucune zone renseignée sur les livreurs.</p>
+                      ) : null}
+                    </div>
+                  )}
+
+                  <div className="form-grid">
+                    <label>
+                      <span>Titre</span>
+                      <input
+                        value={pushForm.title}
+                        maxLength={100}
+                        placeholder="Ex: Promo du week-end 🎉"
+                        onChange={(event) => setPushForm((c) => ({ ...c, title: event.target.value }))}
+                      />
+                    </label>
+                  </div>
+                  <label className="stack" style={{ gap: 6 }}>
+                    <span className="field-label">Message</span>
+                    <textarea
+                      rows={3}
+                      maxLength={300}
+                      value={pushForm.body}
+                      placeholder="Le contenu de la notification…"
+                      onChange={(event) => setPushForm((c) => ({ ...c, body: event.target.value }))}
+                    />
+                  </label>
+
+                  <div className="inline-actions">
+                    <button className="primary-alt" onClick={handleSendPush} disabled={pushSending}>
+                      {pushSending ? "Envoi…" : "Envoyer la notification"}
+                    </button>
+                  </div>
+
+                  {/* Historique */}
+                  {pushInfo.campaigns?.length ? (
+                    <div className="data-table-wrap">
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            <th>Date</th>
+                            <th>Cible</th>
+                            <th>Titre</th>
+                            <th>Message</th>
+                            <th>Envoyées</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pushInfo.campaigns.map((camp) => (
+                            <tr key={camp.id}>
+                              <td className="muted">{new Date(camp.createdAt).toLocaleString("fr-FR")}</td>
+                              <td>{camp.targetLabel || (camp.audience === "ALL" ? "Tous" : camp.audience === "CLIENTS" ? "Clients" : "Livreurs")}</td>
+                              <td><strong>{camp.title}</strong></td>
+                              <td className="muted">{camp.body}</td>
+                              <td>{camp.sent}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="muted" style={{ textAlign: "center", padding: "12px 0" }}>Aucune notification envoyée pour le moment.</p>
+                  )}
+                </div>
               </article>
             )}
 
@@ -6594,8 +6801,14 @@ export default function App() {
                       : setAdForm({ ...adForm, placement: event.target.value })
                   }
                 >
-                  <option value="HOME_BANNER">Bannière accueil (au-dessus des restaurants)</option>
-                  <option value="SPLASH">Affiche à l'ouverture de l'app</option>
+                  <optgroup label="Application client">
+                    <option value="HOME_BANNER">Bannière accueil (au-dessus des restaurants)</option>
+                    <option value="SPLASH">Affiche à l'ouverture de l'app</option>
+                  </optgroup>
+                  <optgroup label="Application livreur">
+                    <option value="COURIER_BANNER">Bannière livreur (liste des courses)</option>
+                    <option value="COURIER_SPLASH">Affiche à l'ouverture (livreur)</option>
+                  </optgroup>
                 </select>
               </FormField>
               <FormField label="Restaurant lié (optionnel)">

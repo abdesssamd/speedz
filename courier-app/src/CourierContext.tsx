@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Constants from "expo-constants";
 import * as Device from "expo-device";
 import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
@@ -46,7 +47,13 @@ async function registerForPush() {
         importance: Notifications.AndroidImportance.HIGH,
       });
     }
-    const tokenData = await Notifications.getExpoPushTokenAsync();
+    // En build standalone (hors Expo Go), getExpoPushTokenAsync exige le projectId.
+    const projectId =
+      Constants.expoConfig?.extra?.eas?.projectId ??
+      (Constants as any).easConfig?.projectId;
+    const tokenData = await Notifications.getExpoPushTokenAsync(
+      projectId ? { projectId } : undefined
+    );
     if (tokenData?.data) {
       await api.registerPushToken(tokenData.data);
     }

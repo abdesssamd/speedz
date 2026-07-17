@@ -51,3 +51,15 @@ export type CourierSession = {
   token: string;
   courier: Courier;
 };
+
+export type Ad = {
+  id: string;
+  title: string;
+  imageUrl: string;
+  placement: "COURIER_SPLASH" | "COURIER_BANNER" | string;
+  isActive: boolean;
+  startsAt: string | null;
+  endsAt: string | null;
+  restaurantId: string | null;
+  createdAt: string;
+};

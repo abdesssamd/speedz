@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { CourierAdBanner } from "../AdViews";
 import { api } from "../api";
 import { Badge, Card, PrimaryButton } from "../components";
 import { stopRingtone } from "../ringtone";
@@ -39,6 +40,7 @@ export function JobsScreen({
       contentContainerStyle={styles.container}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
     >
+      <CourierAdBanner />
       <Text style={styles.title}>Courses disponibles</Text>
       {error ? <Text style={styles.error}>{error}</Text> : null}
 

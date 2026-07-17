@@ -322,6 +322,26 @@ const Schemas = {
     password: z.string().min(6).max(100),
   }),
 
+  // POST /api/admin/notifications/push — campagne push admin
+  // Cibles : ALL, CLIENTS, COURIERS, CLIENT (un client précis via userId),
+  // COURIER_ZONE (les livreurs d'une zone via zoneLabel).
+  adminPushNotification: z
+    .object({
+      audience: z.enum(["ALL", "CLIENTS", "COURIERS", "CLIENT", "COURIER_ZONE"]),
+      title: z.string().min(2).max(100).trim(),
+      body: z.string().min(2).max(300).trim(),
+      userId: z.string().min(1).max(64).optional(),
+      zoneLabel: z.string().min(1).max(100).optional(),
+    })
+    .refine((data) => data.audience !== "CLIENT" || !!data.userId, {
+      message: "userId requis pour cibler un client précis",
+      path: ["userId"],
+    })
+    .refine((data) => data.audience !== "COURIER_ZONE" || !!data.zoneLabel, {
+      message: "zoneLabel requis pour cibler une zone",
+      path: ["zoneLabel"],
+    }),
+
   // POST /api/admin/promotions
   createPromotion: z.object({
     code: z.string().min(3).max(30).trim().toUpperCase(),
@@ -435,11 +455,13 @@ const Schemas = {
     })).min(1, "Au moins une zone est requise").max(12),
   }),
 
+  // Emplacements de publicité : app client (SPLASH, HOME_BANNER) et app livreur
+  // (COURIER_SPLASH, COURIER_BANNER).
   // Admin: create ad (publicité)
   createAd: z.object({
     title: z.string().min(2).max(120).trim(),
     imageUrl: z.string().min(5).max(2000),
-    placement: z.enum(["SPLASH", "HOME_BANNER"]),
+    placement: z.enum(["SPLASH", "HOME_BANNER", "COURIER_SPLASH", "COURIER_BANNER"]),
     isActive: z.boolean().optional().default(true),
     startsAt: z.string().datetime().nullable().optional(),
     endsAt: z.string().datetime().nullable().optional(),
@@ -450,7 +472,7 @@ const Schemas = {
   updateAd: z.object({
     title: z.string().min(2).max(120).trim().optional(),
     imageUrl: z.string().min(5).max(2000).optional(),
-    placement: z.enum(["SPLASH", "HOME_BANNER"]).optional(),
+    placement: z.enum(["SPLASH", "HOME_BANNER", "COURIER_SPLASH", "COURIER_BANNER"]).optional(),
     isActive: z.boolean().optional(),
     startsAt: z.string().datetime().nullable().optional(),
     endsAt: z.string().datetime().nullable().optional(),
@@ -502,6 +524,46 @@ const Schemas = {
   // Admin: assign courier to order
   assignCourier: z.object({
     courierId: z.string().nullable(),
+  }),
+
+  // ─── Portail restaurateur (web) ─────────────────────────────────────────────
+  // Création/màj d'un plat depuis l'espace restaurant.
+  portalMenuItem: z.object({
+    name: z.string().min(1).max(200).trim(),
+    description: z.string().max(1000).optional().default(""),
+    price: z.number().min(0).max(100000),
+    category: z.string().min(1).max(100),
+    image: z.string().max(2000).optional().default(""),
+    badge: z.string().max(50).nullable().optional(),
+    calories: z.number().int().nullable().optional(),
+    stock: z.number().int().min(0).optional().default(0),
+    isAvailable: z.boolean().optional().default(true),
+    options: z.array(z.unknown()).optional().default([]),
+  }),
+
+  // Transition de statut d'une commande côté restaurant (KDS).
+  portalOrderStatus: z.object({
+    status: z.enum(["Accepted", "Preparing", "Ready", "OnTheWay", "Delivered", "Cancelled"]),
+    reason: z.string().max(500).optional(),
+  }),
+
+  // Création/màj d'une table (plan de salle).
+  createTable: z.object({
+    label: z.string().min(1).max(40).trim(),
+    zone: z.string().max(60).nullable().optional(),
+    seats: z.number().int().min(1).max(50).optional().default(2),
+    sortOrder: z.number().int().min(0).optional().default(0),
+  }),
+
+  updateTable: z.object({
+    label: z.string().min(1).max(40).trim().optional(),
+    zone: z.string().max(60).nullable().optional(),
+    seats: z.number().int().min(1).max(50).optional(),
+    sortOrder: z.number().int().min(0).optional(),
+  }),
+
+  tableStatus: z.object({
+    status: z.enum(["FREE", "OCCUPIED", "ORDER_IN_PROGRESS", "BILL_REQUESTED"]),
   }),
 };
 

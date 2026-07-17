@@ -1,6 +1,6 @@
 import Constants from "expo-constants";
 import { NativeModules, Platform } from "react-native";
-import { Courier, CourierDashboard, CourierJob, CourierSession } from "./types";
+import { Ad, Courier, CourierDashboard, CourierJob, CourierSession } from "./types";
 
 // Backend de production (fallback pour les builds release — voir eas.json env).
 const PRODUCTION_API_URL = "https://speedz.microtechdz13.com";
@@ -142,5 +142,9 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     });
+  },
+  // Publicités destinées à l'app livreur (placements COURIER_*).
+  getAds(placement: "COURIER_SPLASH" | "COURIER_BANNER") {
+    return request<Ad[]>(`/api/ads?placement=${placement}`);
   },
 };

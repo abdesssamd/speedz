@@ -1,0 +1,1228 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  LayoutDashboard,
+  ChefHat,
+  UtensilsCrossed,
+  LayoutGrid,
+  QrCode,
+  Settings,
+  LogOut,
+  Plus,
+  Pencil,
+  Trash2,
+  Printer,
+  X,
+  Clock,
+  CheckCircle2,
+  Bell,
+  RefreshCcw,
+  TriangleAlert,
+} from "lucide-react";
+import { apiRequest, WS_URL } from "./lib/api";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Espace restaurateur (portail web) — piloté par un compte User role=RESTAURANT.
+// Toutes les données sont scopées côté backend au restaurant du compte.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const money = (value) => `${Number(value || 0).toFixed(2)} Da`;
+
+const NAV = [
+  { id: "dashboard", label: "Tableau de bord", icon: LayoutDashboard },
+  { id: "kds", label: "Commandes (Cuisine)", icon: ChefHat },
+  { id: "menu", label: "Menu", icon: UtensilsCrossed },
+  { id: "floor", label: "Plan de salle", icon: LayoutGrid },
+  { id: "qr", label: "QR Code", icon: QrCode },
+  { id: "settings", label: "Réglages", icon: Settings },
+];
+
+// Statuts affichés côté KDS regroupés en colonnes.
+const KDS_COLUMNS = [
+  { id: "new", title: "Nouvelles", statuses: ["Confirmed", "AwaitingCourier", "Accepted"] },
+  { id: "prep", title: "En préparation", statuses: ["Preparing"] },
+  { id: "ready", title: "Prêtes", statuses: ["Ready", "OnTheWay"] },
+];
+
+const TABLE_STATUS = {
+  FREE: { label: "Libre", dot: "bg-emerald-500", ring: "border-emerald-200 dark:border-emerald-900" },
+  OCCUPIED: { label: "Occupée", dot: "bg-amber-500", ring: "border-amber-200 dark:border-amber-900" },
+  ORDER_IN_PROGRESS: { label: "Commande en cours", dot: "bg-blue-500", ring: "border-blue-200 dark:border-blue-900" },
+  BILL_REQUESTED: { label: "Addition demandée", dot: "bg-red-500", ring: "border-red-200 dark:border-red-900" },
+};
+
+function minutesSince(iso) {
+  if (!iso) return 0;
+  return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
+}
+
+export default function RestaurantPortal({ token, user, onLogout }) {
+  const [view, setView] = useState("dashboard");
+  const [restaurant, setRestaurant] = useState(null);
+  const [account, setAccount] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [toast, setToast] = useState("");
+  const [wsTick, setWsTick] = useState(0); // incrémenté à chaque event temps réel
+  const [newOrderPing, setNewOrderPing] = useState(0);
+
+  const restaurantId = restaurant?.id;
+
+  const notify = useCallback((message) => {
+    setToast(message);
+    window.clearTimeout(notify._t);
+    notify._t = window.setTimeout(() => setToast(""), 2600);
+  }, []);
+
+  const call = useCallback(
+    (path, options) => apiRequest(path, options, token),
+    [token]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    async function bootstrap() {
+      try {
+        const payload = await call("/api/restaurant/portal/me");
+        if (cancelled) return;
+        setRestaurant(payload.restaurant);
+        setAccount(payload.account);
+      } catch (err) {
+        if (!cancelled) setError(err.message || "Impossible de charger l'espace restaurant.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    bootstrap();
+    return () => {
+      cancelled = true;
+    };
+  }, [call]);
+
+  // Temps réel : on écoute les events du restaurant et on rafraîchit les écrans.
+  useEffect(() => {
+    if (!restaurantId) return undefined;
+    let socket;
+    let closed = false;
+    try {
+      socket = new WebSocket(`${WS_URL}/ws?role=restaurant`);
+    } catch {
+      return undefined;
+    }
+    socket.onmessage = (event) => {
+      let message;
+      try {
+        message = JSON.parse(event.data);
+      } catch {
+        return;
+      }
+      const type = message?.type || "";
+      const payload = message?.payload || {};
+      const belongsToUs =
+        payload.restaurantId === restaurantId || payload.order?.restaurantId === restaurantId;
+      if (!belongsToUs) return;
+
+      if (type === "order/created") {
+        setNewOrderPing((n) => n + 1);
+      }
+      if (type.startsWith("order/") || type.startsWith("restaurant/")) {
+        setWsTick((t) => t + 1);
+      }
+    };
+    socket.onclose = () => {
+      if (!closed) {
+        // Reconnexion douce laissée à un futur incrément ; on ne boucle pas ici.
+      }
+    };
+    return () => {
+      closed = true;
+      try {
+        socket.close();
+      } catch {
+        /* noop */
+      }
+    };
+  }, [restaurantId]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-slate-50 dark:bg-slate-950">
+        <div className="text-slate-500">Chargement de l'espace restaurant…</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-slate-50 dark:bg-slate-950 p-6">
+        <div className="max-w-md rounded-2xl bg-white dark:bg-slate-900 p-8 shadow-card text-center">
+          <TriangleAlert className="mx-auto mb-3 text-amber-500" size={32} />
+          <h2 className="text-lg font-bold mb-2">Espace indisponible</h2>
+          <p className="text-slate-500 text-sm mb-5">{error}</p>
+          <button
+            onClick={onLogout}
+            className="rounded-xl bg-slate-900 dark:bg-white dark:text-slate-900 text-white px-4 py-2.5 text-sm font-semibold"
+          >
+            Se déconnecter
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <main className="admin-shell">
+      <aside className="sidebar">
+        <div className="brand-block">
+          <p className="eyebrow text-orange-400 text-xs font-semibold uppercase tracking-wide">Espace restaurant</p>
+          <h1 className="text-xl font-extrabold leading-tight mt-1">{restaurant?.name}</h1>
+          <p className="sidebar-copy text-sm mt-1">{restaurant?.category}</p>
+        </div>
+
+        <nav className="side-nav">
+          {NAV.map((item) => (
+            <button
+              key={item.id}
+              className={`nav-item ${view === item.id ? "active" : ""}`}
+              onClick={() => setView(item.id)}
+            >
+              <span className="nav-icon">
+                <item.icon size={16} />
+              </span>
+              <span>{item.label}</span>
+              {item.id === "kds" && newOrderPing > 0 ? <span className="nav-badge">{newOrderPing}</span> : null}
+            </button>
+          ))}
+        </nav>
+
+        <button onClick={onLogout} className="sidebar-account-btn nav-item">
+          <span className="nav-icon">
+            <LogOut size={16} />
+          </span>
+          <span>Déconnexion</span>
+        </button>
+      </aside>
+
+      <section className="min-w-0">
+        {view === "dashboard" && <DashboardScreen call={call} wsTick={wsTick} onGoto={setView} />}
+        {view === "kds" && (
+          <KdsScreen
+            call={call}
+            wsTick={wsTick}
+            newOrderPing={newOrderPing}
+            clearPing={() => setNewOrderPing(0)}
+            notify={notify}
+          />
+        )}
+        {view === "menu" && <MenuScreen call={call} notify={notify} />}
+        {view === "floor" && <FloorScreen call={call} wsTick={wsTick} notify={notify} />}
+        {view === "qr" && <QrScreen call={call} restaurant={restaurant} />}
+        {view === "settings" && <SettingsScreen restaurant={restaurant} account={account} onLogout={onLogout} />}
+      </section>
+
+      {toast ? (
+        <div className="fixed bottom-6 right-6 z-50 rounded-xl bg-slate-900 text-white px-4 py-3 text-sm shadow-card">
+          {toast}
+        </div>
+      ) : null}
+    </main>
+  );
+}
+
+// ─── En-tête d'écran réutilisable ─────────────────────────────────────────────
+function ScreenHeader({ title, subtitle, actions }) {
+  return (
+    <header className="flex flex-wrap items-end justify-between gap-3 mb-5">
+      <div>
+        <h2 className="text-2xl font-extrabold text-slate-900 dark:text-slate-50">{title}</h2>
+        {subtitle ? <p className="text-slate-500 text-sm mt-1">{subtitle}</p> : null}
+      </div>
+      {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
+    </header>
+  );
+}
+
+function Card({ className = "", children }) {
+  return (
+    <div className={`rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-soft ${className}`}>
+      {children}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TABLEAU DE BORD
+// ─────────────────────────────────────────────────────────────────────────────
+function DashboardScreen({ call, wsTick, onGoto }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    try {
+      const payload = await call("/api/restaurant/portal/dashboard");
+      setData(payload);
+    } catch {
+      /* silencieux : on garde l'ancien snapshot */
+    } finally {
+      setLoading(false);
+    }
+  }, [call]);
+
+  useEffect(() => {
+    load();
+  }, [load, wsTick]);
+
+  // Rafraîchissement périodique de secours.
+  useEffect(() => {
+    const id = window.setInterval(load, 30000);
+    return () => window.clearInterval(id);
+  }, [load]);
+
+  if (loading && !data) {
+    return <div className="text-slate-500">Chargement des indicateurs…</div>;
+  }
+
+  const kpis = [
+    { label: "CA du jour", value: money(data?.revenueToday), accent: "text-emerald-600" },
+    { label: "Commandes", value: data?.ordersToday ?? 0, hint: `${data?.ordersOnsite ?? 0} sur place · ${data?.ordersDelivery ?? 0} livraison` },
+    { label: "Panier moyen", value: money(data?.averageBasket) },
+    { label: "Prépa. moyenne", value: `${data?.avgPrepMinutes ?? 0} min` },
+  ];
+
+  return (
+    <div>
+      <ScreenHeader
+        title="Tableau de bord"
+        subtitle="Pilotage temps réel de votre activité"
+        actions={
+          <button onClick={load} className="rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm flex items-center gap-2">
+            <RefreshCcw size={15} /> Actualiser
+          </button>
+        }
+      />
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+        {kpis.map((kpi) => (
+          <Card key={kpi.label} className="p-4">
+            <p className="text-slate-500 text-xs font-medium uppercase tracking-wide">{kpi.label}</p>
+            <p className={`text-2xl font-extrabold mt-2 ${kpi.accent || "text-slate-900 dark:text-slate-50"}`}>{kpi.value}</p>
+            {kpi.hint ? <p className="text-slate-400 text-xs mt-1">{kpi.hint}</p> : null}
+          </Card>
+        ))}
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-4">
+        <Card className="p-4">
+          <h3 className="font-bold mb-3 flex items-center gap-2">
+            <Bell size={16} className="text-orange-500" /> À traiter maintenant
+          </h3>
+          <div className="space-y-2">
+            <StatRow label="En attente d'acceptation" value={data?.pendingAcceptance ?? 0} alert={(data?.pendingAcceptance ?? 0) > 0} />
+            <StatRow label="En préparation" value={data?.inPreparation ?? 0} />
+            <StatRow label="Prêtes à servir" value={data?.ready ?? 0} />
+          </div>
+          <button onClick={() => onGoto("kds")} className="mt-4 w-full rounded-xl bg-slate-900 dark:bg-white dark:text-slate-900 text-white py-2.5 text-sm font-semibold">
+            Ouvrir la cuisine
+          </button>
+        </Card>
+
+        <Card className="p-4">
+          <h3 className="font-bold mb-3 flex items-center gap-2">
+            <LayoutGrid size={16} className="text-blue-500" /> Salle
+          </h3>
+          <div className="space-y-2">
+            <StatRow label="Tables occupées" value={data?.tables?.occupied ?? 0} />
+            <StatRow label="Tables libres" value={data?.tables?.free ?? 0} />
+            <StatRow label="Additions demandées" value={data?.tables?.billRequested ?? 0} alert={(data?.tables?.billRequested ?? 0) > 0} />
+          </div>
+          <button onClick={() => onGoto("floor")} className="mt-4 w-full rounded-xl border border-slate-200 dark:border-slate-700 py-2.5 text-sm font-semibold">
+            Voir le plan de salle
+          </button>
+        </Card>
+
+        <Card className="p-4">
+          <h3 className="font-bold mb-3">Top plats du jour</h3>
+          {data?.topDishes?.length ? (
+            <ul className="space-y-2">
+              {data.topDishes.map((d, i) => (
+                <li key={d.name} className="flex items-center justify-between text-sm">
+                  <span className="truncate"><span className="text-slate-400 mr-2">{i + 1}.</span>{d.name}</span>
+                  <span className="font-semibold">×{d.quantity}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-slate-400 text-sm">Aucune vente aujourd'hui.</p>
+          )}
+
+          {data?.lowStock?.length ? (
+            <div className="mt-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 p-3">
+              <p className="text-amber-700 dark:text-amber-400 text-xs font-semibold flex items-center gap-1">
+                <TriangleAlert size={13} /> Stock faible
+              </p>
+              <p className="text-amber-700/80 dark:text-amber-400/80 text-xs mt-1">
+                {data.lowStock.map((s) => `${s.name} (${s.stock})`).join(", ")}
+              </p>
+            </div>
+          ) : null}
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function StatRow({ label, value, alert }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-slate-500 text-sm">{label}</span>
+      <span className={`inline-flex min-w-8 justify-center rounded-lg px-2 py-0.5 text-sm font-bold ${alert ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300" : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"}`}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CUISINE / KDS
+// ─────────────────────────────────────────────────────────────────────────────
+function KdsScreen({ call, wsTick, newOrderPing, clearPing, notify }) {
+  const [orders, setOrders] = useState([]);
+  const [busyId, setBusyId] = useState("");
+
+  const load = useCallback(async () => {
+    try {
+      const list = await call("/api/restaurant/portal/orders?scope=active");
+      setOrders(list);
+    } catch {
+      /* garde l'ancien */
+    }
+  }, [call]);
+
+  useEffect(() => {
+    load();
+    clearPing();
+  }, [load, wsTick]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const changeStatus = async (order, status) => {
+    setBusyId(order.id);
+    try {
+      await call(`/api/restaurant/portal/orders/${order.id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+      await load();
+      notify(`Commande #${order.id.slice(-5)} → ${status}`);
+    } catch (err) {
+      notify(err.message || "Action impossible");
+    } finally {
+      setBusyId("");
+    }
+  };
+
+  const grouped = useMemo(() => {
+    const buckets = { new: [], prep: [], ready: [] };
+    for (const order of orders) {
+      const col = KDS_COLUMNS.find((c) => c.statuses.includes(normalizeStatus(order.status)));
+      if (col) buckets[col.id].push(order);
+    }
+    return buckets;
+  }, [orders]);
+
+  return (
+    <div>
+      <ScreenHeader
+        title="Cuisine — commandes"
+        subtitle="Réception → préparation → prête. Mise à jour en temps réel."
+        actions={
+          <button onClick={load} className="rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm flex items-center gap-2">
+            <RefreshCcw size={15} /> Actualiser
+          </button>
+        }
+      />
+
+      <div className="grid lg:grid-cols-3 gap-4 items-start">
+        {KDS_COLUMNS.map((col) => (
+          <div key={col.id} className="rounded-2xl bg-slate-100/60 dark:bg-slate-900/60 p-3">
+            <div className="flex items-center justify-between px-1 mb-3">
+              <h3 className="font-bold text-slate-700 dark:text-slate-200">{col.title}</h3>
+              <span className="rounded-full bg-white dark:bg-slate-800 px-2.5 py-0.5 text-xs font-bold shadow-soft">
+                {grouped[col.id].length}
+              </span>
+            </div>
+            <div className="space-y-3">
+              {grouped[col.id].map((order) => (
+                <KdsTicket key={order.id} order={order} column={col.id} busy={busyId === order.id} onChange={changeStatus} />
+              ))}
+              {grouped[col.id].length === 0 ? (
+                <p className="text-center text-slate-400 text-sm py-6">Aucune commande</p>
+              ) : null}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function normalizeStatus(status) {
+  return status === "On the way" ? "OnTheWay" : status;
+}
+
+function KdsTicket({ order, column, busy, onChange }) {
+  const wait = minutesSince(order.createdAt);
+  const isOnsite = order.channel === "QR_ONSITE";
+  const urgent = wait >= 15;
+
+  return (
+    <Card className={`p-3 ${urgent ? "ring-2 ring-red-300 dark:ring-red-900" : ""}`}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-bold ${isOnsite ? "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300" : "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300"}`}>
+            {isOnsite ? (order.tableLabel ? `Table ${order.tableLabel}` : "Sur place") : "Livraison"}
+          </span>
+          <span className="text-xs text-slate-400">#{order.id.slice(-5)}</span>
+        </div>
+        <span className={`inline-flex items-center gap-1 text-xs font-semibold ${urgent ? "text-red-500" : "text-slate-400"}`}>
+          <Clock size={12} /> {wait} min
+        </span>
+      </div>
+
+      <ul className="space-y-1 mb-3">
+        {(order.items || []).map((item, idx) => (
+          <li key={idx} className="text-sm">
+            <span className="font-bold text-slate-900 dark:text-slate-100">{item.quantity || 1}×</span>{" "}
+            <span className="text-slate-700 dark:text-slate-200">{item.name}</span>
+            {(item.selectedOptions || []).length ? (
+              <span className="block pl-5 text-xs text-slate-400">
+                {item.selectedOptions.map((o) => o.choiceName || o.name).join(", ")}
+              </span>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+
+      {order.notes ? <p className="text-xs italic text-amber-600 dark:text-amber-400 mb-2">Note : {order.notes}</p> : null}
+
+      <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-2">
+        <span className="text-sm font-bold">{money(order.total)}</span>
+        <div className="flex gap-2">
+          {column === "new" && (
+            <TicketButton disabled={busy} onClick={() => onChange(order, "Preparing")} tone="primary">
+              Préparer
+            </TicketButton>
+          )}
+          {column === "prep" && (
+            <TicketButton disabled={busy} onClick={() => onChange(order, "Ready")} tone="primary">
+              <CheckCircle2 size={14} /> Prête
+            </TicketButton>
+          )}
+          {column === "ready" && (
+            <TicketButton disabled={busy} onClick={() => onChange(order, isOnsite ? "Delivered" : "OnTheWay")} tone="success">
+              {isOnsite ? "Servie" : "Remise livreur"}
+            </TicketButton>
+          )}
+          {column !== "ready" && (
+            <TicketButton disabled={busy} onClick={() => onChange(order, "Cancelled")} tone="ghost">
+              Annuler
+            </TicketButton>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function TicketButton({ children, tone = "primary", ...props }) {
+  const tones = {
+    primary: "bg-slate-900 dark:bg-white dark:text-slate-900 text-white",
+    success: "bg-emerald-600 text-white",
+    ghost: "border border-slate-200 dark:border-slate-700 text-slate-500",
+  };
+  return (
+    <button
+      {...props}
+      className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50 ${tones[tone]}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MENU
+// ─────────────────────────────────────────────────────────────────────────────
+const EMPTY_ITEM = { name: "", description: "", price: "", category: "", image: "", stock: 0, isAvailable: true, options: [] };
+
+function MenuScreen({ call, notify }) {
+  const [items, setItems] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [editing, setEditing] = useState(null); // objet en cours d'édition ou null
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    try {
+      const payload = await call("/api/restaurant/portal/menu");
+      setItems(payload.items || []);
+      setCategories(payload.categories || []);
+    } finally {
+      setLoading(false);
+    }
+  }, [call]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const toggleAvailability = async (item) => {
+    try {
+      await call(`/api/restaurant/portal/menu-items/${item.id}/availability`, {
+        method: "PATCH",
+        body: JSON.stringify({ isAvailable: !item.isAvailable }),
+      });
+      await load();
+    } catch (err) {
+      notify(err.message);
+    }
+  };
+
+  const remove = async (item) => {
+    if (!window.confirm(`Archiver « ${item.name} » ?`)) return;
+    try {
+      await call(`/api/restaurant/portal/menu-items/${item.id}`, { method: "DELETE" });
+      await load();
+      notify("Plat archivé");
+    } catch (err) {
+      notify(err.message);
+    }
+  };
+
+  const grouped = useMemo(() => {
+    const map = {};
+    for (const item of items) {
+      (map[item.category || "Divers"] ||= []).push(item);
+    }
+    return Object.entries(map).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [items]);
+
+  return (
+    <div>
+      <ScreenHeader
+        title="Menu"
+        subtitle={`${items.length} plat(s) · ${categories.length} catégorie(s)`}
+        actions={
+          <button
+            onClick={() => setEditing({ ...EMPTY_ITEM })}
+            className="rounded-xl bg-slate-900 dark:bg-white dark:text-slate-900 text-white px-3 py-2 text-sm font-semibold flex items-center gap-2"
+          >
+            <Plus size={15} /> Ajouter un plat
+          </button>
+        }
+      />
+
+      {loading ? (
+        <p className="text-slate-500">Chargement du menu…</p>
+      ) : grouped.length === 0 ? (
+        <Card className="p-10 text-center text-slate-400">Aucun plat pour l'instant. Ajoutez votre premier plat.</Card>
+      ) : (
+        <div className="space-y-6">
+          {grouped.map(([category, list]) => (
+            <div key={category}>
+              <h3 className="text-sm font-bold uppercase tracking-wide text-slate-400 mb-2">{category}</h3>
+              <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
+                {list.map((item) => (
+                  <Card key={item.id} className="p-3 flex gap-3">
+                    {item.image ? (
+                      <img src={item.image} alt="" className="w-16 h-16 rounded-xl object-cover shrink-0" />
+                    ) : (
+                      <div className="w-16 h-16 rounded-xl bg-slate-100 dark:bg-slate-800 grid place-items-center shrink-0">
+                        <UtensilsCrossed size={18} className="text-slate-300" />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-semibold text-slate-900 dark:text-slate-100 truncate">{item.name}</p>
+                        <span className="font-bold text-sm shrink-0">{money(item.price)}</span>
+                      </div>
+                      <p className="text-xs text-slate-400 line-clamp-2">{item.description}</p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <button
+                          onClick={() => toggleAvailability(item)}
+                          className={`text-xs font-semibold rounded-lg px-2 py-0.5 ${item.isAvailable ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "bg-slate-200 text-slate-500 dark:bg-slate-800"}`}
+                        >
+                          {item.isAvailable ? "Disponible" : "Indisponible"}
+                        </button>
+                        {(item.options || []).length ? (
+                          <span className="text-xs text-slate-400">{item.options.length} option(s)</span>
+                        ) : null}
+                        <div className="ml-auto flex gap-1">
+                          <button onClick={() => setEditing({ ...item })} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500">
+                            <Pencil size={14} />
+                          </button>
+                          <button onClick={() => remove(item)} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950 text-red-500">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {editing ? (
+        <MenuItemModal
+          call={call}
+          item={editing}
+          categories={categories}
+          onClose={() => setEditing(null)}
+          onSaved={async () => {
+            setEditing(null);
+            await load();
+            notify("Menu mis à jour");
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function MenuItemModal({ call, item, categories, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    ...EMPTY_ITEM,
+    ...item,
+    price: item.price ?? "",
+    options: Array.isArray(item.options) ? item.options : [],
+  });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+  const isEdit = Boolean(item.id);
+
+  const set = (patch) => setForm((f) => ({ ...f, ...patch }));
+
+  const addGroup = () =>
+    set({ options: [...form.options, { groupName: "", type: "single", required: false, choices: [{ name: "", priceDelta: 0 }] }] });
+
+  const updateGroup = (gi, patch) =>
+    set({ options: form.options.map((g, i) => (i === gi ? { ...g, ...patch } : g)) });
+
+  const removeGroup = (gi) => set({ options: form.options.filter((_, i) => i !== gi) });
+
+  const addChoice = (gi) =>
+    updateGroup(gi, { choices: [...(form.options[gi].choices || []), { name: "", priceDelta: 0 }] });
+
+  const updateChoice = (gi, ci, patch) =>
+    updateGroup(gi, { choices: form.options[gi].choices.map((c, i) => (i === ci ? { ...c, ...patch } : c)) });
+
+  const removeChoice = (gi, ci) =>
+    updateGroup(gi, { choices: form.options[gi].choices.filter((_, i) => i !== ci) });
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setErr("");
+    if (!form.name.trim() || !form.category.trim() || form.price === "") {
+      setErr("Nom, catégorie et prix sont requis.");
+      return;
+    }
+    const payload = {
+      name: form.name.trim(),
+      description: form.description || "",
+      price: Number(form.price),
+      category: form.category.trim(),
+      image: form.image || "",
+      stock: Number(form.stock || 0),
+      isAvailable: Boolean(form.isAvailable),
+      options: (form.options || [])
+        .filter((g) => g.groupName?.trim())
+        .map((g) => ({
+          groupName: g.groupName.trim(),
+          type: g.type === "multi" ? "multi" : "single",
+          required: Boolean(g.required),
+          choices: (g.choices || [])
+            .filter((c) => c.name?.trim())
+            .map((c) => ({ name: c.name.trim(), priceDelta: Number(c.priceDelta || 0) })),
+        })),
+    };
+    setSaving(true);
+    try {
+      if (isEdit) {
+        await call(`/api/restaurant/portal/menu-items/${item.id}`, { method: "PUT", body: JSON.stringify(payload) });
+      } else {
+        await call("/api/restaurant/portal/menu-items", { method: "POST", body: JSON.stringify(payload) });
+      }
+      await onSaved();
+    } catch (error) {
+      setErr(error.message || "Enregistrement impossible.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal onClose={onClose} title={isEdit ? "Modifier le plat" : "Nouveau plat"} wide>
+      <form onSubmit={submit} className="space-y-4">
+        {err ? <p className="rounded-lg bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-300 text-sm px-3 py-2">{err}</p> : null}
+
+        <div className="grid md:grid-cols-2 gap-3">
+          <Field label="Nom du plat">
+            <input className="input" value={form.name} onChange={(e) => set({ name: e.target.value })} />
+          </Field>
+          <Field label="Prix (DA)">
+            <input type="number" step="0.01" className="input" value={form.price} onChange={(e) => set({ price: e.target.value })} />
+          </Field>
+          <Field label="Catégorie">
+            <input list="menu-categories" className="input" value={form.category} onChange={(e) => set({ category: e.target.value })} />
+            <datalist id="menu-categories">
+              {categories.map((c) => (
+                <option key={c.id || c.name} value={c.name} />
+              ))}
+            </datalist>
+          </Field>
+          <Field label="Stock">
+            <input type="number" className="input" value={form.stock} onChange={(e) => set({ stock: e.target.value })} />
+          </Field>
+        </div>
+
+        <Field label="Description">
+          <textarea className="input" rows={2} value={form.description} onChange={(e) => set({ description: e.target.value })} />
+        </Field>
+
+        <Field label="Image (URL)">
+          <input className="input" value={form.image} onChange={(e) => set({ image: e.target.value })} placeholder="https://…" />
+        </Field>
+
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={form.isAvailable} onChange={(e) => set({ isAvailable: e.target.checked })} />
+          Disponible à la vente
+        </label>
+
+        {/* Options / suppléments */}
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-3">
+          <div className="flex items-center justify-between mb-2">
+            <p className="font-semibold text-sm">Options (suppléments, cuisson, à retirer…)</p>
+            <button type="button" onClick={addGroup} className="text-xs font-semibold text-orange-600 flex items-center gap-1">
+              <Plus size={13} /> Groupe
+            </button>
+          </div>
+
+          {form.options.length === 0 ? (
+            <p className="text-xs text-slate-400">Aucune option. Ex : « Cuisson » (choix unique) ou « Suppléments » (choix multiple).</p>
+          ) : (
+            <div className="space-y-3">
+              {form.options.map((group, gi) => (
+                <div key={gi} className="rounded-lg bg-slate-50 dark:bg-slate-800/60 p-2.5">
+                  <div className="flex flex-wrap items-center gap-2 mb-2">
+                    <input
+                      className="input flex-1 min-w-[140px]"
+                      placeholder="Nom du groupe (ex : Cuisson)"
+                      value={group.groupName}
+                      onChange={(e) => updateGroup(gi, { groupName: e.target.value })}
+                    />
+                    <select className="input w-auto" value={group.type} onChange={(e) => updateGroup(gi, { type: e.target.value })}>
+                      <option value="single">Choix unique</option>
+                      <option value="multi">Choix multiple</option>
+                    </select>
+                    <label className="flex items-center gap-1 text-xs">
+                      <input type="checkbox" checked={group.required} onChange={(e) => updateGroup(gi, { required: e.target.checked })} />
+                      Obligatoire
+                    </label>
+                    <button type="button" onClick={() => removeGroup(gi)} className="text-red-500 p-1">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                  <div className="space-y-1.5 pl-1">
+                    {(group.choices || []).map((choice, ci) => (
+                      <div key={ci} className="flex items-center gap-2">
+                        <input
+                          className="input flex-1"
+                          placeholder="Choix (ex : Saignant, Cheddar…)"
+                          value={choice.name}
+                          onChange={(e) => updateChoice(gi, ci, { name: e.target.value })}
+                        />
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-slate-400">+</span>
+                          <input
+                            type="number"
+                            step="0.5"
+                            className="input w-20"
+                            value={choice.priceDelta}
+                            onChange={(e) => updateChoice(gi, ci, { priceDelta: e.target.value })}
+                          />
+                        </div>
+                        <button type="button" onClick={() => removeChoice(gi, ci)} className="text-slate-400 p-1">
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                    <button type="button" onClick={() => addChoice(gi)} className="text-xs text-slate-500 flex items-center gap-1">
+                      <Plus size={12} /> Ajouter un choix
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2 text-sm">
+            Annuler
+          </button>
+          <button type="submit" disabled={saving} className="rounded-xl bg-slate-900 dark:bg-white dark:text-slate-900 text-white px-4 py-2 text-sm font-semibold disabled:opacity-50">
+            {saving ? "Enregistrement…" : "Enregistrer"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLAN DE SALLE
+// ─────────────────────────────────────────────────────────────────────────────
+function FloorScreen({ call, wsTick, notify }) {
+  const [tables, setTables] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const [qr, setQr] = useState(null);
+
+  const load = useCallback(async () => {
+    try {
+      const list = await call("/api/restaurant/portal/tables");
+      setTables(list);
+      setDetail((d) => (d ? list.find((t) => t.id === d.id) || null : null));
+    } finally {
+      setLoading(false);
+    }
+  }, [call]);
+
+  useEffect(() => {
+    load();
+  }, [load, wsTick]);
+
+  const setStatus = async (table, status) => {
+    try {
+      await call(`/api/restaurant/portal/tables/${table.id}/status`, { method: "PATCH", body: JSON.stringify({ status }) });
+      await load();
+    } catch (err) {
+      notify(err.message);
+    }
+  };
+
+  const remove = async (table) => {
+    if (!window.confirm(`Supprimer la table « ${table.label} » ?`)) return;
+    try {
+      await call(`/api/restaurant/portal/tables/${table.id}`, { method: "DELETE" });
+      setDetail(null);
+      await load();
+      notify("Table supprimée");
+    } catch (err) {
+      notify(err.message);
+    }
+  };
+
+  const openQr = async (table) => {
+    try {
+      const payload = await call(`/api/restaurant/portal/tables/${table.id}/qr`);
+      setQr({ ...payload, label: table.label });
+    } catch (err) {
+      notify(err.message);
+    }
+  };
+
+  return (
+    <div>
+      <ScreenHeader
+        title="Plan de salle"
+        subtitle="État des tables en temps réel"
+        actions={
+          <button
+            onClick={() => setEditing({ label: "", zone: "", seats: 2 })}
+            className="rounded-xl bg-slate-900 dark:bg-white dark:text-slate-900 text-white px-3 py-2 text-sm font-semibold flex items-center gap-2"
+          >
+            <Plus size={15} /> Ajouter une table
+          </button>
+        }
+      />
+
+      <div className="flex flex-wrap gap-3 mb-4">
+        {Object.entries(TABLE_STATUS).map(([key, s]) => (
+          <span key={key} className="flex items-center gap-1.5 text-xs text-slate-500">
+            <span className={`w-2.5 h-2.5 rounded-full ${s.dot}`} /> {s.label}
+          </span>
+        ))}
+      </div>
+
+      {loading ? (
+        <p className="text-slate-500">Chargement du plan de salle…</p>
+      ) : tables.length === 0 ? (
+        <Card className="p-10 text-center text-slate-400">Aucune table. Créez vos tables pour générer leurs QR codes.</Card>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          {tables.map((table) => {
+            const s = TABLE_STATUS[table.status] || TABLE_STATUS.FREE;
+            const total = (table.activeOrders || []).reduce((sum, o) => sum + (o.total || 0), 0);
+            return (
+              <button
+                key={table.id}
+                onClick={() => setDetail(table)}
+                className={`text-left rounded-2xl bg-white dark:bg-slate-900 border-2 ${s.ring} p-3 shadow-soft hover:shadow-card transition-shadow`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-extrabold text-lg">{table.label}</span>
+                  <span className={`w-3 h-3 rounded-full ${s.dot}`} />
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">{table.zone || `${table.seats} couverts`}</p>
+                <p className="text-xs font-semibold mt-2 text-slate-600 dark:text-slate-300">{s.label}</p>
+                {table.activeOrders?.length ? (
+                  <p className="text-xs text-slate-500 mt-1">{table.activeOrders.length} cmd · {money(total)}</p>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {detail ? (
+        <Modal onClose={() => setDetail(null)} title={`Table ${detail.label}`}>
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => setStatus(detail, "FREE")} className="chip">Libérer</button>
+              <button onClick={() => setStatus(detail, "OCCUPIED")} className="chip">Occupée</button>
+              <button onClick={() => setStatus(detail, "BILL_REQUESTED")} className="chip chip-danger">Addition demandée</button>
+            </div>
+
+            <div>
+              <p className="text-sm font-semibold mb-2">Commandes en cours</p>
+              {detail.activeOrders?.length ? (
+                <ul className="space-y-2">
+                  {detail.activeOrders.map((o) => (
+                    <li key={o.id} className="flex items-center justify-between rounded-lg bg-slate-50 dark:bg-slate-800/60 px-3 py-2 text-sm">
+                      <span>#{o.id.slice(-5)} · {o.status}</span>
+                      <span className="font-semibold">{money(o.total)}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-slate-400 text-sm">Aucune commande active.</p>
+              )}
+            </div>
+
+            <div className="flex justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button onClick={() => remove(detail)} className="text-red-500 text-sm font-semibold flex items-center gap-1">
+                <Trash2 size={14} /> Supprimer
+              </button>
+              <div className="flex gap-2">
+                <button onClick={() => { setEditing(detail); setDetail(null); }} className="rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm">
+                  Modifier
+                </button>
+                <button onClick={() => openQr(detail)} className="rounded-xl bg-slate-900 dark:bg-white dark:text-slate-900 text-white px-3 py-2 text-sm font-semibold flex items-center gap-1">
+                  <QrCode size={14} /> QR
+                </button>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
+
+      {editing ? (
+        <TableModal
+          call={call}
+          table={editing}
+          onClose={() => setEditing(null)}
+          onSaved={async () => {
+            setEditing(null);
+            await load();
+            notify("Table enregistrée");
+          }}
+        />
+      ) : null}
+
+      {qr ? <QrModal data={qr} onClose={() => setQr(null)} title={`QR — Table ${qr.label}`} /> : null}
+    </div>
+  );
+}
+
+function TableModal({ call, table, onClose, onSaved }) {
+  const [form, setForm] = useState({ label: table.label || "", zone: table.zone || "", seats: table.seats || 2 });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+  const isEdit = Boolean(table.id);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!form.label.trim()) {
+      setErr("Le libellé est requis.");
+      return;
+    }
+    const body = { label: form.label.trim(), zone: form.zone.trim() || null, seats: Number(form.seats) || 2 };
+    setSaving(true);
+    try {
+      if (isEdit) {
+        await call(`/api/restaurant/portal/tables/${table.id}`, { method: "PUT", body: JSON.stringify(body) });
+      } else {
+        await call("/api/restaurant/portal/tables", { method: "POST", body: JSON.stringify(body) });
+      }
+      await onSaved();
+    } catch (error) {
+      setErr(error.message || "Enregistrement impossible.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal onClose={onClose} title={isEdit ? "Modifier la table" : "Nouvelle table"}>
+      <form onSubmit={submit} className="space-y-3">
+        {err ? <p className="rounded-lg bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-300 text-sm px-3 py-2">{err}</p> : null}
+        <Field label="Libellé (n° ou nom)">
+          <input className="input" value={form.label} onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))} placeholder="Ex : 12, Terrasse-3" />
+        </Field>
+        <Field label="Zone (optionnel)">
+          <input className="input" value={form.zone} onChange={(e) => setForm((f) => ({ ...f, zone: e.target.value }))} placeholder="Salle, Terrasse…" />
+        </Field>
+        <Field label="Couverts">
+          <input type="number" className="input" value={form.seats} onChange={(e) => setForm((f) => ({ ...f, seats: e.target.value }))} />
+        </Field>
+        <div className="flex justify-end gap-2 pt-2">
+          <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2 text-sm">Annuler</button>
+          <button type="submit" disabled={saving} className="rounded-xl bg-slate-900 dark:bg-white dark:text-slate-900 text-white px-4 py-2 text-sm font-semibold disabled:opacity-50">
+            {saving ? "…" : "Enregistrer"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// QR CODE
+// ─────────────────────────────────────────────────────────────────────────────
+function QrScreen({ call }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    call("/api/restaurant/portal/qr")
+      .then((payload) => !cancelled && setData(payload))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [call]);
+
+  return (
+    <div>
+      <ScreenHeader title="QR Code & menu digital" subtitle="Affichez ce QR pour que vos clients consultent la carte et commandent." />
+      {loading ? (
+        <p className="text-slate-500">Génération du QR…</p>
+      ) : (
+        <Card className="p-6 max-w-md">
+          <p className="font-semibold mb-1">QR général du restaurant</p>
+          <p className="text-sm text-slate-400 mb-4">Menu complet, commande sur place. Pour un QR par table, allez dans « Plan de salle ».</p>
+          {data?.qrDataUrl ? <img src={data.qrDataUrl} alt="QR restaurant" className="w-56 h-56 mx-auto rounded-xl border border-slate-100 dark:border-slate-800" /> : null}
+          <p className="text-center text-xs text-slate-400 break-all mt-3">{data?.qrUrl}</p>
+          <button onClick={() => printQr(data?.qrDataUrl, "Menu")} className="mt-4 w-full rounded-xl bg-slate-900 dark:bg-white dark:text-slate-900 text-white py-2.5 text-sm font-semibold flex items-center justify-center gap-2">
+            <Printer size={15} /> Imprimer
+          </button>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function QrModal({ data, onClose, title }) {
+  return (
+    <Modal onClose={onClose} title={title}>
+      <div className="text-center">
+        {data?.qrDataUrl ? <img src={data.qrDataUrl} alt="QR" className="w-56 h-56 mx-auto rounded-xl border border-slate-100 dark:border-slate-800" /> : null}
+        <p className="text-xs text-slate-400 break-all mt-3">{data?.qrUrl}</p>
+        <button onClick={() => printQr(data?.qrDataUrl, title)} className="mt-4 w-full rounded-xl bg-slate-900 dark:bg-white dark:text-slate-900 text-white py-2.5 text-sm font-semibold flex items-center justify-center gap-2">
+          <Printer size={15} /> Imprimer
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+function printQr(dataUrl, title) {
+  if (!dataUrl) return;
+  const win = window.open("", "_blank", "width=480,height=640");
+  if (!win) return;
+  win.document.write(
+    `<html><head><title>${title}</title></head><body style="text-align:center;font-family:Arial;padding:40px">
+      <h2>${title}</h2><img src="${dataUrl}" style="width:320px;height:320px"/>
+      <script>window.onload=function(){window.print();}</script></body></html>`
+  );
+  win.document.close();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RÉGLAGES
+// ─────────────────────────────────────────────────────────────────────────────
+function SettingsScreen({ restaurant, account, onLogout }) {
+  return (
+    <div>
+      <ScreenHeader title="Réglages" subtitle="Informations de votre compte restaurant" />
+      <Card className="p-6 max-w-lg space-y-3">
+        <Info label="Restaurant" value={restaurant?.name} />
+        <Info label="Catégorie" value={restaurant?.category} />
+        <Info label="Adresse" value={restaurant?.address} />
+        <Info label="Horaires" value={restaurant?.openingHours} />
+        <Info label="Compte" value={account?.email} />
+        <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
+          <button onClick={onLogout} className="rounded-xl border border-red-200 dark:border-red-900 text-red-600 px-4 py-2 text-sm font-semibold flex items-center gap-2">
+            <LogOut size={15} /> Se déconnecter
+          </button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function Info({ label, value }) {
+  return (
+    <div className="flex justify-between gap-4">
+      <span className="text-slate-400 text-sm">{label}</span>
+      <span className="text-sm font-medium text-right">{value || "—"}</span>
+    </div>
+  );
+}
+
+// ─── Primitives partagées ─────────────────────────────────────────────────────
+function Field({ label, children }) {
+  return (
+    <label className="block">
+      <span className="block text-xs font-semibold text-slate-500 mb-1">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function Modal({ title, children, onClose, wide }) {
+  useEffect(() => {
+    const onKey = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm" onMouseDown={onClose}>
+      <div
+        className={`w-full ${wide ? "max-w-2xl" : "max-w-md"} max-h-[90vh] overflow-y-auto rounded-2xl bg-white dark:bg-slate-900 shadow-card`}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900">
+          <h3 className="font-bold">{title}</h3>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="p-5">{children}</div>
+      </div>
+    </div>
+  );
+}

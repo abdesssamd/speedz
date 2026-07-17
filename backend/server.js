@@ -513,6 +513,30 @@ function serializeOrder(record) {
   };
 }
 
+function getRestaurantTableQrUrl(restaurant, table) {
+  const base = restaurant.qrCodeToken ? getRestaurantQrLandingUrl(restaurant.qrCodeToken) : null;
+  if (!base) {
+    return null;
+  }
+  return `${base}?table=${encodeURIComponent(table.label)}`;
+}
+
+function serializeTable(record, restaurant) {
+  return {
+    id: record.id,
+    restaurantId: record.restaurantId,
+    label: record.label,
+    zone: record.zone || null,
+    seats: record.seats,
+    status: record.status,
+    sortOrder: record.sortOrder,
+    qrToken: record.qrToken,
+    qrUrl: restaurant ? getRestaurantTableQrUrl(restaurant, record) : null,
+    createdAt: record.createdAt ? record.createdAt.toISOString() : null,
+    updatedAt: record.updatedAt ? record.updatedAt.toISOString() : null,
+  };
+}
+
 function serializeCustomer(record) {
   return {
     id: record.id,
@@ -539,6 +563,8 @@ function serializeUserProfile(record) {
     phone: record.phone || "",
     defaultAddress,
     gender: record.gender || "UNSPECIFIED",
+    role: record.role,
+    managedRestaurantId: record.managedRestaurantId || null,
     authMethod: record.authProvider || undefined,
     isPhoneVerified: Boolean(record.phoneVerifiedAt),
     onboardingCompleted: Boolean(record.phoneVerifiedAt && record.firstName && record.lastName),
@@ -932,6 +958,69 @@ async function sendExpoPush({ to, title, body, data }) {
   } catch (error) {
     console.error("[push] échec envoi notification:", error?.message || error);
   }
+}
+
+/**
+ * Envoi push en lot (campagnes admin). L'API Expo accepte un tableau de messages ;
+ * on découpe par paquets de 100 (limite Expo). Retourne le nombre de tokens ciblés.
+ * Best-effort : ne jette jamais.
+ */
+async function sendExpoPushBatch(tokens, { title, body, data }) {
+  const valid = [...new Set((tokens || []).filter((t) => /^ExponentPushToken\[/.test(t)))];
+  for (let i = 0; i < valid.length; i += 100) {
+    const chunk = valid.slice(i, i + 100).map((to) => ({
+      to,
+      title,
+      body,
+      data: data || {},
+      sound: "default",
+      priority: "high",
+    }));
+    try {
+      const response = await fetch("https://exp.host/--/api/v2/push/send", {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify(chunk),
+      });
+      if (!response.ok) {
+        console.error("[push] Expo (lot) a répondu", response.status);
+      }
+    } catch (error) {
+      console.error("[push] échec envoi lot:", error?.message || error);
+    }
+  }
+  return valid.length;
+}
+
+// Tous les tokens push des clients (stockés en fichier, clés = userId).
+function getAllClientPushTokens() {
+  const map = readPushTokens();
+  return Object.values(map)
+    .map((entry) => entry?.token)
+    .filter(Boolean);
+}
+
+// Tous les tokens push des livreurs (stockés sur le profil Courier).
+async function getAllCourierPushTokens() {
+  const couriers = await prisma.courier.findMany({
+    where: { pushToken: { not: null } },
+    select: { pushToken: true },
+  });
+  return couriers.map((c) => c.pushToken).filter(Boolean);
+}
+
+// Historique des campagnes push (fichier), pour affichage dans l'admin.
+const pushCampaignsFile = path.join(dataDir, "push-campaigns.json");
+function readPushCampaigns() {
+  try {
+    if (!fs.existsSync(pushCampaignsFile)) return [];
+    return JSON.parse(fs.readFileSync(pushCampaignsFile, "utf8")) || [];
+  } catch {
+    return [];
+  }
+}
+function writePushCampaigns(items) {
+  fs.writeFileSync(pushCampaignsFile, JSON.stringify(items.slice(0, 100), null, 2), "utf8");
 }
 
 const ORDER_STATUS_PUSH = {
@@ -1400,6 +1489,45 @@ async function queueRestaurantAccessEmail({
   }
 }
 
+// Crée (ou relie) le compte de connexion à l'espace restaurateur web.
+// Appelé au moment où le token est généré : le restaurateur reçoit par email
+// ses identifiants de portail EN PLUS du token API (utilisé par l'agent d'impression).
+// Retourne { email, temporaryPassword|null } — temporaryPassword null si le compte
+// existait déjà (on ne réinitialise pas son mot de passe).
+async function ensureRestaurantPortalAccount({ email, name, phone, address, restaurantId }) {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  if (!normalizedEmail) {
+    return null;
+  }
+
+  const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+  if (existing) {
+    // Compte déjà présent : on s'assure qu'il est bien rattaché à ce restaurant.
+    if (existing.managedRestaurantId !== restaurantId || existing.role !== "RESTAURANT") {
+      await prisma.user.update({
+        where: { id: existing.id },
+        data: { role: "RESTAURANT", managedRestaurantId: restaurantId, isActive: true },
+      });
+    }
+    return { email: normalizedEmail, temporaryPassword: null };
+  }
+
+  const temporaryPassword = `resto-${crypto.randomBytes(4).toString("hex")}`;
+  const passwordHash = await bcrypt.hash(temporaryPassword, 12);
+  await prisma.user.create({
+    data: {
+      email: normalizedEmail,
+      passwordHash,
+      name: name || normalizedEmail,
+      phone: phone || null,
+      defaultAddress: address || null,
+      role: "RESTAURANT",
+      managedRestaurantId: restaurantId,
+    },
+  });
+  return { email: normalizedEmail, temporaryPassword };
+}
+
 async function queueApplicationEmail(application, status) {
   const planSummary = application.type === "RESTAURANT" ? getBillingPlanSummary(application) : null;
   const subject =
@@ -1409,7 +1537,7 @@ async function queueApplicationEmail(application, status) {
   const text =
     status === "ACCEPTED"
       ? application.type === "RESTAURANT"
-        ? `Bonjour ${application.applicantName}, votre compte restaurant a ete valide.\nPlan: ${planSummary}\nToken API: ${application.generatedApiToken}\nLien QR: ${application.qrCodeUrl}\nCe token sert de cle d'activation pour le logiciel d'impression.`
+        ? `Bonjour ${application.applicantName}, votre compte restaurant a ete valide.\nPlan: ${planSummary}\n\n== Espace restaurateur (web) ==\nConnexion: ${application.portalEmail || application.email}${application.portalTemporaryPassword ? `\nMot de passe temporaire: ${application.portalTemporaryPassword}\nMerci de le changer apres votre premiere connexion.` : `\n(Utilisez le mot de passe de votre compte existant.)`}\n\n== Logiciel de caisse / impression ==\nToken API: ${application.generatedApiToken}\nCe token sert de cle d'activation pour l'agent d'impression.\n\nLien QR (menu client): ${application.qrCodeUrl}`
         : `Bonjour ${application.applicantName}, votre compte livreur SpeedZ a ete valide.\n\nConnexion : ouvrez l'application SpeedZ Livreur et connectez-vous avec votre numero de telephone (${application.phone}).\n\nVotre code livreur : ${courierCode(application.phone)}\nPartagez ce code a vos clients pour qu'ils vous ajoutent en favori : vous serez alors prioritaire sur leurs commandes.`
       : `Bonjour ${application.applicantName}, votre candidature ${application.type} a ete refusee.`;
 
@@ -1569,6 +1697,7 @@ function signToken(user) {
       email: user.email,
       role: user.role,
       name: user.name,
+      managedRestaurantId: user.managedRestaurantId || null,
     },
     JWT_SECRET,
     { expiresIn: "7d" }
@@ -1622,6 +1751,29 @@ function requireCustomer(req, res, next) {
     return;
   }
 
+  next();
+}
+
+// Portail restaurateur (web) : compte User role=RESTAURANT lié à un restaurant via
+// managedRestaurantId. Distinct de requireRestaurantApiToken (agent d'impression/caisse).
+async function requireRestaurant(req, res, next) {
+  if (req.auth?.role !== "RESTAURANT") {
+    res.status(403).json({ message: "Acces reserve aux restaurateurs." });
+    return;
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: req.auth.sub },
+    include: { managedRestaurant: { include: { menuItems: true } } },
+  });
+
+  if (!user || !user.isActive || !user.managedRestaurant) {
+    res.status(403).json({ message: "Aucun restaurant associe a ce compte." });
+    return;
+  }
+
+  req.restaurantUser = user;
+  req.restaurantAuth = user.managedRestaurant;
   next();
 }
 
@@ -1858,6 +2010,16 @@ async function sendCourierPush(courier, { title, body, data }) {
   await sendExpoPush({ to: courier.pushToken, title, body, data });
 }
 
+// Message de bienvenue envoyé au livreur validé (à sa 1re connexion, quand son
+// token push devient disponible, ou immédiatement s'il en a déjà un).
+async function sendCourierWelcomePush(courier) {
+  await sendCourierPush(courier, {
+    title: "Bienvenue chez SpeedZ 🛵",
+    body: `${courier.name}, votre compte livreur est validé. Vous pouvez commencer à recevoir des courses !`,
+    data: { type: "courier-welcome" },
+  });
+}
+
 // Un livreur est « dans la zone » du restaurant si sa dernière position connue
 // est à moins de DISPATCH_RADIUS_KM. Sans position connue, on le considère éligible
 // (il verra la course via le polling) pour ne jamais bloquer une livraison.
@@ -2044,6 +2206,7 @@ async function createOrderRecord({
   promoCode,
   orderChannel = "DELIVERY",
   tableLabel = null,
+  tableId = null,
   userId,
 }) {
   const [restaurant, customer, summary] = await Promise.all([
@@ -2078,6 +2241,7 @@ async function createOrderRecord({
       notes: draft.notes || null,
       channel: orderChannel,
       tableLabel,
+      tableId,
       status: initialStatus,
       estimatedDeliveryLabel: summary.estimatedDeliveryLabel,
       items: cart,
@@ -2672,7 +2836,8 @@ app.post("/api/auth/login", loginLimiter, validateBody(Schemas.login), wrapAsync
       id: user.id,
       name: user.name,
       email: user.email,
-      role: user.role
+      role: user.role,
+      managedRestaurantId: user.managedRestaurantId || null
     }
   });
 }));
@@ -2979,6 +3144,13 @@ app.post("/api/public/qr/:qrToken/orders", async (req, res) => {
     restaurantId: restaurant.id,
   });
 
+  // Rattache la commande à une table du plan de salle si le libellé correspond.
+  const matchedTable = tableLabel
+    ? await prisma.restaurantTable.findFirst({
+        where: { restaurantId: restaurant.id, label: String(tableLabel).trim() },
+      })
+    : null;
+
   const order = await createOrderRecord({
     restaurantId: restaurant.id,
     cart,
@@ -2991,8 +3163,17 @@ app.post("/api/public/qr/:qrToken/orders", async (req, res) => {
     promoCode,
     orderChannel: "QR_ONSITE",
     tableLabel: tableLabel || null,
+    tableId: matchedTable?.id || null,
     userId: customer.id,
   });
+
+  if (matchedTable && order) {
+    await prisma.restaurantTable.update({
+      where: { id: matchedTable.id },
+      data: { status: "ORDER_IN_PROGRESS" },
+    });
+    broadcastRealtime("restaurant/table-updated", { restaurantId: restaurant.id, tableId: matchedTable.id });
+  }
 
   if (!order) {
     res.status(400).json({ message: "Impossible de creer la commande QR." });
@@ -3043,6 +3224,7 @@ app.get("/qr/:qrToken", async (req, res) => {
     </div>
     <script>
       const qrToken = ${JSON.stringify(req.params.qrToken)};
+      const presetTable = new URLSearchParams(location.search).get("table") || "";
       const app = document.getElementById("app");
       const state = { restaurant: null, cart: [] };
       function money(value) { return Number(value || 0).toFixed(2) + " EUR"; }
@@ -3097,7 +3279,7 @@ app.get("/qr/:qrToken", async (req, res) => {
         }
         const menuCards = state.restaurant.menu.map((item) => "<div class='card'><h3>" + item.name + "</h3><p class='muted'>" + item.description + "</p><strong>" + money(item.price) + "</strong><button onclick='addToCartById(" + JSON.stringify(item.id) + ")'>Ajouter</button></div>").join("");
         const cartTotal = state.cart.reduce((sum, item) => sum + item.basePrice * item.quantity, 0);
-        app.innerHTML = menuCards + "<div class='card'><h3>Votre commande</h3><p>" + (state.cart.map((item) => item.name + " x" + item.quantity).join("<br/>") || "Panier vide") + "</p><strong>Total: " + money(cartTotal) + "</strong><form id='qr-form'><input class='field' name='customerName' placeholder='Nom' required /><input class='field' name='customerPhone' placeholder='Telephone' required /><input class='field' name='tableLabel' placeholder='Numero de table' /><textarea class='field' name='notes' placeholder='Note cuisine'></textarea><button type='submit'>Commander sur place</button><div id='result' class='ok'></div></form></div>";
+        app.innerHTML = menuCards + "<div class='card'><h3>Votre commande</h3><p>" + (state.cart.map((item) => item.name + " x" + item.quantity).join("<br/>") || "Panier vide") + "</p><strong>Total: " + money(cartTotal) + "</strong><form id='qr-form'><input class='field' name='customerName' placeholder='Nom' required /><input class='field' name='customerPhone' placeholder='Telephone' required /><input class='field' name='tableLabel' placeholder='Numero de table' value=\"" + presetTable.replace(/[\"'<>]/g, "") + "\" /><textarea class='field' name='notes' placeholder='Note cuisine'></textarea><button type='submit'>Commander sur place</button><div id='result' class='ok'></div></form></div>";
         document.getElementById("qr-form").addEventListener("submit", submitOrder);
       }
       window.addToCartById = function(menuItemId) {
@@ -3486,10 +3668,18 @@ app.post("/api/courier/push-token", requireCourierAuth, async (req, res) => {
     res.status(400).json({ message: "Token de notification invalide." });
     return;
   }
-  await prisma.courier.update({
+  // Première fois que ce livreur enregistre un token (aucun auparavant) : c'est
+  // le moment fiable pour lui envoyer le message de bienvenue après validation.
+  const isFirstToken = !req.courierAuth.pushToken;
+  const courier = await prisma.courier.update({
     where: { id: req.courierAuth.id },
     data: { pushToken: token },
   });
+  if (isFirstToken) {
+    sendCourierWelcomePush(courier).catch((error) =>
+      console.error("[push] bienvenue livreur:", error?.message || error)
+    );
+  }
   res.json({ ok: true });
 });
 
@@ -4105,13 +4295,36 @@ async function updateAdminApplication(req, res) {
         }
       });
 
+      // Création du compte de connexion au portail restaurateur (email + mot de
+      // passe temporaire), rattaché au même restaurant que le token API.
+      const portalAccount = await ensureRestaurantPortalAccount({
+        email: updatedApplication.email,
+        name: updatedApplication.applicantName,
+        phone: updatedApplication.phone,
+        address: updatedApplication.address,
+        restaurantId: restaurant.id,
+      });
+
       updatedApplication = {
         ...updatedApplication,
         generatedApiToken,
         qrCodeToken,
         qrCodeUrl: getRestaurantQrLandingUrl(qrCodeToken),
         linkedEntityLabel: restaurant.name,
+        portalEmail: portalAccount?.email || null,
+        portalTemporaryPassword: portalAccount?.temporaryPassword || null,
       };
+    }
+  }
+
+  // Livreur validé : tentative de push de bienvenue immédiat. No-op s'il n'a pas
+  // encore de token (cas normal) — il le recevra alors à sa 1re connexion.
+  if (nextStatus === "ACCEPTED" && updatedApplication.linkedEntityType === "COURIER" && updatedApplication.linkedEntityId) {
+    const courier = await prisma.courier.findUnique({ where: { id: updatedApplication.linkedEntityId } });
+    if (courier?.pushToken) {
+      sendCourierWelcomePush(courier).catch((error) =>
+        console.error("[push] bienvenue livreur (acceptation):", error?.message || error)
+      );
     }
   }
 
@@ -4126,7 +4339,10 @@ async function updateAdminApplication(req, res) {
     await queueApplicationEmail(updatedApplication, nextStatus);
   }
 
-  applications[index] = updatedApplication;
+  // Ne jamais persister le mot de passe portail en clair dans le fichier JSON.
+  // Il n'existe que le temps de la réponse (email + affichage admin).
+  const { portalTemporaryPassword, ...persistableApplication } = updatedApplication;
+  applications[index] = persistableApplication;
   writePartnerApplications(applications);
   await logAdminAction(req, "application.status_updated", "application", updatedApplication.id, {
     previousStatus: previousApplication.status,
@@ -4138,6 +4354,8 @@ async function updateAdminApplication(req, res) {
     linkedEntityId: updatedApplication.linkedEntityId || null,
   });
 
+  // La réponse conserve les identifiants portail pour que l'admin puisse les
+  // relayer si l'email n'aboutit pas (SMTP).
   const { passwordHash: _hash, ...safeApplication } = updatedApplication;
   ok(res, safeApplication);
 }
@@ -4618,6 +4836,74 @@ app.get("/api/admin/email-outbox", requireAuth, requireAdmin, wrapAsync(async (_
   res.json(readEmailOutbox());
 }));
 
+// ─── Notifications push envoyées depuis l'admin ───────────────────────────────
+// Cible : CLIENTS (app client), COURIERS (app livreur) ou ALL (les deux).
+app.get("/api/admin/notifications/push", requireAuth, requireAdmin, wrapAsync(async (_req, res) => {
+  const [clientTokens, courierTokens] = await Promise.all([
+    Promise.resolve(getAllClientPushTokens()),
+    getAllCourierPushTokens(),
+  ]);
+  res.json({
+    audiences: {
+      clients: clientTokens.length,
+      couriers: courierTokens.length,
+    },
+    campaigns: readPushCampaigns(),
+  });
+}));
+
+app.post("/api/admin/notifications/push", requireAuth, requireAdmin, validateBody(Schemas.adminPushNotification), wrapAsync(async (req, res) => {
+  const { audience, title, body, userId, zoneLabel } = req.body;
+
+  // Sélection des tokens selon la cible.
+  const targets = [];
+  let targetLabel = "";
+  if (audience === "ALL") {
+    targets.push(...getAllClientPushTokens(), ...(await getAllCourierPushTokens()));
+    targetLabel = "Tous";
+  } else if (audience === "CLIENTS") {
+    targets.push(...getAllClientPushTokens());
+    targetLabel = "Tous les clients";
+  } else if (audience === "COURIERS") {
+    targets.push(...(await getAllCourierPushTokens()));
+    targetLabel = "Tous les livreurs";
+  } else if (audience === "CLIENT") {
+    const token = getPushToken(userId);
+    if (token) targets.push(token);
+    const client = await prisma.user.findUnique({ where: { id: userId } });
+    targetLabel = `Client : ${client?.name || userId}`;
+  } else if (audience === "COURIER_ZONE") {
+    const couriers = await prisma.courier.findMany({
+      where: { zoneLabel, pushToken: { not: null } },
+      select: { pushToken: true },
+    });
+    targets.push(...couriers.map((c) => c.pushToken).filter(Boolean));
+    targetLabel = `Livreurs — zone ${zoneLabel}`;
+  }
+
+  const data = { type: "admin-broadcast", audience };
+  const sent = await sendExpoPushBatch(targets, { title, body, data });
+
+  const campaign = {
+    id: `push_${Date.now()}`,
+    audience,
+    targetLabel,
+    userId: userId || null,
+    zoneLabel: zoneLabel || null,
+    title,
+    body,
+    sent,
+    sentBy: req.auth?.email || req.auth?.sub || "admin",
+    createdAt: new Date().toISOString(),
+  };
+  const campaigns = readPushCampaigns();
+  campaigns.unshift(campaign);
+  writePushCampaigns(campaigns);
+
+  await logAdminAction(req, "notification.push_sent", "push", campaign.id, { audience, sent });
+  res.status(201).json({ ok: true, campaign });
+}));
+
 app.post("/api/admin/menu-categories", requireAuth, requireAdmin, validateBody(Schemas.createMenuCategory), async (req, res) => {
   const body = req.body || {};
   const category = await prisma.menuCategory.create({
@@ -4893,6 +5179,440 @@ app.get("/api/admin/reports/summary", requireAuth, requireAdmin, wrapAsync(async
       .slice(0, 5),
     courierPerformance: couriers.map(serializeCourier),
     promotionUsage: promotions.map(serializePromotion)
+  });
+}));
+
+// ════════════════════════════════════════════════════════════════════════════
+// PORTAIL RESTAURATEUR (WEB) — espace restaurant self-service.
+// Auth : JWT d'un User role=RESTAURANT lié à un restaurant (managedRestaurantId).
+// Toutes les données sont scopées à req.restaurantAuth (le restaurant du compte).
+// ════════════════════════════════════════════════════════════════════════════
+
+const RESTAURANT_ACTIVE_ORDER_STATUSES = [
+  "AwaitingCourier",
+  "Accepted",
+  "Confirmed",
+  "Preparing",
+  "Ready",
+  "OnTheWay",
+];
+
+function broadcastRestaurant(restaurantId, type, payload = {}) {
+  broadcastRealtime(`restaurant/${type}`, { restaurantId, ...payload });
+}
+
+// Recalcule l'état d'une table à partir de ses commandes en cours.
+async function refreshTableStatus(tableId) {
+  if (!tableId) return;
+  const table = await prisma.restaurantTable.findUnique({ where: { id: tableId } });
+  if (!table) return;
+  const activeCount = await prisma.order.count({
+    where: { tableId, status: { in: RESTAURANT_ACTIVE_ORDER_STATUSES } },
+  });
+  let nextStatus = table.status;
+  if (activeCount > 0) {
+    if (table.status === "FREE") nextStatus = "ORDER_IN_PROGRESS";
+  } else if (table.status === "ORDER_IN_PROGRESS") {
+    nextStatus = "FREE";
+  }
+  if (nextStatus !== table.status) {
+    await prisma.restaurantTable.update({ where: { id: tableId }, data: { status: nextStatus } });
+  }
+  broadcastRestaurant(table.restaurantId, "table-updated", { tableId });
+}
+
+// ─── Profil / bootstrap de l'espace restaurant ────────────────────────────────
+app.get("/api/restaurant/portal/me", requireAuth, requireRestaurant, wrapAsync(async (req, res) => {
+  const restaurant = await prisma.restaurant.findUnique({
+    where: { id: req.restaurantAuth.id },
+    include: { menuItems: true },
+  });
+  res.json({
+    restaurant: serializeRestaurant(restaurant),
+    account: {
+      id: req.restaurantUser.id,
+      name: req.restaurantUser.name,
+      email: req.restaurantUser.email,
+    },
+  });
+}));
+
+// ─── Menu ─────────────────────────────────────────────────────────────────────
+app.get("/api/restaurant/portal/menu", requireAuth, requireRestaurant, wrapAsync(async (req, res) => {
+  const [items, categories] = await Promise.all([
+    prisma.menuItem.findMany({
+      where: { restaurantId: req.restaurantAuth.id, deletedAt: null },
+      orderBy: [{ category: "asc" }, { name: "asc" }],
+    }),
+    prisma.menuCategory.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
+  ]);
+  res.json({ items, categories: categories.map(serializeMenuCategory) });
+}));
+
+app.post("/api/restaurant/portal/menu-items", requireAuth, requireRestaurant, validateBody(Schemas.portalMenuItem), wrapAsync(async (req, res) => {
+  const body = req.body;
+  const item = await prisma.menuItem.create({
+    data: {
+      id: `m${Date.now()}${Math.floor(Math.random() * 1000)}`,
+      restaurantId: req.restaurantAuth.id,
+      name: body.name,
+      description: body.description || "",
+      price: Number(body.price),
+      category: body.category,
+      image: body.image || "",
+      badge: body.badge || null,
+      calories: body.calories ?? null,
+      stock: Number(body.stock || 0),
+      isAvailable: body.isAvailable ?? true,
+      options: body.options || [],
+    },
+  });
+  broadcastRestaurant(req.restaurantAuth.id, "menu-updated", { menuItemId: item.id });
+  res.status(201).json(item);
+}));
+
+app.put("/api/restaurant/portal/menu-items/:id", requireAuth, requireRestaurant, validateBody(Schemas.portalMenuItem), wrapAsync(async (req, res) => {
+  const existing = await prisma.menuItem.findFirst({
+    where: { id: req.params.id, restaurantId: req.restaurantAuth.id, deletedAt: null },
+  });
+  if (!existing) {
+    throw new ApiError(404, "Plat introuvable.", "MENU_ITEM_NOT_FOUND");
+  }
+  const body = req.body;
+  const item = await prisma.menuItem.update({
+    where: { id: req.params.id },
+    data: {
+      name: body.name,
+      description: body.description || "",
+      price: Number(body.price),
+      category: body.category,
+      image: body.image || "",
+      badge: body.badge || null,
+      calories: body.calories ?? null,
+      stock: Number(body.stock || 0),
+      isAvailable: body.isAvailable ?? true,
+      options: body.options || [],
+    },
+  });
+  broadcastRestaurant(req.restaurantAuth.id, "menu-updated", { menuItemId: item.id });
+  res.json(item);
+}));
+
+app.patch("/api/restaurant/portal/menu-items/:id/availability", requireAuth, requireRestaurant, validateBody(z.object({ isAvailable: z.boolean() })), wrapAsync(async (req, res) => {
+  const existing = await prisma.menuItem.findFirst({
+    where: { id: req.params.id, restaurantId: req.restaurantAuth.id, deletedAt: null },
+  });
+  if (!existing) {
+    throw new ApiError(404, "Plat introuvable.", "MENU_ITEM_NOT_FOUND");
+  }
+  const item = await prisma.menuItem.update({
+    where: { id: req.params.id },
+    data: { isAvailable: Boolean(req.body.isAvailable) },
+  });
+  broadcastRestaurant(req.restaurantAuth.id, "menu-updated", { menuItemId: item.id });
+  res.json(item);
+}));
+
+app.patch("/api/restaurant/portal/menu-items/:id/stock", requireAuth, requireRestaurant, validateBody(z.object({ stock: z.number().int().min(0) })), wrapAsync(async (req, res) => {
+  const existing = await prisma.menuItem.findFirst({
+    where: { id: req.params.id, restaurantId: req.restaurantAuth.id, deletedAt: null },
+  });
+  if (!existing) {
+    throw new ApiError(404, "Plat introuvable.", "MENU_ITEM_NOT_FOUND");
+  }
+  const item = await prisma.menuItem.update({
+    where: { id: req.params.id },
+    data: { stock: Number(req.body.stock || 0) },
+  });
+  broadcastRestaurant(req.restaurantAuth.id, "menu-updated", { menuItemId: item.id });
+  res.json(item);
+}));
+
+app.delete("/api/restaurant/portal/menu-items/:id", requireAuth, requireRestaurant, wrapAsync(async (req, res) => {
+  const existing = await prisma.menuItem.findFirst({
+    where: { id: req.params.id, restaurantId: req.restaurantAuth.id, deletedAt: null },
+  });
+  if (!existing) {
+    throw new ApiError(404, "Plat introuvable.", "MENU_ITEM_NOT_FOUND");
+  }
+  await prisma.menuItem.update({ where: { id: req.params.id }, data: { deletedAt: new Date() } });
+  broadcastRestaurant(req.restaurantAuth.id, "menu-updated", { menuItemId: req.params.id });
+  res.status(204).send();
+}));
+
+app.post("/api/restaurant/portal/menu-categories", requireAuth, requireRestaurant, validateBody(Schemas.createMenuCategory), wrapAsync(async (req, res) => {
+  const existing = await prisma.menuCategory.findUnique({ where: { name: req.body.name } });
+  if (existing) {
+    return res.json(serializeMenuCategory(existing));
+  }
+  const category = await prisma.menuCategory.create({
+    data: { name: req.body.name, sortOrder: req.body.sortOrder ?? 0, isActive: req.body.isActive ?? true },
+  });
+  res.status(201).json(serializeMenuCategory(category));
+}));
+
+// ─── Commandes / KDS ──────────────────────────────────────────────────────────
+app.get("/api/restaurant/portal/orders", requireAuth, requireRestaurant, wrapAsync(async (req, res) => {
+  const scope = String(req.query.scope || "active");
+  const where = { restaurantId: req.restaurantAuth.id };
+  if (scope === "active") {
+    where.status = { in: RESTAURANT_ACTIVE_ORDER_STATUSES };
+  } else if (scope === "today") {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    where.createdAt = { gte: start };
+  }
+  const orders = await prisma.order.findMany({
+    where,
+    include: { restaurant: true, courier: true, user: true },
+    orderBy: { createdAt: scope === "active" ? "asc" : "desc" },
+    take: scope === "active" ? 200 : 100,
+  });
+  res.json(
+    orders.map((order) => ({
+      ...serializeOrder(order),
+      customerName: order.user?.name || null,
+      customerPhone: order.user?.phone || null,
+    }))
+  );
+}));
+
+app.patch("/api/restaurant/portal/orders/:id/status", requireAuth, requireRestaurant, validateBody(Schemas.portalOrderStatus), wrapAsync(async (req, res) => {
+  const existing = await prisma.order.findFirst({
+    where: { id: req.params.id, restaurantId: req.restaurantAuth.id },
+  });
+  if (!existing) {
+    throw new ApiError(404, "Commande introuvable.", "ORDER_NOT_FOUND");
+  }
+  const nextStatus = req.body.status;
+  const noteSuffix = req.body.reason ? `Restaurant: ${String(req.body.reason).trim()}` : null;
+  const nextNotes = noteSuffix ? [existing.notes, noteSuffix].filter(Boolean).join(" | ") : existing.notes;
+
+  const order = await prisma.order.update({
+    where: { id: req.params.id },
+    data: { status: nextStatus, notes: nextNotes },
+    include: { restaurant: true, courier: true },
+  });
+
+  if (order.status === "Delivered") {
+    await creditLoyaltyPointsForOrder(order.id);
+  }
+  if (existing.tableId) {
+    await refreshTableStatus(existing.tableId);
+  }
+  await emitOrderRealtime(order.id, "order/status-updated");
+  await notifyOrderStatus(order);
+  res.json(serializeOrder(order));
+}));
+
+// ─── Tables / plan de salle ───────────────────────────────────────────────────
+app.get("/api/restaurant/portal/tables", requireAuth, requireRestaurant, wrapAsync(async (req, res) => {
+  const tables = await prisma.restaurantTable.findMany({
+    where: { restaurantId: req.restaurantAuth.id },
+    orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+  });
+  // Commandes actives par table pour l'affichage du plan de salle.
+  const activeOrders = await prisma.order.findMany({
+    where: {
+      restaurantId: req.restaurantAuth.id,
+      tableId: { not: null },
+      status: { in: RESTAURANT_ACTIVE_ORDER_STATUSES },
+    },
+    include: { restaurant: true, courier: true, user: true },
+    orderBy: { createdAt: "asc" },
+  });
+  const ordersByTable = {};
+  for (const order of activeOrders) {
+    (ordersByTable[order.tableId] ||= []).push({
+      ...serializeOrder(order),
+      customerName: order.user?.name || null,
+    });
+  }
+  res.json(
+    tables.map((table) => ({
+      ...serializeTable(table, req.restaurantAuth),
+      activeOrders: ordersByTable[table.id] || [],
+    }))
+  );
+}));
+
+app.post("/api/restaurant/portal/tables", requireAuth, requireRestaurant, validateBody(Schemas.createTable), wrapAsync(async (req, res) => {
+  const duplicate = await prisma.restaurantTable.findFirst({
+    where: { restaurantId: req.restaurantAuth.id, label: req.body.label },
+  });
+  if (duplicate) {
+    throw new ApiError(409, "Une table porte deja ce libelle.", "TABLE_LABEL_TAKEN");
+  }
+  const table = await prisma.restaurantTable.create({
+    data: {
+      restaurantId: req.restaurantAuth.id,
+      label: req.body.label,
+      zone: req.body.zone || null,
+      seats: req.body.seats ?? 2,
+      sortOrder: req.body.sortOrder ?? 0,
+      qrToken: generateOpaqueToken("tbl"),
+    },
+  });
+  broadcastRestaurant(req.restaurantAuth.id, "table-updated", { tableId: table.id });
+  res.status(201).json(serializeTable(table, req.restaurantAuth));
+}));
+
+app.put("/api/restaurant/portal/tables/:id", requireAuth, requireRestaurant, validateBody(Schemas.updateTable), wrapAsync(async (req, res) => {
+  const existing = await prisma.restaurantTable.findFirst({
+    where: { id: req.params.id, restaurantId: req.restaurantAuth.id },
+  });
+  if (!existing) {
+    throw new ApiError(404, "Table introuvable.", "TABLE_NOT_FOUND");
+  }
+  if (req.body.label && req.body.label !== existing.label) {
+    const dup = await prisma.restaurantTable.findFirst({
+      where: { restaurantId: req.restaurantAuth.id, label: req.body.label, id: { not: existing.id } },
+    });
+    if (dup) {
+      throw new ApiError(409, "Une table porte deja ce libelle.", "TABLE_LABEL_TAKEN");
+    }
+  }
+  const table = await prisma.restaurantTable.update({
+    where: { id: req.params.id },
+    data: {
+      label: req.body.label ?? existing.label,
+      zone: req.body.zone === undefined ? existing.zone : req.body.zone,
+      seats: req.body.seats ?? existing.seats,
+      sortOrder: req.body.sortOrder ?? existing.sortOrder,
+    },
+  });
+  broadcastRestaurant(req.restaurantAuth.id, "table-updated", { tableId: table.id });
+  res.json(serializeTable(table, req.restaurantAuth));
+}));
+
+app.patch("/api/restaurant/portal/tables/:id/status", requireAuth, requireRestaurant, validateBody(Schemas.tableStatus), wrapAsync(async (req, res) => {
+  const existing = await prisma.restaurantTable.findFirst({
+    where: { id: req.params.id, restaurantId: req.restaurantAuth.id },
+  });
+  if (!existing) {
+    throw new ApiError(404, "Table introuvable.", "TABLE_NOT_FOUND");
+  }
+  const table = await prisma.restaurantTable.update({
+    where: { id: req.params.id },
+    data: { status: req.body.status },
+  });
+  broadcastRestaurant(req.restaurantAuth.id, "table-updated", { tableId: table.id });
+  res.json(serializeTable(table, req.restaurantAuth));
+}));
+
+app.delete("/api/restaurant/portal/tables/:id", requireAuth, requireRestaurant, wrapAsync(async (req, res) => {
+  const existing = await prisma.restaurantTable.findFirst({
+    where: { id: req.params.id, restaurantId: req.restaurantAuth.id },
+  });
+  if (!existing) {
+    throw new ApiError(404, "Table introuvable.", "TABLE_NOT_FOUND");
+  }
+  await prisma.restaurantTable.delete({ where: { id: req.params.id } });
+  broadcastRestaurant(req.restaurantAuth.id, "table-updated", { tableId: req.params.id });
+  res.status(204).send();
+}));
+
+app.get("/api/restaurant/portal/tables/:id/qr", requireAuth, requireRestaurant, wrapAsync(async (req, res) => {
+  const table = await prisma.restaurantTable.findFirst({
+    where: { id: req.params.id, restaurantId: req.restaurantAuth.id },
+  });
+  if (!table) {
+    throw new ApiError(404, "Table introuvable.", "TABLE_NOT_FOUND");
+  }
+  // S'assure que le restaurant a un qrCodeToken (base des liens QR de table).
+  let restaurant = req.restaurantAuth;
+  if (!restaurant.qrCodeToken) {
+    restaurant = await prisma.restaurant.update({
+      where: { id: restaurant.id },
+      data: { qrCodeToken: generateOpaqueToken("qr") },
+    });
+  }
+  const qrUrl = getRestaurantTableQrUrl(restaurant, table);
+  const qrDataUrl = await QRCode.toDataURL(qrUrl, { margin: 1, width: 360 });
+  res.json({ tableLabel: table.label, qrUrl, qrDataUrl });
+}));
+
+// QR global du restaurant (carte / à emporter).
+app.get("/api/restaurant/portal/qr", requireAuth, requireRestaurant, wrapAsync(async (req, res) => {
+  let restaurant = req.restaurantAuth;
+  if (!restaurant.qrCodeToken) {
+    restaurant = await prisma.restaurant.update({
+      where: { id: restaurant.id },
+      data: { qrCodeToken: generateOpaqueToken("qr") },
+    });
+  }
+  const qrUrl = getRestaurantQrLandingUrl(restaurant.qrCodeToken);
+  const qrDataUrl = await QRCode.toDataURL(qrUrl, { margin: 1, width: 360 });
+  res.json({ qrCodeToken: restaurant.qrCodeToken, qrUrl, qrDataUrl });
+}));
+
+// ─── Tableau de bord (KPIs temps réel) ────────────────────────────────────────
+app.get("/api/restaurant/portal/dashboard", requireAuth, requireRestaurant, wrapAsync(async (req, res) => {
+  const restaurantId = req.restaurantAuth.id;
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const [todayOrders, activeOrders, tables, menuItems] = await Promise.all([
+    prisma.order.findMany({
+      where: { restaurantId, createdAt: { gte: startOfDay } },
+      select: { id: true, total: true, subtotal: true, status: true, channel: true, items: true, createdAt: true, updatedAt: true },
+    }),
+    prisma.order.findMany({
+      where: { restaurantId, status: { in: RESTAURANT_ACTIVE_ORDER_STATUSES } },
+      select: { id: true, status: true, channel: true, createdAt: true },
+    }),
+    prisma.restaurantTable.findMany({ where: { restaurantId }, select: { status: true } }),
+    prisma.menuItem.findMany({ where: { restaurantId, deletedAt: null }, select: { name: true, stock: true, isAvailable: true } }),
+  ]);
+
+  const validToday = todayOrders.filter((o) => o.status !== "Cancelled");
+  const revenue = validToday.reduce((sum, o) => sum + (o.total || 0), 0);
+  const onsite = validToday.filter((o) => o.channel === "QR_ONSITE");
+  const delivery = validToday.filter((o) => o.channel === "DELIVERY");
+  const averageBasket = validToday.length ? revenue / validToday.length : 0;
+  const pendingAcceptance = activeOrders.filter((o) => o.status === "Confirmed" || o.status === "AwaitingCourier").length;
+  const inPreparation = activeOrders.filter((o) => o.status === "Preparing").length;
+  const ready = activeOrders.filter((o) => o.status === "Ready").length;
+
+  // Temps de préparation moyen (approx : createdAt → updatedAt) des commandes
+  // du jour arrivées au moins jusqu'à "prête".
+  const preparedToday = validToday.filter((o) => ["Ready", "OnTheWay", "Delivered"].includes(o.status));
+  const avgPrepMinutes = preparedToday.length
+    ? preparedToday.reduce((sum, o) => sum + (new Date(o.updatedAt) - new Date(o.createdAt)), 0) / preparedToday.length / 60000
+    : 0;
+
+  // Top plats du jour (par quantité).
+  const dishCounts = {};
+  for (const order of validToday) {
+    for (const item of order.items || []) {
+      const key = item.name || item.menuItemId || "?";
+      dishCounts[key] = (dishCounts[key] || 0) + (item.quantity || 1);
+    }
+  }
+  const topDishes = Object.entries(dishCounts)
+    .map(([name, quantity]) => ({ name, quantity }))
+    .sort((a, b) => b.quantity - a.quantity)
+    .slice(0, 5);
+
+  res.json({
+    generatedAt: new Date().toISOString(),
+    revenueToday: Number(revenue.toFixed(2)),
+    ordersToday: validToday.length,
+    ordersOnsite: onsite.length,
+    ordersDelivery: delivery.length,
+    averageBasket: Number(averageBasket.toFixed(2)),
+    pendingAcceptance,
+    inPreparation,
+    ready,
+    avgPrepMinutes: Number(avgPrepMinutes.toFixed(1)),
+    tables: {
+      total: tables.length,
+      free: tables.filter((t) => t.status === "FREE").length,
+      occupied: tables.filter((t) => t.status !== "FREE").length,
+      billRequested: tables.filter((t) => t.status === "BILL_REQUESTED").length,
+    },
+    lowStock: menuItems.filter((m) => m.isAvailable && m.stock <= 5).map((m) => ({ name: m.name, stock: m.stock })),
+    topDishes,
   });
 }));
 

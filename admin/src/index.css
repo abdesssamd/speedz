@@ -2094,3 +2094,31 @@
     @apply ml-0 w-full;
   }
 }
+
+/* Espace restaurateur (RestaurantPortal) — primitives de formulaire */
+@layer components {
+  .input {
+    @apply w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors;
+    @apply focus:border-orange-400 focus:ring-2 focus:ring-orange-100;
+  }
+
+  .dark .input {
+    @apply border-slate-700 bg-slate-800 text-slate-100 focus:ring-orange-900/40;
+  }
+
+  .chip {
+    @apply rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50;
+  }
+
+  .dark .chip {
+    @apply border-slate-700 text-slate-300 hover:bg-slate-800;
+  }
+
+  .chip-danger {
+    @apply border-red-200 text-red-600 hover:bg-red-50;
+  }
+
+  .dark .chip-danger {
+    @apply border-red-900 text-red-400 hover:bg-red-950;
+  }
+}

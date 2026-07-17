@@ -31,9 +31,17 @@ enum OrderStatus {
   Accepted
   Confirmed
   Preparing
+  Ready
   OnTheWay
   Delivered
   Cancelled
+}
+
+enum TableStatus {
+  FREE
+  OCCUPIED
+  ORDER_IN_PROGRESS
+  BILL_REQUESTED
 }
 
 enum CourierStatus {
@@ -126,9 +134,28 @@ model Restaurant {
   orders           Order[]
   favorites        Favorite[]
   promotions       Promotion[]
+  tables           RestaurantTable[]
   managerAccount   User?        @relation("RestaurantManager")
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
+}
+
+model RestaurantTable {
+  id           String      @id @default(cuid())
+  restaurantId String
+  label        String
+  zone         String?
+  seats        Int         @default(2)
+  qrToken      String      @unique
+  status       TableStatus @default(FREE)
+  sortOrder    Int         @default(0)
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  orders       Order[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@unique([restaurantId, label])
+  @@index([restaurantId])
 }
 
 model MenuItem {
@@ -186,6 +213,7 @@ model Order {
   notes                  String?
   channel                OrderChannel  @default(DELIVERY)
   tableLabel             String?
+  tableId                String?
   printerPrintedAt       DateTime?
   status                 OrderStatus   @default(Confirmed)
   estimatedDeliveryLabel String
@@ -199,6 +227,7 @@ model Order {
   loyaltyEntry           LoyaltyEntry?
   courier                Courier?      @relation(fields: [courierId], references: [id], onDelete: SetNull)
   promotion              Promotion?    @relation(fields: [promotionId], references: [id], onDelete: SetNull)
+  table                  RestaurantTable? @relation(fields: [tableId], references: [id], onDelete: SetNull)
 }
 
 model LoyaltyEntry {
