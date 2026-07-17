@@ -117,6 +117,10 @@ const upload = multer({
 
 app.disable("x-powered-by");
 app.set("etag", false);
+// Derrière le reverse-proxy cPanel/Passenger : faire confiance au 1er hop pour que
+// req.ip reflète l'IP réelle du client (X-Forwarded-For). Sinon toutes les requêtes
+// partagent l'IP du proxy → un seul compteur de rate-limit pour TOUT le site (429).
+app.set("trust proxy", 1);
 app.use(corsMiddleware);
 app.use(helmetMiddleware);
 app.use(apiRateLimiter);
@@ -3226,7 +3230,7 @@ app.get("/qr/:qrToken", async (req, res) => {
       const qrToken = ${JSON.stringify(req.params.qrToken)};
       const presetTable = new URLSearchParams(location.search).get("table") || "";
       const app = document.getElementById("app");
-      const state = { restaurant: null, cart: [] };
+      const state = { restaurant: null, cart: [], error: null };
       function money(value) { return Number(value || 0).toFixed(2) + " EUR"; }
       function addToCart(item) {
         const existing = state.cart.find((entry) => entry.menuItemId === item.id);
@@ -3273,11 +3277,20 @@ app.get("/qr/:qrToken", async (req, res) => {
         }
       }
       function render() {
-        if (!state.restaurant) {
-          app.innerHTML = "<div class='card'>Chargement...</div>";
+        if (state.error) {
+          app.innerHTML = "<div class='card'><h3>" + state.error + "</h3><button onclick='loadMenu()'>Reessayer</button></div>";
           return;
         }
-        const menuCards = state.restaurant.menu.map((item) => "<div class='card'><h3>" + item.name + "</h3><p class='muted'>" + item.description + "</p><strong>" + money(item.price) + "</strong><button onclick='addToCartById(" + JSON.stringify(item.id) + ")'>Ajouter</button></div>").join("");
+        if (!state.restaurant) {
+          app.innerHTML = "<div class='card'>Chargement du menu...</div>";
+          return;
+        }
+        const available = (state.restaurant.menu || []).filter((item) => item.isAvailable !== false);
+        if (available.length === 0) {
+          app.innerHTML = "<div class='card'><h3>Menu en cours de preparation</h3><p class='muted'>Ce restaurant n'a pas encore publie de plats. Merci de revenir bientot.</p></div>";
+          return;
+        }
+        const menuCards = available.map((item) => "<div class='card'><h3>" + item.name + "</h3><p class='muted'>" + (item.description || "") + "</p><strong>" + money(item.price) + "</strong><button onclick='addToCartById(" + JSON.stringify(item.id) + ")'>Ajouter</button></div>").join("");
         const cartTotal = state.cart.reduce((sum, item) => sum + item.basePrice * item.quantity, 0);
         app.innerHTML = menuCards + "<div class='card'><h3>Votre commande</h3><p>" + (state.cart.map((item) => item.name + " x" + item.quantity).join("<br/>") || "Panier vide") + "</p><strong>Total: " + money(cartTotal) + "</strong><form id='qr-form'><input class='field' name='customerName' placeholder='Nom' required /><input class='field' name='customerPhone' placeholder='Telephone' required /><input class='field' name='tableLabel' placeholder='Numero de table' value=\"" + presetTable.replace(/[\"'<>]/g, "") + "\" /><textarea class='field' name='notes' placeholder='Note cuisine'></textarea><button type='submit'>Commander sur place</button><div id='result' class='ok'></div></form></div>";
         document.getElementById("qr-form").addEventListener("submit", submitOrder);
@@ -3286,10 +3299,29 @@ app.get("/qr/:qrToken", async (req, res) => {
         const item = state.restaurant.menu.find((entry) => entry.id === menuItemId);
         if (item) addToCart(item);
       };
-      fetch("/api/public/qr/" + qrToken).then((response) => response.json()).then((payload) => {
-        state.restaurant = payload.restaurant;
+      window.loadMenu = function() {
+        state.error = null;
         render();
-      }).catch(() => { app.innerHTML = "<div class='card'>Impossible de charger le menu.</div>"; });
+        fetch("/api/public/qr/" + qrToken).then(function(response) {
+          if (response.status === 429) { throw new Error("busy"); }
+          if (!response.ok) { throw new Error("notfound"); }
+          return response.json();
+        }).then(function(payload) {
+          state.restaurant = payload.restaurant;
+          render();
+        }).catch(function(err) {
+          if (err.message === "busy") {
+            // Trop de requetes : nouvelle tentative automatique dans 3 s.
+            state.error = "Service occupe, nouvelle tentative...";
+            render();
+            setTimeout(window.loadMenu, 3000);
+          } else {
+            state.error = "Menu indisponible pour ce QR code.";
+            render();
+          }
+        });
+      };
+      loadMenu();
     </script>
   </body>
 </html>`);

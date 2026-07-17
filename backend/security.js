@@ -123,11 +123,21 @@ const authRateLimiter = rateLimit({
  */
 const apiRateLimiter = rateLimit({
   windowMs: 60 * 1000,        // 1 minute
-  max: 120,                    // 120 req/min par IP
+  max: 300,                    // 300 req/min par IP (par IP réelle grâce à trust proxy)
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: "Trop de requêtes. Ralentissez." },
-  skip: (req) => req.path.startsWith("/uploads"), // exclure les fichiers statiques
+  // Exclut les fichiers statiques, les endpoints de polling de l'agent d'impression
+  // (orders/heartbeat interrogés en boucle) et les lectures publiques du menu QR,
+  // qui sont légitimement à haute fréquence et ne doivent pas déclencher de 429.
+  skip: (req) => {
+    const p = req.path;
+    if (p.startsWith("/uploads")) return true;
+    if (p.startsWith("/api/restaurant/printer/")) return true;
+    if (p === "/api/restaurant/orders" || p === "/api/restaurant/billing" || p === "/api/restaurant/menu") return true;
+    if (req.method === "GET" && p.startsWith("/api/public/qr/")) return true;
+    return false;
+  },
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
