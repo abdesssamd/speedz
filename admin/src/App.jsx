@@ -1813,15 +1813,15 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!token) {
+    if (!token || user?.role === "RESTAURANT") {
       return;
     }
 
     loadAdminData();
-  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [token, user?.role]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!token) {
+    if (!token || user?.role === "RESTAURANT") {
       return;
     }
 
@@ -1847,10 +1847,10 @@ export default function App() {
       window.removeEventListener("focus", handleWindowFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [token, user?.role]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!token) {
+    if (!token || user?.role === "RESTAURANT") {
       return;
     }
 
@@ -1906,7 +1906,7 @@ export default function App() {
       realtimeSocketRef.current?.close();
       realtimeSocketRef.current = null;
     };
-  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [token, user?.role]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (activeView === "orders") {
