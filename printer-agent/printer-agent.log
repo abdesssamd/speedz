@@ -199,3 +199,2149 @@ Traceback (most recent call last):
 requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
 2026-07-13 13:22:50,187 INFO Aucune imprimante -> ticket ecrit dans E:\SpeedZ\printer-agent\ticket-1783945370.bin
 2026-07-13 13:22:50,377 INFO Commande #WCG7HB imprimee
+2026-07-18 00:16:42,195 INFO Connecte au restaurant : REsta Plannet
+2026-07-18 00:18:12,267 ERROR Erreur de polling: 429 Client Error: Too Many Requests for url: https://speedz.microtechdz13.com/api/restaurant/printer/orders
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 321, in loop
+    orders = self.fetch_orders()
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 143, in fetch_orders
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 429 Client Error: Too Many Requests for url: https://speedz.microtechdz13.com/api/restaurant/printer/orders
+2026-07-18 00:18:17,409 ERROR Erreur de polling: 429 Client Error: Too Many Requests for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 429 Client Error: Too Many Requests for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:18:22,468 ERROR Erreur de polling: 429 Client Error: Too Many Requests for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 429 Client Error: Too Many Requests for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:18:27,534 ERROR Erreur de polling: 429 Client Error: Too Many Requests for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 429 Client Error: Too Many Requests for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:19:08,185 ERROR Erreur de polling: 429 Client Error: Too Many Requests for url: https://speedz.microtechdz13.com/api/restaurant/printer/orders
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 321, in loop
+    orders = self.fetch_orders()
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 143, in fetch_orders
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 429 Client Error: Too Many Requests for url: https://speedz.microtechdz13.com/api/restaurant/printer/orders
+2026-07-18 00:19:13,247 ERROR Erreur de polling: 429 Client Error: Too Many Requests for url: https://speedz.microtechdz13.com/api/restaurant/printer/orders
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 321, in loop
+    orders = self.fetch_orders()
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 143, in fetch_orders
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 429 Client Error: Too Many Requests for url: https://speedz.microtechdz13.com/api/restaurant/printer/orders
+2026-07-18 00:19:18,313 ERROR Erreur de polling: 429 Client Error: Too Many Requests for url: https://speedz.microtechdz13.com/api/restaurant/printer/orders
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 321, in loop
+    orders = self.fetch_orders()
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 143, in fetch_orders
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 429 Client Error: Too Many Requests for url: https://speedz.microtechdz13.com/api/restaurant/printer/orders
+2026-07-18 00:19:23,373 ERROR Erreur de polling: 429 Client Error: Too Many Requests for url: https://speedz.microtechdz13.com/api/restaurant/printer/orders
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 321, in loop
+    orders = self.fetch_orders()
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 143, in fetch_orders
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 429 Client Error: Too Many Requests for url: https://speedz.microtechdz13.com/api/restaurant/printer/orders
+2026-07-18 00:19:28,442 ERROR Erreur de polling: 429 Client Error: Too Many Requests for url: https://speedz.microtechdz13.com/api/restaurant/printer/orders
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 321, in loop
+    orders = self.fetch_orders()
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 143, in fetch_orders
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 429 Client Error: Too Many Requests for url: https://speedz.microtechdz13.com/api/restaurant/printer/orders
+2026-07-18 00:28:08,721 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/orders
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 321, in loop
+    orders = self.fetch_orders()
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 143, in fetch_orders
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/orders
+2026-07-18 00:28:15,277 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:28:20,352 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:28:40,360 ERROR Erreur de polling: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+  File "C:\Python314\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 292, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\socket.py", line 725, in readinto
+    return self._sock.recv_into(b)
+           ~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Python314\Lib\ssl.py", line 1304, in recv_into
+    return self.read(nbytes, buffer)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\ssl.py", line 1138, in read
+    return self._sslobj.read(len, buffer)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+TimeoutError: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 486, in send
+    resp = conn.urlopen(
+        method=request.method,
+    ...<9 lines>...
+        chunked=chunked,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+        method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\retry.py", line 490, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\util.py", line 39, in reraise
+    raise value
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 536, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 367, in _raise_timeout
+    raise ReadTimeoutError(
+        self, url, f"Read timed out. (read timeout={timeout_value})"
+    ) from err
+urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 129, in heartbeat
+    response = self.session.post(
+        f"{self.base_url}/api/restaurant/printer/heartbeat",
+        headers=self.headers,
+        timeout=15,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 637, in post
+    return self.request("POST", url, data=data, json=json, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 532, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+2026-07-18 00:29:02,221 ERROR Erreur de polling: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+  File "C:\Python314\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 292, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\socket.py", line 725, in readinto
+    return self._sock.recv_into(b)
+           ~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Python314\Lib\ssl.py", line 1304, in recv_into
+    return self.read(nbytes, buffer)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\ssl.py", line 1138, in read
+    return self._sslobj.read(len, buffer)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+TimeoutError: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 486, in send
+    resp = conn.urlopen(
+        method=request.method,
+    ...<9 lines>...
+        chunked=chunked,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+        method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\retry.py", line 490, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\util.py", line 39, in reraise
+    raise value
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 536, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 367, in _raise_timeout
+    raise ReadTimeoutError(
+        self, url, f"Read timed out. (read timeout={timeout_value})"
+    ) from err
+urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 129, in heartbeat
+    response = self.session.post(
+        f"{self.base_url}/api/restaurant/printer/heartbeat",
+        headers=self.headers,
+        timeout=15,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 637, in post
+    return self.request("POST", url, data=data, json=json, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 532, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+2026-07-18 00:29:23,885 ERROR Erreur de polling: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+  File "C:\Python314\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 292, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\socket.py", line 725, in readinto
+    return self._sock.recv_into(b)
+           ~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Python314\Lib\ssl.py", line 1304, in recv_into
+    return self.read(nbytes, buffer)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\ssl.py", line 1138, in read
+    return self._sslobj.read(len, buffer)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+TimeoutError: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 486, in send
+    resp = conn.urlopen(
+        method=request.method,
+    ...<9 lines>...
+        chunked=chunked,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+        method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\retry.py", line 490, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\util.py", line 39, in reraise
+    raise value
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 536, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 367, in _raise_timeout
+    raise ReadTimeoutError(
+        self, url, f"Read timed out. (read timeout={timeout_value})"
+    ) from err
+urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 129, in heartbeat
+    response = self.session.post(
+        f"{self.base_url}/api/restaurant/printer/heartbeat",
+        headers=self.headers,
+        timeout=15,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 637, in post
+    return self.request("POST", url, data=data, json=json, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 532, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+2026-07-18 00:29:45,168 ERROR Erreur de polling: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+  File "C:\Python314\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 292, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\socket.py", line 725, in readinto
+    return self._sock.recv_into(b)
+           ~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Python314\Lib\ssl.py", line 1304, in recv_into
+    return self.read(nbytes, buffer)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\ssl.py", line 1138, in read
+    return self._sslobj.read(len, buffer)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+TimeoutError: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 486, in send
+    resp = conn.urlopen(
+        method=request.method,
+    ...<9 lines>...
+        chunked=chunked,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+        method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\retry.py", line 490, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\util.py", line 39, in reraise
+    raise value
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 536, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 367, in _raise_timeout
+    raise ReadTimeoutError(
+        self, url, f"Read timed out. (read timeout={timeout_value})"
+    ) from err
+urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 129, in heartbeat
+    response = self.session.post(
+        f"{self.base_url}/api/restaurant/printer/heartbeat",
+        headers=self.headers,
+        timeout=15,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 637, in post
+    return self.request("POST", url, data=data, json=json, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 532, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+2026-07-18 00:30:07,861 ERROR Erreur de polling: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+  File "C:\Python314\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 292, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\socket.py", line 725, in readinto
+    return self._sock.recv_into(b)
+           ~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Python314\Lib\ssl.py", line 1304, in recv_into
+    return self.read(nbytes, buffer)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\ssl.py", line 1138, in read
+    return self._sslobj.read(len, buffer)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+TimeoutError: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 486, in send
+    resp = conn.urlopen(
+        method=request.method,
+    ...<9 lines>...
+        chunked=chunked,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+        method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\retry.py", line 490, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\util.py", line 39, in reraise
+    raise value
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 536, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 367, in _raise_timeout
+    raise ReadTimeoutError(
+        self, url, f"Read timed out. (read timeout={timeout_value})"
+    ) from err
+urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 129, in heartbeat
+    response = self.session.post(
+        f"{self.base_url}/api/restaurant/printer/heartbeat",
+        headers=self.headers,
+        timeout=15,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 637, in post
+    return self.request("POST", url, data=data, json=json, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 532, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+2026-07-18 00:30:29,521 ERROR Erreur de polling: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+  File "C:\Python314\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 292, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\socket.py", line 725, in readinto
+    return self._sock.recv_into(b)
+           ~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Python314\Lib\ssl.py", line 1304, in recv_into
+    return self.read(nbytes, buffer)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\ssl.py", line 1138, in read
+    return self._sslobj.read(len, buffer)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+TimeoutError: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 486, in send
+    resp = conn.urlopen(
+        method=request.method,
+    ...<9 lines>...
+        chunked=chunked,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+        method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\retry.py", line 490, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\util.py", line 39, in reraise
+    raise value
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 536, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 367, in _raise_timeout
+    raise ReadTimeoutError(
+        self, url, f"Read timed out. (read timeout={timeout_value})"
+    ) from err
+urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 129, in heartbeat
+    response = self.session.post(
+        f"{self.base_url}/api/restaurant/printer/heartbeat",
+        headers=self.headers,
+        timeout=15,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 637, in post
+    return self.request("POST", url, data=data, json=json, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 532, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+2026-07-18 00:30:50,765 ERROR Erreur de polling: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+  File "C:\Python314\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 292, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\socket.py", line 725, in readinto
+    return self._sock.recv_into(b)
+           ~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Python314\Lib\ssl.py", line 1304, in recv_into
+    return self.read(nbytes, buffer)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\ssl.py", line 1138, in read
+    return self._sslobj.read(len, buffer)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+TimeoutError: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 486, in send
+    resp = conn.urlopen(
+        method=request.method,
+    ...<9 lines>...
+        chunked=chunked,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+        method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\retry.py", line 490, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\util.py", line 39, in reraise
+    raise value
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 536, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 367, in _raise_timeout
+    raise ReadTimeoutError(
+        self, url, f"Read timed out. (read timeout={timeout_value})"
+    ) from err
+urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 129, in heartbeat
+    response = self.session.post(
+        f"{self.base_url}/api/restaurant/printer/heartbeat",
+        headers=self.headers,
+        timeout=15,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 637, in post
+    return self.request("POST", url, data=data, json=json, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 532, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+2026-07-18 00:31:12,193 ERROR Erreur de polling: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+  File "C:\Python314\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 292, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\socket.py", line 725, in readinto
+    return self._sock.recv_into(b)
+           ~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Python314\Lib\ssl.py", line 1304, in recv_into
+    return self.read(nbytes, buffer)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\ssl.py", line 1138, in read
+    return self._sslobj.read(len, buffer)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+TimeoutError: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 486, in send
+    resp = conn.urlopen(
+        method=request.method,
+    ...<9 lines>...
+        chunked=chunked,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+        method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\retry.py", line 490, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\util.py", line 39, in reraise
+    raise value
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 536, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 367, in _raise_timeout
+    raise ReadTimeoutError(
+        self, url, f"Read timed out. (read timeout={timeout_value})"
+    ) from err
+urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 129, in heartbeat
+    response = self.session.post(
+        f"{self.base_url}/api/restaurant/printer/heartbeat",
+        headers=self.headers,
+        timeout=15,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 637, in post
+    return self.request("POST", url, data=data, json=json, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 532, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+2026-07-18 00:31:33,599 ERROR Erreur de polling: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+  File "C:\Python314\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 292, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\socket.py", line 725, in readinto
+    return self._sock.recv_into(b)
+           ~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Python314\Lib\ssl.py", line 1304, in recv_into
+    return self.read(nbytes, buffer)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\ssl.py", line 1138, in read
+    return self._sslobj.read(len, buffer)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+TimeoutError: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 486, in send
+    resp = conn.urlopen(
+        method=request.method,
+    ...<9 lines>...
+        chunked=chunked,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+        method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\retry.py", line 490, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\util.py", line 39, in reraise
+    raise value
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 536, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 367, in _raise_timeout
+    raise ReadTimeoutError(
+        self, url, f"Read timed out. (read timeout={timeout_value})"
+    ) from err
+urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 129, in heartbeat
+    response = self.session.post(
+        f"{self.base_url}/api/restaurant/printer/heartbeat",
+        headers=self.headers,
+        timeout=15,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 637, in post
+    return self.request("POST", url, data=data, json=json, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 532, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+2026-07-18 00:31:55,118 ERROR Erreur de polling: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+  File "C:\Python314\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 292, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\socket.py", line 725, in readinto
+    return self._sock.recv_into(b)
+           ~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Python314\Lib\ssl.py", line 1304, in recv_into
+    return self.read(nbytes, buffer)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\ssl.py", line 1138, in read
+    return self._sslobj.read(len, buffer)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+TimeoutError: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 486, in send
+    resp = conn.urlopen(
+        method=request.method,
+    ...<9 lines>...
+        chunked=chunked,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+        method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\retry.py", line 490, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\util.py", line 39, in reraise
+    raise value
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 536, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 367, in _raise_timeout
+    raise ReadTimeoutError(
+        self, url, f"Read timed out. (read timeout={timeout_value})"
+    ) from err
+urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 129, in heartbeat
+    response = self.session.post(
+        f"{self.base_url}/api/restaurant/printer/heartbeat",
+        headers=self.headers,
+        timeout=15,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 637, in post
+    return self.request("POST", url, data=data, json=json, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 532, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+2026-07-18 00:32:19,664 ERROR Erreur de polling: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+  File "C:\Python314\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 292, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\socket.py", line 725, in readinto
+    return self._sock.recv_into(b)
+           ~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Python314\Lib\ssl.py", line 1304, in recv_into
+    return self.read(nbytes, buffer)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\ssl.py", line 1138, in read
+    return self._sslobj.read(len, buffer)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+TimeoutError: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 486, in send
+    resp = conn.urlopen(
+        method=request.method,
+    ...<9 lines>...
+        chunked=chunked,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+        method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\retry.py", line 490, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\util.py", line 39, in reraise
+    raise value
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 536, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 367, in _raise_timeout
+    raise ReadTimeoutError(
+        self, url, f"Read timed out. (read timeout={timeout_value})"
+    ) from err
+urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 129, in heartbeat
+    response = self.session.post(
+        f"{self.base_url}/api/restaurant/printer/heartbeat",
+        headers=self.headers,
+        timeout=15,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 637, in post
+    return self.request("POST", url, data=data, json=json, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 532, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+2026-07-18 00:32:43,912 ERROR Erreur de polling: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+  File "C:\Python314\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 292, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\socket.py", line 725, in readinto
+    return self._sock.recv_into(b)
+           ~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Python314\Lib\ssl.py", line 1304, in recv_into
+    return self.read(nbytes, buffer)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\ssl.py", line 1138, in read
+    return self._sslobj.read(len, buffer)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+TimeoutError: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 486, in send
+    resp = conn.urlopen(
+        method=request.method,
+    ...<9 lines>...
+        chunked=chunked,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+        method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\retry.py", line 490, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\util.py", line 39, in reraise
+    raise value
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 536, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 367, in _raise_timeout
+    raise ReadTimeoutError(
+        self, url, f"Read timed out. (read timeout={timeout_value})"
+    ) from err
+urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 129, in heartbeat
+    response = self.session.post(
+        f"{self.base_url}/api/restaurant/printer/heartbeat",
+        headers=self.headers,
+        timeout=15,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 637, in post
+    return self.request("POST", url, data=data, json=json, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 532, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+2026-07-18 00:33:05,278 ERROR Erreur de polling: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+  File "C:\Python314\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 292, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\socket.py", line 725, in readinto
+    return self._sock.recv_into(b)
+           ~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Python314\Lib\ssl.py", line 1304, in recv_into
+    return self.read(nbytes, buffer)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\ssl.py", line 1138, in read
+    return self._sslobj.read(len, buffer)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+TimeoutError: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 486, in send
+    resp = conn.urlopen(
+        method=request.method,
+    ...<9 lines>...
+        chunked=chunked,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+        method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\retry.py", line 490, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\util.py", line 39, in reraise
+    raise value
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 536, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 367, in _raise_timeout
+    raise ReadTimeoutError(
+        self, url, f"Read timed out. (read timeout={timeout_value})"
+    ) from err
+urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 129, in heartbeat
+    response = self.session.post(
+        f"{self.base_url}/api/restaurant/printer/heartbeat",
+        headers=self.headers,
+        timeout=15,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 637, in post
+    return self.request("POST", url, data=data, json=json, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 532, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+2026-07-18 00:33:26,958 ERROR Erreur de polling: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+  File "C:\Python314\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 292, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\socket.py", line 725, in readinto
+    return self._sock.recv_into(b)
+           ~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Python314\Lib\ssl.py", line 1304, in recv_into
+    return self.read(nbytes, buffer)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\ssl.py", line 1138, in read
+    return self._sslobj.read(len, buffer)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+TimeoutError: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 486, in send
+    resp = conn.urlopen(
+        method=request.method,
+    ...<9 lines>...
+        chunked=chunked,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+        method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\retry.py", line 490, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\util.py", line 39, in reraise
+    raise value
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 536, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 367, in _raise_timeout
+    raise ReadTimeoutError(
+        self, url, f"Read timed out. (read timeout={timeout_value})"
+    ) from err
+urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 129, in heartbeat
+    response = self.session.post(
+        f"{self.base_url}/api/restaurant/printer/heartbeat",
+        headers=self.headers,
+        timeout=15,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 637, in post
+    return self.request("POST", url, data=data, json=json, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 532, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+2026-07-18 00:33:48,598 ERROR Erreur de polling: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+  File "C:\Python314\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 292, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\socket.py", line 725, in readinto
+    return self._sock.recv_into(b)
+           ~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Python314\Lib\ssl.py", line 1304, in recv_into
+    return self.read(nbytes, buffer)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\ssl.py", line 1138, in read
+    return self._sslobj.read(len, buffer)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+TimeoutError: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 486, in send
+    resp = conn.urlopen(
+        method=request.method,
+    ...<9 lines>...
+        chunked=chunked,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+        method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\retry.py", line 490, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\util.py", line 39, in reraise
+    raise value
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 536, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 367, in _raise_timeout
+    raise ReadTimeoutError(
+        self, url, f"Read timed out. (read timeout={timeout_value})"
+    ) from err
+urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 129, in heartbeat
+    response = self.session.post(
+        f"{self.base_url}/api/restaurant/printer/heartbeat",
+        headers=self.headers,
+        timeout=15,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 637, in post
+    return self.request("POST", url, data=data, json=json, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 532, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+2026-07-18 00:34:10,055 ERROR Erreur de polling: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+  File "C:\Python314\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 292, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\socket.py", line 725, in readinto
+    return self._sock.recv_into(b)
+           ~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Python314\Lib\ssl.py", line 1304, in recv_into
+    return self.read(nbytes, buffer)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\ssl.py", line 1138, in read
+    return self._sslobj.read(len, buffer)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+TimeoutError: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 486, in send
+    resp = conn.urlopen(
+        method=request.method,
+    ...<9 lines>...
+        chunked=chunked,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+        method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\retry.py", line 490, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\util.py", line 39, in reraise
+    raise value
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 536, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 367, in _raise_timeout
+    raise ReadTimeoutError(
+        self, url, f"Read timed out. (read timeout={timeout_value})"
+    ) from err
+urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 129, in heartbeat
+    response = self.session.post(
+        f"{self.base_url}/api/restaurant/printer/heartbeat",
+        headers=self.headers,
+        timeout=15,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 637, in post
+    return self.request("POST", url, data=data, json=json, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 532, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+2026-07-18 00:34:31,751 ERROR Erreur de polling: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+  File "C:\Python314\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 292, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\socket.py", line 725, in readinto
+    return self._sock.recv_into(b)
+           ~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Python314\Lib\ssl.py", line 1304, in recv_into
+    return self.read(nbytes, buffer)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\ssl.py", line 1138, in read
+    return self._sslobj.read(len, buffer)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+TimeoutError: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 486, in send
+    resp = conn.urlopen(
+        method=request.method,
+    ...<9 lines>...
+        chunked=chunked,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+        method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\retry.py", line 490, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\util.py", line 39, in reraise
+    raise value
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 536, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 367, in _raise_timeout
+    raise ReadTimeoutError(
+        self, url, f"Read timed out. (read timeout={timeout_value})"
+    ) from err
+urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 129, in heartbeat
+    response = self.session.post(
+        f"{self.base_url}/api/restaurant/printer/heartbeat",
+        headers=self.headers,
+        timeout=15,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 637, in post
+    return self.request("POST", url, data=data, json=json, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 532, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+2026-07-18 00:34:52,922 ERROR Erreur de polling: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+  File "C:\Python314\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 292, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\socket.py", line 725, in readinto
+    return self._sock.recv_into(b)
+           ~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Python314\Lib\ssl.py", line 1304, in recv_into
+    return self.read(nbytes, buffer)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\ssl.py", line 1138, in read
+    return self._sslobj.read(len, buffer)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+TimeoutError: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 486, in send
+    resp = conn.urlopen(
+        method=request.method,
+    ...<9 lines>...
+        chunked=chunked,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+        method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\retry.py", line 490, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\util.py", line 39, in reraise
+    raise value
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 536, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 367, in _raise_timeout
+    raise ReadTimeoutError(
+        self, url, f"Read timed out. (read timeout={timeout_value})"
+    ) from err
+urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 129, in heartbeat
+    response = self.session.post(
+        f"{self.base_url}/api/restaurant/printer/heartbeat",
+        headers=self.headers,
+        timeout=15,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 637, in post
+    return self.request("POST", url, data=data, json=json, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 532, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Read timed out. (read timeout=15)
+2026-07-18 00:35:03,551 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:35:08,977 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:35:18,321 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:35:23,435 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:35:28,642 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:35:36,457 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:35:41,580 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:35:46,655 ERROR Erreur de polling: 404 Client Error: Not Found for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 404 Client Error: Not Found for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:35:51,733 ERROR Erreur de polling: 404 Client Error: Not Found for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 404 Client Error: Not Found for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:35:56,805 ERROR Erreur de polling: 404 Client Error: Not Found for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 404 Client Error: Not Found for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:36:01,927 ERROR Erreur de polling: 404 Client Error: Not Found for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 404 Client Error: Not Found for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:36:07,087 ERROR Erreur de polling: 404 Client Error: Not Found for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 404 Client Error: Not Found for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:36:12,244 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:36:17,898 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:36:23,020 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:36:28,143 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:36:33,260 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:36:38,354 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:36:44,433 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:36:50,589 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:36:55,697 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:37:01,071 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:37:06,207 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:37:11,865 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:37:17,024 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:37:22,141 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:37:27,281 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:37:32,395 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:37:37,627 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:37:42,745 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:37:48,211 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:37:53,335 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:37:58,465 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:38:03,699 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:38:08,954 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:38:14,301 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:38:19,428 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:38:24,534 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:38:29,646 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:38:35,329 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:38:40,451 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:38:45,559 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:38:50,757 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:38:56,022 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:39:01,146 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:39:06,277 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:39:11,793 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:39:16,959 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:39:22,061 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:39:27,219 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 00:39:32,393 ERROR Erreur de polling: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 320, in loop
+    self.heartbeat()
+    ~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 134, in heartbeat
+    response.raise_for_status()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\models.py", line 1021, in raise_for_status
+    raise HTTPError(http_error_msg, response=self)
+requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: https://speedz.microtechdz13.com/api/restaurant/printer/heartbeat
+2026-07-18 01:24:27,102 INFO Connecte au restaurant : REsta Plannet

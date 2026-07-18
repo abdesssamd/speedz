@@ -1095,6 +1095,7 @@ export default function App() {
     isActive: true,
   });
   const [restaurantQrData, setRestaurantQrData] = useState(null);
+  const [portalAccess, setPortalAccess] = useState(null);
   const [restaurantCreateErrors, setRestaurantCreateErrors] = useState({});
   const [restaurantEditErrors, setRestaurantEditErrors] = useState({});
   const [menuItemErrors, setMenuItemErrors] = useState({});
@@ -1698,6 +1699,7 @@ export default function App() {
 
   useEffect(() => {
     setRestaurantQrData(null);
+    setPortalAccess(null);
   }, [selectedRestaurantId]);
 
   useEffect(() => {
@@ -2843,6 +2845,37 @@ export default function App() {
     }
   }
 
+  function handleCopyValue(value, label) {
+    if (!value) {
+      return;
+    }
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(value).then(
+        () => setStatusMessage(`${label} copié dans le presse-papiers.`),
+        () => setErrorMessage("Copie impossible.")
+      );
+    }
+  }
+
+  // Génère (ou régénère) l'accès à l'espace restaurateur : compte + mot de passe
+  // temporaire + lien de connexion. Affiché ensuite pour être communiqué au resto.
+  async function handleGeneratePortalAccess(restaurantId) {
+    if (!window.confirm("Générer un nouvel accès à l'espace restaurateur ? Le mot de passe sera réinitialisé et l'email d'accès renvoyé.")) {
+      return;
+    }
+    try {
+      const payload = await apiRequest(
+        `/api/admin/restaurants/${restaurantId}/portal-access`,
+        { method: "POST" },
+        token
+      );
+      setPortalAccess(payload);
+      setStatusMessage("Accès restaurateur généré. Communiquez l'email, le mot de passe et le lien de connexion.");
+    } catch (error) {
+      setErrorMessage(error.message);
+    }
+  }
+
   // Ouvre une fenêtre imprimable : fiche de connexion (token + QR + instructions)
   // à remettre au restaurant, utile si l'email n'arrive pas.
   function handlePrintRestaurantCredentials(restaurant, qrData) {
@@ -3951,7 +3984,49 @@ export default function App() {
                             <button type="button" className="ghost small" onClick={() => handlePrintRestaurantCredentials(selectedRestaurant, restaurantQrData)}>
                               🖨️ Imprimer la fiche
                             </button>
+                            <button type="button" className="primary-alt" onClick={() => handleGeneratePortalAccess(selectedRestaurant.id)}>
+                              🔐 Accès restaurateur
+                            </button>
                           </div>
+
+                          {portalAccess ? (
+                            <div
+                              style={{
+                                border: "2px solid #16a34a",
+                                borderRadius: 12,
+                                padding: 14,
+                                margin: "10px 0",
+                                background: "rgba(22,163,74,0.06)",
+                              }}
+                            >
+                              <p style={{ margin: "0 0 8px", fontWeight: 700, color: "#16a34a" }}>
+                                ✅ Accès à l'espace restaurateur (à communiquer)
+                              </p>
+                              {[
+                                { label: "Lien de connexion", value: portalAccess.loginUrl },
+                                { label: "Email", value: portalAccess.loginEmail },
+                                { label: "Mot de passe temporaire", value: portalAccess.temporaryPassword },
+                                { label: "Token API (agent impression)", value: portalAccess.apiToken },
+                              ].map((row) => (
+                                <div
+                                  key={row.label}
+                                  style={{ display: "flex", alignItems: "center", gap: 8, margin: "4px 0", flexWrap: "wrap" }}
+                                >
+                                  <span style={{ minWidth: 190, fontSize: 12, color: "#6b7280", textTransform: "uppercase", letterSpacing: ".03em" }}>
+                                    {row.label}
+                                  </span>
+                                  <code style={{ fontWeight: 700, wordBreak: "break-all", flex: 1 }}>{row.value}</code>
+                                  <button type="button" className="ghost small" onClick={() => handleCopyValue(row.value, row.label)}>
+                                    Copier
+                                  </button>
+                                </div>
+                              ))}
+                              <p style={{ margin: "8px 0 0", fontSize: 12, color: "#6b7280" }}>
+                                Le restaurateur se connecte sur le lien ci-dessus avec cet email + mot de passe, puis le change. L'email d'accès a aussi été (r)envoyé.
+                              </p>
+                            </div>
+                          ) : null}
+
                           {restaurantQrData?.qrDataUrl ? (
                             <img src={restaurantQrData.qrDataUrl} alt={`QR ${selectedRestaurant.name}`} className="menu-preview-image" />
                           ) : null}

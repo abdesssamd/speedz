@@ -3200,6 +3200,14 @@ app.get("/qr/:qrToken", async (req, res) => {
     return;
   }
 
+  // Cette page utilise un <script> inline pour charger et rendre le menu. La CSP
+  // globale de helmet interdit les scripts inline (scriptSrc 'self') — sans cette
+  // surcharge, le navigateur bloque le script en production et le menu reste vide.
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https: wss:; font-src 'self'"
+  );
+
   res.type("html").send(`<!doctype html>
 <html lang="fr">
   <head>
@@ -4558,6 +4566,81 @@ app.post("/api/admin/restaurants/:id/regenerate-token", requireAuth, requireAdmi
   const qrDataUrl = await QRCode.toDataURL(qrUrl, { margin: 1, width: 320 });
   await logAdminAction(req, "restaurant.token_regenerated", "restaurant", restaurant.id, {});
   res.json({ restaurant: serializeRestaurant(updated), apiToken, qrCodeToken, qrUrl, qrDataUrl });
+}));
+
+// (Ré)génère l'accès à l'espace restaurateur (web) : crée le compte s'il n'existe
+// pas, réinitialise le mot de passe, et renvoie les identifiants + le lien de
+// connexion + le token API + le lien QR. Permet à l'admin de communiquer (ou
+// recommuniquer) l'accès au restaurateur à tout moment.
+app.post("/api/admin/restaurants/:id/portal-access", requireAuth, requireAdmin, wrapAsync(async (req, res) => {
+  const restaurant = await prisma.restaurant.findUnique({ where: { id: req.params.id } });
+  if (!restaurant) {
+    throw new ApiError(404, "Restaurant introuvable.", "RESTAURANT_NOT_FOUND");
+  }
+
+  const loginEmail = String(req.body?.email || restaurant.ownerEmail || "").trim().toLowerCase();
+  if (!loginEmail) {
+    throw new ApiError(400, "Aucun email proprietaire pour ce restaurant. Renseignez l'email d'abord.", "RESTAURANT_OWNER_EMAIL_MISSING");
+  }
+
+  const temporaryPassword = `resto-${crypto.randomBytes(4).toString("hex")}`;
+  const passwordHash = await bcrypt.hash(temporaryPassword, 12);
+
+  const existing = await prisma.user.findUnique({ where: { email: loginEmail } });
+  if (existing) {
+    // Un autre restaurant possède déjà ce compte : on refuse pour éviter le vol d'accès.
+    if (existing.managedRestaurantId && existing.managedRestaurantId !== restaurant.id) {
+      throw new ApiError(409, "Cet email est deja lie a un autre restaurant.", "EMAIL_LINKED_ELSEWHERE");
+    }
+    await prisma.user.update({
+      where: { id: existing.id },
+      data: { role: "RESTAURANT", managedRestaurantId: restaurant.id, isActive: true, passwordHash },
+    });
+  } else {
+    await prisma.user.create({
+      data: {
+        email: loginEmail,
+        passwordHash,
+        name: restaurant.ownerName || restaurant.name,
+        phone: restaurant.ownerPhone || null,
+        defaultAddress: restaurant.address || null,
+        role: "RESTAURANT",
+        managedRestaurantId: restaurant.id,
+      },
+    });
+  }
+
+  // S'assure d'un token API et d'un token QR (sans régénérer s'ils existent déjà).
+  let apiToken = restaurant.apiToken;
+  let qrCodeToken = restaurant.qrCodeToken;
+  if (!apiToken || !qrCodeToken) {
+    const updated = await prisma.restaurant.update({
+      where: { id: restaurant.id },
+      data: {
+        apiToken: apiToken || generateOpaqueToken("fdrest"),
+        qrCodeToken: qrCodeToken || generateOpaqueToken("qr"),
+      },
+    });
+    apiToken = updated.apiToken;
+    qrCodeToken = updated.qrCodeToken;
+  }
+
+  const loginUrl = (process.env.PORTAL_URL || getRequestPublicBaseUrl(req)).replace(/\/$/, "");
+  const qrUrl = getRestaurantQrLandingUrl(qrCodeToken);
+
+  // Envoi de l'email d'accès (best-effort).
+  await queueRestaurantAccessEmail({
+    restaurantName: restaurant.name,
+    ownerName: restaurant.ownerName || restaurant.name,
+    ownerEmail: loginEmail,
+    loginEmail,
+    temporaryPassword,
+    apiToken,
+    qrCodeUrl: qrUrl,
+  });
+
+  await logAdminAction(req, "restaurant.portal_access_generated", "restaurant", restaurant.id, { loginEmail });
+  res.json({ loginEmail, temporaryPassword, loginUrl, apiToken, qrUrl });
 }));
 
 app.post("/api/admin/restaurants", requireAuth, requireAdmin, wrapAsync(async (req, res) => {
