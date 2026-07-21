@@ -78,6 +78,29 @@ const ACTIVE_ORDER_STATUSES = ["AwaitingCourier", "Accepted", "Confirmed", "Prep
 // avant d'ouvrir la course à tous les livreurs de la zone du restaurant.
 const FAVORITE_WINDOW_MS = Number(process.env.COURIER_FAVORITE_WINDOW_MS || 60_000);
 const DISPATCH_RADIUS_KM = Number(process.env.COURIER_DISPATCH_RADIUS_KM || 8);
+// Filet de sécurité : passé ce délai sans preneur, la course s'ouvre à TOUS les
+// livreurs, quelle que soit la zone — une commande ne doit jamais rester bloquée.
+const DISPATCH_OPEN_TO_ALL_MS = Number(process.env.COURIER_OPEN_TO_ALL_MS || 5 * 60_000);
+// Mode OWN avec repli autorisé : délai d'attente laissé aux livreurs du restaurant
+// avant d'ouvrir la course à la flotte SpeedZ.
+const OWN_FALLBACK_DELAY_MS = Number(process.env.OWN_FALLBACK_DELAY_MS || 5 * 60_000);
+// Livreurs préférés d'un restaurant : fenêtre pendant laquelle la course leur est
+// réservée avant de s'ouvrir aux autres livreurs éligibles.
+const RESTAURANT_PREFERRED_WINDOW_MS = Number(process.env.RESTAURANT_PREFERRED_WINDOW_MS || 5 * 60_000);
+
+// Un restaurant est considéré « en service » si son agent d'impression a communiqué
+// récemment (heartbeat / récupération des tickets). Remplace les horaires d'ouverture.
+const PRINTER_ONLINE_WINDOW_MS = Number(process.env.PRINTER_ONLINE_WINDOW_MS || 3 * 60_000);
+// Interrupteur : mettre REQUIRE_PRINTER_ONLINE=false pour accepter les commandes
+// même si l'agent d'impression du restaurant n'est pas connecté.
+const REQUIRE_PRINTER_ONLINE = String(process.env.REQUIRE_PRINTER_ONLINE ?? "true") !== "false";
+
+function isPrinterOnline(printerLastSeenAt) {
+  if (!printerLastSeenAt) return false;
+  const seen = new Date(printerLastSeenAt).getTime();
+  if (Number.isNaN(seen)) return false;
+  return Date.now() - seen <= PRINTER_ONLINE_WINDOW_MS;
+}
 
 const uploadsDir = path.join(__dirname, "uploads");
 fs.mkdirSync(uploadsDir, { recursive: true });
@@ -287,8 +310,67 @@ function calculateDistanceKm(from, to) {
   return Number((2 * earthRadiusKm * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(1));
 }
 
+// Distance de repli quand un restaurant n'a pas de coordonnées GPS renseignées.
+// Sans ce garde-fou, la distance est calculée vers (0,0) — soit des milliers de km,
+// ce qui fait exploser les frais de livraison ET la rémunération du livreur.
+const FALLBACK_DELIVERY_DISTANCE_KM = Number(process.env.FALLBACK_DELIVERY_DISTANCE_KM || 3);
+
+// Un restaurant en mode OWN peut-il assurer la livraison maintenant ?
+// « Off ou occupé » : on exige au moins un livreur propre réellement disponible.
+async function hasAvailableOwnCourier(restaurantId) {
+  if (!restaurantId) return false;
+  const count = await prisma.courier.count({
+    where: { restaurantId, status: "AVAILABLE" },
+  });
+  return count > 0;
+}
+
+/**
+ * Tarification livraison selon le mode du restaurant.
+ *
+ * Mode OWN : livraison offerte dans le rayon de gratuité — MAIS uniquement si un
+ * livreur du restaurant est disponible. Si aucun ne l'est et que le restaurant a
+ * autorisé le repli, on facture le barème SpeedZ **dès le devis** : le client voit
+ * le vrai prix avant de commander, il n'est jamais surfacturé après coup.
+ *
+ * Retourne { quote, useSpeedzFleet } — useSpeedzFleet indique que la course devra
+ * être servie par la flotte SpeedZ.
+ */
+async function applyOwnDeliveryPricing(restaurant, quote) {
+  if (restaurant?.deliveryMode !== "OWN") {
+    return { quote, useSpeedzFleet: true };
+  }
+
+  const ownCourierAvailable = await hasAvailableOwnCourier(restaurant.id);
+
+  // Aucun livreur propre disponible + repli autorisé => barème SpeedZ payant.
+  if (!ownCourierAvailable && restaurant.allowSpeedzFallback) {
+    return { quote, useSpeedzFleet: true };
+  }
+
+  // Livraison offerte par le restaurant, dans son rayon de gratuité.
+  const radiusKm = Number(restaurant.freeDeliveryRadiusKm ?? 0);
+  if (radiusKm > 0 && quote.distanceKm > radiusKm) {
+    return { quote, useSpeedzFleet: false };
+  }
+  return {
+    quote: { ...quote, fee: 0, tierLabel: "Livraison offerte par le restaurant" },
+    useSpeedzFleet: false,
+  };
+}
+
 function getDeliveryQuote(userCoordinates, restaurantCoordinates) {
-  const distanceKm = calculateDistanceKm(userCoordinates, restaurantCoordinates);
+  const coordsUsable =
+    hasUsableCoordinates(userCoordinates?.latitude, userCoordinates?.longitude) &&
+    hasUsableCoordinates(restaurantCoordinates?.latitude, restaurantCoordinates?.longitude);
+
+  if (!coordsUsable) {
+    console.warn("[livraison] Coordonnées manquantes — distance de repli appliquée. Renseignez le GPS du restaurant.");
+  }
+
+  const distanceKm = coordsUsable
+    ? calculateDistanceKm(userCoordinates, restaurantCoordinates)
+    : FALLBACK_DELIVERY_DISTANCE_KM;
   const { fee, label } = computeDeliveryFee(distanceKm);
   const estimatedMinutes = Math.max(18, Math.round(12 + distanceKm * 4.5));
 
@@ -438,6 +520,7 @@ function serializeRestaurant(record) {
     shortDescription: record.shortDescription,
     address: record.address,
     openingHours: record.openingHours,
+    weeklyHours: record.weeklyHours || null,
     deliveryTime: record.deliveryTime,
     rating: record.rating,
     reviewCount: record.reviewCount,
@@ -460,6 +543,13 @@ function serializeRestaurant(record) {
     qrCodeUrl: record.qrCodeToken ? getRestaurantQrLandingUrl(record.qrCodeToken) : null,
     validatedAt: record.validatedAt ? record.validatedAt.toISOString() : null,
     printerLastSeenAt: record.printerLastSeenAt ? record.printerLastSeenAt.toISOString() : null,
+    // Un restaurant est « en service » tant que son agent d'impression communique.
+    // C'est ce qui remplace les horaires d'ouverture : sans imprimante connectée,
+    // le restaurant reste visible dans l'app mais n'accepte pas de commande.
+    isOnline: isPrinterOnline(record.printerLastSeenAt),
+    deliveryMode: record.deliveryMode || "SPEEDZ",
+    freeDeliveryRadiusKm: record.freeDeliveryRadiusKm ?? null,
+    allowSpeedzFallback: Boolean(record.allowSpeedzFallback),
     menu: (record.menuItems || [])
       .filter((item) => !item.deletedAt)
       .map((item) => ({
@@ -602,6 +692,9 @@ function serializeCourier(record) {
     name: record.name,
     phone: record.phone,
     code: courierCode(record.phone),
+    // Rattachement : null = flotte SpeedZ, sinon livreur propre à ce restaurant.
+    restaurantId: record.restaurantId || null,
+    restaurantName: record.restaurant?.name || null,
     vehicle: record.vehicle,
     status: record.status,
     payPerDelivery: record.payPerDelivery,
@@ -1810,7 +1903,10 @@ async function requireCourierAuth(req, res, next) {
 
     const courier = await prisma.courier.findUnique({
       where: { id: payload.sub },
-      include: { orders: { include: { restaurant: true, user: { include: { addresses: true } } } } },
+      include: {
+        restaurant: true,
+        orders: { include: { restaurant: true, user: { include: { addresses: true } } } },
+      },
     });
 
     if (!courier || courier.phone !== payload.phone) {
@@ -1906,7 +2002,10 @@ async function computeSummary({ restaurantId, cart, userCoordinates, promoCode, 
           latitude: restaurant.latitude,
           longitude: restaurant.longitude
         });
-  const appliedDelivery = delivery;
+  // Restaurant qui livre avec ses propres livreurs : livraison offerte dans son
+  // rayon de gratuité, sauf si aucun de ses livreurs n'est disponible (repli SpeedZ
+  // payant, décidé ici pour que le client voie le bon prix avant de commander).
+  const { quote: appliedDelivery, useSpeedzFleet } = await applyOwnDeliveryPricing(restaurant, delivery);
   const serviceFee = orderChannel === "QR_ONSITE" ? 0 : calculateServiceFee(subtotal);
   const discountAmount = calculatePromotionDiscount({ promotion, subtotal });
   const total = Number((subtotal + appliedDelivery.fee + serviceFee - discountAmount).toFixed(2));
@@ -1925,6 +2024,9 @@ async function computeSummary({ restaurantId, cart, userCoordinates, promoCode, 
     deliveryTierLabel: appliedDelivery.tierLabel,
     pointsToEarn,
     estimatedDeliveryLabel: appliedDelivery.estimatedLabel,
+    // La course sera-t-elle servie par la flotte SpeedZ ? (repli d'un restaurant
+    // en mode OWN dont aucun livreur n'était disponible au moment du devis)
+    useSpeedzFleet,
     promotion: appliedPromotion ? serializePromotion({ ...appliedPromotion, orders: [] }) : null
   };
 }
@@ -2027,9 +2129,49 @@ async function sendCourierWelcomePush(courier) {
 // Un livreur est « dans la zone » du restaurant si sa dernière position connue
 // est à moins de DISPATCH_RADIUS_KM. Sans position connue, on le considère éligible
 // (il verra la course via le polling) pour ne jamais bloquer une livraison.
+function hasUsableCoordinates(lat, lng) {
+  // 0/0 = coordonnées non renseignées (restaurant créé sans GPS), pas un vrai point.
+  if (lat == null || lng == null) return false;
+  if (Number.isNaN(Number(lat)) || Number.isNaN(Number(lng))) return false;
+  return Number(lat) !== 0 || Number(lng) !== 0;
+}
+
+/**
+ * Cloisonnement des flottes. Détermine si une course peut être proposée à ce livreur.
+ *
+ * - Restaurant en mode OWN : réservée à SES livreurs. Si le restaurant a autorisé le
+ *   repli (allowSpeedzFallback) et que personne ne l'a prise après le délai, elle
+ *   s'ouvre à la flotte SpeedZ — le client garde sa livraison gratuite, le coût est
+ *   marqué comme refacturable au restaurant (fellBackToSpeedz).
+ * - Restaurant en mode SPEEDZ : réservée à la flotte SpeedZ. Les livreurs rattachés
+ *   à un restaurant ne livrent que pour le leur.
+ */
+function canCourierSeeOrder(courier, order, now = Date.now()) {
+  // Repli décidé au devis : le client a déjà payé les frais SpeedZ, la course
+  // appartient à la flotte SpeedZ dès le départ.
+  if (order.fellBackToSpeedz) return !courier.restaurantId;
+
+  const restaurantOwnsDelivery = order.restaurant?.deliveryMode === "OWN";
+  const isOwnCourierOfThisRestaurant = courier.restaurantId === order.restaurantId;
+
+  if (restaurantOwnsDelivery) {
+    if (isOwnCourierOfThisRestaurant) return true;
+    if (!order.restaurant?.allowSpeedzFallback) return false;
+    // Sécurité : un livreur propre s'est mis hors ligne après la commande.
+    // Passé le délai, la flotte SpeedZ peut reprendre la course.
+    const waited = now - order.createdAt.getTime() >= OWN_FALLBACK_DELAY_MS;
+    return waited && !courier.restaurantId;
+  }
+
+  // Restaurant en mode SPEEDZ : uniquement la flotte SpeedZ.
+  return !courier.restaurantId;
+}
+
 function isCourierInRestaurantZone(courier, restaurant) {
-  if (courier.currentLat == null || courier.currentLng == null) return true;
-  if (restaurant?.latitude == null || restaurant?.longitude == null) return true;
+  // Sans position fiable d'un côté ou de l'autre, on n'applique PAS le filtre de
+  // distance : mieux vaut proposer la course que la rendre invisible.
+  if (!hasUsableCoordinates(courier.currentLat, courier.currentLng)) return true;
+  if (!hasUsableCoordinates(restaurant?.latitude, restaurant?.longitude)) return true;
   const distanceKm = calculateDistanceKm(
     { latitude: courier.currentLat, longitude: courier.currentLng },
     { latitude: restaurant.latitude, longitude: restaurant.longitude }
@@ -2066,24 +2208,89 @@ async function dispatchDeliveryOrder(orderId) {
   });
   if (!order || order.channel !== "DELIVERY" || order.status !== "AwaitingCourier") return;
 
-  const favoriteCouriers = await getFavoriteCouriersForUser(order.userId);
   const pushPayload = {
     title: "Nouvelle course 🛵",
     body: `Commande à récupérer chez ${order.restaurant?.name || "un restaurant"}.`,
     data: { type: "courier-new-job", orderId: order.id },
   };
 
-  if (favoriteCouriers.length > 0) {
-    await Promise.all(favoriteCouriers.map((courier) => sendCourierPush(courier, pushPayload)));
-    // Escalade : après la fenêtre d'exclusivité, ouvrir à toute la zone si non prise.
+  // Restaurant qui livre lui-même : on notifie SES livreurs, pas la flotte SpeedZ.
+  // (sauf repli décidé au devis : la course part directement à la flotte SpeedZ)
+  if (order.restaurant?.deliveryMode === "OWN" && !order.fellBackToSpeedz) {
+    const ownCouriers = await prisma.courier.findMany({
+      where: { restaurantId: order.restaurantId, status: { in: ["AVAILABLE", "ON_DELIVERY"] } },
+    });
+    await Promise.all(ownCouriers.map((courier) => sendCourierPush(courier, pushPayload)));
+
+    // Repli autorisé : si personne n'a pris la course, alerter la flotte SpeedZ.
+    if (order.restaurant.allowSpeedzFallback) {
+      setTimeout(() => {
+        notifyZoneCouriers(orderId, pushPayload).catch((error) =>
+          console.error("[dispatch] repli SpeedZ:", error?.message || error)
+        );
+      }, OWN_FALLBACK_DELAY_MS).unref?.();
+    }
+    return;
+  }
+
+  const favoriteCouriers = await getFavoriteCouriersForUser(order.userId);
+  const preferredCouriers = await getPreferredCouriersForRestaurant(order.restaurantId);
+
+  // Cascade : favoris du client → préférés du restaurant → toute la zone.
+  const escalateToZone = () => {
     setTimeout(() => {
       notifyZoneCouriers(orderId, pushPayload).catch((error) =>
         console.error("[dispatch] escalade zone:", error?.message || error)
       );
+    }, RESTAURANT_PREFERRED_WINDOW_MS).unref?.();
+  };
+
+  if (favoriteCouriers.length > 0) {
+    await Promise.all(favoriteCouriers.map((courier) => sendCourierPush(courier, pushPayload)));
+    setTimeout(() => {
+      notifyPreferredThenZone(orderId, pushPayload).catch((error) =>
+        console.error("[dispatch] escalade preferes:", error?.message || error)
+      );
     }, FAVORITE_WINDOW_MS).unref?.();
-  } else {
-    await notifyZoneCouriers(orderId, pushPayload);
+    return;
   }
+
+  if (preferredCouriers.length > 0) {
+    await Promise.all(preferredCouriers.map((courier) => sendCourierPush(courier, pushPayload)));
+    escalateToZone();
+    return;
+  }
+
+  await notifyZoneCouriers(orderId, pushPayload);
+}
+
+// Livreurs préférés d'un restaurant, prêts à recevoir une course.
+async function getPreferredCouriersForRestaurant(restaurantId) {
+  if (!restaurantId) return [];
+  const links = await prisma.restaurantPreferredCourier.findMany({
+    where: { restaurantId },
+    include: { courier: true },
+  });
+  return links.map((link) => link.courier).filter((c) => c && c.status !== "OFFLINE");
+}
+
+// Étape intermédiaire de la cascade : notifier les préférés du restaurant, puis
+// ouvrir à toute la zone si la course reste sans preneur.
+async function notifyPreferredThenZone(orderId, pushPayload) {
+  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  if (!order || order.status !== "AwaitingCourier" || order.courierId) return;
+
+  const preferred = await getPreferredCouriersForRestaurant(order.restaurantId);
+  if (preferred.length === 0) {
+    await notifyZoneCouriers(orderId, pushPayload);
+    return;
+  }
+  await Promise.all(preferred.map((courier) => sendCourierPush(courier, pushPayload)));
+  setTimeout(() => {
+    notifyZoneCouriers(orderId, pushPayload).catch((error) =>
+      console.error("[dispatch] escalade zone:", error?.message || error)
+    );
+  }, RESTAURANT_PREFERRED_WINDOW_MS).unref?.();
 }
 
 // Notifie tous les livreurs disponibles de la zone du restaurant, si la course
@@ -2095,8 +2302,10 @@ async function notifyZoneCouriers(orderId, pushPayload) {
   });
   if (!order || order.status !== "AwaitingCourier" || order.courierId) return;
 
+  // Flotte SpeedZ uniquement : les livreurs rattachés à un restaurant ne livrent
+  // que pour le leur.
   const couriers = await prisma.courier.findMany({
-    where: { status: { in: ["AVAILABLE", "ON_DELIVERY"] } },
+    where: { status: { in: ["AVAILABLE", "ON_DELIVERY"] }, restaurantId: null },
   });
   const zoneCouriers = couriers.filter((courier) => isCourierInRestaurantZone(courier, order.restaurant));
   await Promise.all(zoneCouriers.map((courier) => sendCourierPush(courier, pushPayload)));
@@ -2223,6 +2432,13 @@ async function createOrderRecord({
     return null;
   }
 
+  // Restaurant hors service (agent d'impression déconnecté) : on refuse la commande.
+  // Désactivable via REQUIRE_PRINTER_ONLINE=false si des restaurants n'ont pas
+  // encore installé l'agent SpeedZPrinter.
+  if (REQUIRE_PRINTER_ONLINE && !isPrinterOnline(restaurant.printerLastSeenAt)) {
+    return { error: "RESTAURANT_OFFLINE" };
+  }
+
   // Les commandes en livraison démarrent en AwaitingCourier (aucun livreur, non
   // imprimées) : elles sont proposées aux livreurs (favoris d'abord, cf.
   // dispatchDeliveryOrder) et ne s'impriment qu'une fois confirmées par le livreur.
@@ -2247,6 +2463,9 @@ async function createOrderRecord({
       tableLabel,
       tableId,
       status: initialStatus,
+      // Restaurant en mode OWN sans livreur dispo au devis : la course part
+      // directement à la flotte SpeedZ (et le client a payé les frais en conséquence).
+      fellBackToSpeedz: restaurant.deliveryMode === "OWN" && summary.useSpeedzFleet === true,
       estimatedDeliveryLabel: summary.estimatedDeliveryLabel,
       items: cart,
       courierId: null,
@@ -3069,6 +3288,14 @@ app.post("/api/orders", optionalAuth, validateBody(Schemas.createOrder), async (
     return;
   }
 
+  if (order.error === "RESTAURANT_OFFLINE") {
+    res.status(409).json({
+      message: "Ce restaurant est actuellement hors service. Réessayez plus tard.",
+      code: "RESTAURANT_OFFLINE",
+    });
+    return;
+  }
+
   const payload = await fetchBootstrapPayload(demoUser.id);
   res.status(201).json({
     order: serializeOrder(order),
@@ -3171,17 +3398,25 @@ app.post("/api/public/qr/:qrToken/orders", async (req, res) => {
     userId: customer.id,
   });
 
-  if (matchedTable && order) {
-    await prisma.restaurantTable.update({
-      where: { id: matchedTable.id },
-      data: { status: "ORDER_IN_PROGRESS" },
+  if (order?.error === "RESTAURANT_OFFLINE") {
+    res.status(409).json({
+      message: "Ce restaurant est actuellement hors service. Réessayez plus tard.",
+      code: "RESTAURANT_OFFLINE",
     });
-    broadcastRealtime("restaurant/table-updated", { restaurantId: restaurant.id, tableId: matchedTable.id });
+    return;
   }
 
   if (!order) {
     res.status(400).json({ message: "Impossible de creer la commande QR." });
     return;
+  }
+
+  if (matchedTable) {
+    await prisma.restaurantTable.update({
+      where: { id: matchedTable.id },
+      data: { status: "ORDER_IN_PROGRESS" },
+    });
+    broadcastRealtime("restaurant/table-updated", { restaurantId: restaurant.id, tableId: matchedTable.id });
   }
 
   res.status(201).json({
@@ -3422,6 +3657,21 @@ app.get("/api/courier/jobs", requireCourierAuth, async (req, res) => {
   const usersWhoFavoritedThisCourier = new Set(
     favoriteLinks.filter((link) => link.courierId === courierId).map((link) => link.userId)
   );
+
+  // Livreurs préférés du restaurant : priorité sur les autres pendant
+  // RESTAURANT_PREFERRED_WINDOW_MS.
+  const orderRestaurantIds = [...new Set(awaitingOrders.map((order) => order.restaurantId))];
+  const preferredLinks = orderRestaurantIds.length
+    ? await prisma.restaurantPreferredCourier.findMany({
+        where: { restaurantId: { in: orderRestaurantIds } },
+        select: { restaurantId: true, courierId: true },
+      })
+    : [];
+  const restaurantsWithPreferred = new Set(preferredLinks.map((link) => link.restaurantId));
+  const restaurantsPreferringThisCourier = new Set(
+    preferredLinks.filter((link) => link.courierId === courierId).map((link) => link.restaurantId)
+  );
+
   const now = Date.now();
 
   const availableOrders = awaitingOrders.filter((order) => {
@@ -3429,10 +3679,31 @@ app.get("/api/courier/jobs", requireCourierAuth, async (req, res) => {
     const clientHasFavorites = usersWithFavorites.has(order.userId);
     const isFavoriteOfClient = usersWhoFavoritedThisCourier.has(order.userId);
 
+    // Cloisonnement livreurs propres / flotte SpeedZ : décidé en premier, il prime
+    // sur tout le reste (sinon un livreur SpeedZ prendrait une course gratuite).
+    if (!canCourierSeeOrder(courier, order, now)) return false;
+
+    // Cascade de priorité :
+    //   1) 0–1 min  : livreurs favoris du client (s'il en a)
+    //   2) 1–5 min  : livreurs préférés du restaurant (s'il en a)
+    //   3) ensuite  : tous les livreurs éligibles de la zone
     if (clientHasFavorites && withinFavoriteWindow) {
-      // Fenêtre d'exclusivité : réservée aux livreurs favoris du client.
       return isFavoriteOfClient;
     }
+
+    const age = now - order.createdAt.getTime();
+    const restaurantHasPreferred = restaurantsWithPreferred.has(order.restaurantId);
+    const isPreferredOfRestaurant = restaurantsPreferringThisCourier.has(order.restaurantId);
+    if (restaurantHasPreferred && age < RESTAURANT_PREFERRED_WINDOW_MS) {
+      // Réservée aux livreurs préférés du restaurant (et aux favoris du client).
+      return isPreferredOfRestaurant || isFavoriteOfClient;
+    }
+
+    // Filet de sécurité : au-delà de DISPATCH_OPEN_TO_ALL_MS sans preneur, la
+    // course est visible par tous les livreurs éligibles, même hors zone.
+    const openToEveryone = age >= DISPATCH_OPEN_TO_ALL_MS;
+    if (openToEveryone) return true;
+
     // Sinon : ouverte aux livreurs de la zone (les favoris restent prioritaires
     // dans l'affichage car ils l'ont vue en premier).
     return isFavoriteOfClient || isCourierInRestaurantZone(courier, order.restaurant);
@@ -3567,6 +3838,17 @@ app.post("/api/courier/jobs/:id/accept", requireCourierAuth, async (req, res) =>
     return;
   }
 
+  // Garde-fou de cloisonnement : empêche un livreur SpeedZ de prendre une course
+  // « livraison offerte » d'un restaurant, et inversement.
+  if (!canCourierSeeOrder(courier, order)) {
+    res.status(403).json({ message: "Cette course n'est pas ouverte a votre flotte." });
+    return;
+  }
+
+  // Repli : un livreur SpeedZ prend une course d'un restaurant en mode OWN.
+  // Le client garde sa livraison gratuite ; le coût est refacturable au restaurant.
+  const isFallback = order.restaurant?.deliveryMode === "OWN" && !courier.restaurantId;
+
   // « Prendre » la course : elle passe en Accepted (assignée au livreur, toujours
   // pas imprimée). L'impression au restaurant n'est déclenchée qu'à la confirmation.
   const updatedOrder = await prisma.order.update({
@@ -3574,6 +3856,7 @@ app.post("/api/courier/jobs/:id/accept", requireCourierAuth, async (req, res) =>
     data: {
       courierId,
       status: order.status === "AwaitingCourier" ? "Accepted" : order.status,
+      ...(isFallback ? { fellBackToSpeedz: true } : {}),
     },
     include: { restaurant: true, user: { include: { addresses: true } }, courier: true }
   });
@@ -3833,6 +4116,40 @@ app.get("/api/restaurant/printer/qr", requireRestaurantApiToken, async (req, res
     restaurantName: restaurant.name,
     qrToken: qrCodeToken,
     url: getRestaurantQrLandingUrl(qrCodeToken),
+  });
+});
+
+// Version publiée de l'agent d'impression (pour l'auto-update de l'agent).
+// L'agent compare sa version locale et notifie si une mise à jour existe.
+app.get("/api/printer-agent/version", (_req, res) => {
+  res.json({
+    version: process.env.PRINTER_AGENT_VERSION || "2.0.0",
+    url: process.env.PRINTER_AGENT_URL || "https://speedz.microtechdz13.com/downloads/SpeedZPrinter.exe",
+    notes: process.env.PRINTER_AGENT_NOTES || "",
+  });
+});
+
+// Tables du restaurant + lien QR de chaque table (pour impression par l'agent).
+app.get("/api/restaurant/printer/tables", requireRestaurantApiToken, async (req, res) => {
+  let restaurant = req.restaurantAuth;
+  if (!restaurant.qrCodeToken) {
+    restaurant = await prisma.restaurant.update({
+      where: { id: restaurant.id },
+      data: { qrCodeToken: generateOpaqueToken("qr") },
+    });
+  }
+  const tables = await prisma.restaurantTable.findMany({
+    where: { restaurantId: restaurant.id },
+    orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+  });
+  res.json({
+    restaurantName: restaurant.name,
+    tables: tables.map((t) => ({
+      id: t.id,
+      label: t.label,
+      zone: t.zone || null,
+      url: getRestaurantTableQrUrl(restaurant, t),
+    })),
   });
 });
 
@@ -4432,10 +4749,11 @@ async function updateAdminCourier(req, res) {
       payPerDelivery: req.body?.payPerDelivery !== undefined ? Number(req.body.payPerDelivery) : undefined,
       payPerKm: req.body?.payPerKm !== undefined ? Number(req.body.payPerKm) : undefined,
       zoneLabel: req.body?.zoneLabel || null,
+      restaurantId: req.body?.restaurantId !== undefined ? req.body.restaurantId || null : undefined,
       currentLat: req.body?.currentLat !== undefined ? Number(req.body.currentLat) : undefined,
       currentLng: req.body?.currentLng !== undefined ? Number(req.body.currentLng) : undefined
     },
-    include: { orders: true }
+    include: { orders: true, restaurant: true }
   });
   await logAdminAction(req, "courier.updated", "courier", courier.id, { status: courier.status });
   broadcastAdminResource("courier-updated", { courierId: courier.id });
@@ -4782,6 +5100,12 @@ app.put("/api/admin/restaurants/:id", requireAuth, requireAdmin, wrapAsync(async
       apiToken: body.apiToken || undefined,
       qrCodeToken: body.qrCodeToken || undefined,
       validatedAt: body.validatedAt ? new Date(body.validatedAt) : undefined,
+      // Mode de livraison : flotte SpeedZ ou livreurs propres au restaurant.
+      deliveryMode: body.deliveryMode || undefined,
+      freeDeliveryRadiusKm:
+        body.freeDeliveryRadiusKm !== undefined ? Number(body.freeDeliveryRadiusKm) : undefined,
+      allowSpeedzFallback:
+        body.allowSpeedzFallback !== undefined ? Boolean(body.allowSpeedzFallback) : undefined,
     },
     include: { menuItems: true }
   });
@@ -4949,6 +5273,40 @@ app.post("/api/admin/applications/:id/activate-restaurant", requireAuth, require
 
 app.get("/api/admin/email-outbox", requireAuth, requireAdmin, wrapAsync(async (_req, res) => {
   res.json(readEmailOutbox());
+}));
+
+// ─── Livreurs préférés d'un restaurant ────────────────────────────────────────
+// Ils sont notifiés en priorité pendant RESTAURANT_PREFERRED_WINDOW_MS.
+app.get("/api/admin/restaurants/:id/preferred-couriers", requireAuth, requireAdmin, wrapAsync(async (req, res) => {
+  const links = await prisma.restaurantPreferredCourier.findMany({
+    where: { restaurantId: req.params.id },
+    include: { courier: { include: { orders: true, restaurant: true } } },
+    orderBy: { createdAt: "asc" },
+  });
+  ok(res, links.map((link) => serializeCourier(link.courier)));
+}));
+
+app.put("/api/admin/restaurants/:id/preferred-couriers", requireAuth, requireAdmin, wrapAsync(async (req, res) => {
+  const restaurantId = req.params.id;
+  const courierIds = Array.isArray(req.body?.courierIds) ? req.body.courierIds.filter(Boolean) : [];
+
+  // Remplacement complet de la liste (plus simple et idempotent côté admin).
+  await prisma.restaurantPreferredCourier.deleteMany({ where: { restaurantId } });
+  if (courierIds.length) {
+    await prisma.restaurantPreferredCourier.createMany({
+      data: courierIds.map((courierId) => ({ restaurantId, courierId })),
+      skipDuplicates: true,
+    });
+  }
+
+  await logAdminAction(req, "restaurant.preferred_couriers_updated", "restaurant", restaurantId, {
+    count: courierIds.length,
+  });
+  const links = await prisma.restaurantPreferredCourier.findMany({
+    where: { restaurantId },
+    include: { courier: { include: { orders: true, restaurant: true } } },
+  });
+  ok(res, links.map((link) => serializeCourier(link.courier)));
 }));
 
 // ─── Notifications push envoyées depuis l'admin ───────────────────────────────
@@ -5149,10 +5507,11 @@ app.post("/api/admin/couriers", requireAuth, requireAdmin, validateBody(Schemas.
       payPerDelivery: req.body?.payPerDelivery !== undefined ? Number(req.body.payPerDelivery) : 3,
       payPerKm: req.body?.payPerKm !== undefined ? Number(req.body.payPerKm) : 0.8,
       zoneLabel: req.body?.zoneLabel || null,
+      restaurantId: req.body?.restaurantId || null,
       currentLat: req.body?.currentLat ? Number(req.body.currentLat) : null,
       currentLng: req.body?.currentLng ? Number(req.body.currentLng) : null
     },
-    include: { orders: true }
+    include: { orders: true, restaurant: true }
   });
   broadcastAdminResource("courier-created", { courierId: courier.id });
   res.status(201).json(serializeCourier(courier));
@@ -5352,6 +5711,87 @@ app.get("/api/restaurant/portal/me", requireAuth, requireRestaurant, wrapAsync(a
   });
 }));
 
+// Compose un résumé lisible des horaires par jour (regroupe les jours consécutifs
+// aux mêmes horaires). Ex : "Lun-Ven 11:00-23:00 · Sam-Dim 12:00-00:00 · fermé Dim".
+const WEEK_DAYS = [
+  { key: "mon", label: "Lun" },
+  { key: "tue", label: "Mar" },
+  { key: "wed", label: "Mer" },
+  { key: "thu", label: "Jeu" },
+  { key: "fri", label: "Ven" },
+  { key: "sat", label: "Sam" },
+  { key: "sun", label: "Dim" },
+];
+
+function summarizeWeeklyHours(weekly) {
+  if (!weekly || typeof weekly !== "object") return null;
+  const sig = (d) => {
+    const day = weekly[d.key];
+    if (!day || day.closed || !day.open || !day.close) return "closed";
+    return `${day.open}-${day.close}`;
+  };
+  const segments = [];
+  let start = 0;
+  for (let i = 1; i <= WEEK_DAYS.length; i += 1) {
+    if (i === WEEK_DAYS.length || sig(WEEK_DAYS[i]) !== sig(WEEK_DAYS[start])) {
+      const s = sig(WEEK_DAYS[start]);
+      const range = start === i - 1 ? WEEK_DAYS[start].label : `${WEEK_DAYS[start].label}-${WEEK_DAYS[i - 1].label}`;
+      segments.push(s === "closed" ? `${range} fermé` : `${range} ${s}`);
+      start = i;
+    }
+  }
+  return segments.join(" · ").slice(0, 120);
+}
+
+// ─── Profil restaurant (édité par le restaurateur) ────────────────────────────
+app.patch("/api/restaurant/portal/profile", requireAuth, requireRestaurant, validateBody(Schemas.portalProfile), wrapAsync(async (req, res) => {
+  const body = req.body;
+  const data = {};
+  if (body.shortDescription !== undefined) data.shortDescription = body.shortDescription;
+  if (body.openingHours !== undefined) data.openingHours = body.openingHours;
+  if (body.deliveryTime !== undefined) data.deliveryTime = body.deliveryTime;
+  if (body.address !== undefined) data.address = body.address;
+  if (body.ownerPhone !== undefined) data.ownerPhone = body.ownerPhone || null;
+  if (body.image !== undefined) data.image = body.image;
+  if (body.heroColor !== undefined) data.heroColor = body.heroColor;
+  // Horaires par jour : on stocke la structure et on compose un résumé lisible
+  // (openingHours) affiché sur la fiche resto et la page QR.
+  if (body.weeklyHours !== undefined) {
+    data.weeklyHours = body.weeklyHours;
+    const summary = summarizeWeeklyHours(body.weeklyHours);
+    if (summary) data.openingHours = summary;
+  }
+
+  const restaurant = await prisma.restaurant.update({
+    where: { id: req.restaurantAuth.id },
+    data,
+    include: { menuItems: true },
+  });
+  broadcastRestaurant(req.restaurantAuth.id, "profile-updated", {});
+  res.json(serializeRestaurant(restaurant));
+}));
+
+// ─── Upload d'image (plats / vitrine) ─────────────────────────────────────────
+app.post("/api/restaurant/portal/upload-image", requireAuth, requireRestaurant, wrapAsync(async (req, res) => {
+  await new Promise((resolve, reject) => {
+    upload.single("image")(req, res, (error) => (error ? reject(error) : resolve()));
+  });
+  if (!req.file) {
+    throw new ApiError(400, "Aucun fichier image envoye.", "UPLOAD_MISSING_FILE");
+  }
+  const normalizeMime = (value) => (value === "image/pjpeg" ? "image/jpeg" : value);
+  const detectedMimeType = detectImageTypeFromFile(req.file.path);
+  if (!detectedMimeType || normalizeMime(detectedMimeType) !== normalizeMime(req.file.mimetype)) {
+    fs.unlinkSync(req.file.path);
+    throw new ApiError(400, "Le fichier envoye n'est pas une image valide.", "UPLOAD_INVALID_IMAGE");
+  }
+  const publicBaseUrl = getRequestPublicBaseUrl(req);
+  res.status(201).json({
+    url: `${publicBaseUrl.replace(/\/$/, "")}/uploads/${req.file.filename}`,
+    filename: req.file.filename,
+  });
+}));
+
 // ─── Menu ─────────────────────────────────────────────────────────────────────
 app.get("/api/restaurant/portal/menu", requireAuth, requireRestaurant, wrapAsync(async (req, res) => {
   const [items, categories] = await Promise.all([
@@ -5464,6 +5904,129 @@ app.post("/api/restaurant/portal/menu-categories", requireAuth, requireRestauran
     data: { name: req.body.name, sortOrder: req.body.sortOrder ?? 0, isActive: req.body.isActive ?? true },
   });
   res.status(201).json(serializeMenuCategory(category));
+}));
+
+// Liste des catégories du restaurant avec le nombre de plats, ordonnées.
+app.get("/api/restaurant/portal/categories", requireAuth, requireRestaurant, wrapAsync(async (req, res) => {
+  const [items, categories] = await Promise.all([
+    prisma.menuItem.findMany({
+      where: { restaurantId: req.restaurantAuth.id, deletedAt: null },
+      select: { category: true },
+    }),
+    prisma.menuCategory.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
+  ]);
+  const counts = {};
+  for (const item of items) {
+    const c = item.category || "Divers";
+    counts[c] = (counts[c] || 0) + 1;
+  }
+  const known = new Map(categories.map((c) => [c.name, c.sortOrder]));
+  // Union des catégories déclarées (MenuCategory) et de celles réellement utilisées.
+  const names = new Set([...categories.map((c) => c.name), ...Object.keys(counts)]);
+  const list = [...names]
+    .map((name) => ({ name, count: counts[name] || 0, sortOrder: known.has(name) ? known.get(name) : 999 }))
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  res.json(list);
+}));
+
+// Renomme une catégorie : met à jour tous les plats du restaurant qui la portent.
+app.patch("/api/restaurant/portal/categories/rename", requireAuth, requireRestaurant, validateBody(Schemas.renameCategory), wrapAsync(async (req, res) => {
+  const from = String(req.body.from);
+  const to = String(req.body.to).trim();
+  if (!to) throw new ApiError(400, "Nouveau nom requis.", "CATEGORY_NAME_REQUIRED");
+  await prisma.menuItem.updateMany({
+    where: { restaurantId: req.restaurantAuth.id, category: from, deletedAt: null },
+    data: { category: to },
+  });
+  // Assure une entrée MenuCategory pour la nouvelle (pour l'ordre/datalist).
+  const existing = await prisma.menuCategory.findUnique({ where: { name: to } });
+  if (!existing) {
+    await prisma.menuCategory.create({ data: { name: to, sortOrder: 0, isActive: true } }).catch(() => {});
+  }
+  broadcastRestaurant(req.restaurantAuth.id, "menu-updated", {});
+  res.json({ ok: true });
+}));
+
+// Réordonne les catégories (sortOrder global sur MenuCategory).
+app.patch("/api/restaurant/portal/categories/reorder", requireAuth, requireRestaurant, validateBody(Schemas.reorderCategories), wrapAsync(async (req, res) => {
+  const order = req.body.order || [];
+  for (let i = 0; i < order.length; i += 1) {
+    const name = String(order[i]);
+    await prisma.menuCategory.upsert({
+      where: { name },
+      update: { sortOrder: i },
+      create: { name, sortOrder: i, isActive: true },
+    });
+  }
+  broadcastRestaurant(req.restaurantAuth.id, "menu-updated", {});
+  res.json({ ok: true });
+}));
+
+// Statistiques agrégées par jour sur une période (semaine / mois).
+app.get("/api/restaurant/portal/stats", requireAuth, requireRestaurant, wrapAsync(async (req, res) => {
+  const range = req.query.range === "month" ? "month" : "week";
+  const days = range === "month" ? 30 : 7;
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - (days - 1));
+
+  const orders = await prisma.order.findMany({
+    where: { restaurantId: req.restaurantAuth.id, createdAt: { gte: start }, status: { not: "Cancelled" } },
+    select: { total: true, channel: true, items: true, createdAt: true },
+  });
+
+  // Clé de jour en heure LOCALE serveur (le restaurateur raisonne en jour local,
+  // pas en UTC — sinon les commandes du soir basculent sur le mauvais jour).
+  const localKey = (d) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+  // Prépare les buckets par jour.
+  const buckets = [];
+  const byKey = {};
+  for (let i = 0; i < days; i += 1) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    const key = localKey(d);
+    const bucket = { date: key, revenue: 0, orders: 0, onsite: 0, delivery: 0 };
+    byKey[key] = bucket;
+    buckets.push(bucket);
+  }
+
+  const dishCounts = {};
+  let totalRevenue = 0;
+  for (const o of orders) {
+    const key = localKey(o.createdAt);
+    const bucket = byKey[key];
+    if (bucket) {
+      bucket.revenue += o.total || 0;
+      bucket.orders += 1;
+      if (o.channel === "QR_ONSITE") bucket.onsite += 1;
+      else bucket.delivery += 1;
+    }
+    totalRevenue += o.total || 0;
+    for (const item of o.items || []) {
+      const name = item.name || "?";
+      dishCounts[name] = (dishCounts[name] || 0) + (item.quantity || 1);
+    }
+  }
+
+  const topDishes = Object.entries(dishCounts)
+    .map(([name, quantity]) => ({ name, quantity }))
+    .sort((a, b) => b.quantity - a.quantity)
+    .slice(0, 8);
+
+  buckets.forEach((b) => (b.revenue = Number(b.revenue.toFixed(2))));
+  res.json({
+    range,
+    days,
+    daily: buckets,
+    totals: {
+      revenue: Number(totalRevenue.toFixed(2)),
+      orders: orders.length,
+      averageBasket: orders.length ? Number((totalRevenue / orders.length).toFixed(2)) : 0,
+    },
+    topDishes,
+  });
 }));
 
 // ─── Commandes / KDS ──────────────────────────────────────────────────────────

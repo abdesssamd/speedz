@@ -94,6 +94,10 @@ export type Restaurant = {
   qrCodeUrl?: string | null;
   validatedAt?: string | null;
   printerLastSeenAt?: string | null;
+  // « En service » : l'agent d'impression du restaurant communique. Remplace les
+  // horaires d'ouverture — un restaurant hors service reste visible mais ne prend
+  // pas de commande.
+  isOnline?: boolean;
   menu: MenuItem[];
 };
 

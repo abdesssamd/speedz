@@ -9,23 +9,98 @@ Aucune dependance supplementaire : Tkinter est inclus dans Python.
 """
 
 import json
+import os
 import queue
+import sys
 import threading
 from pathlib import Path
 
 import tkinter as tk
 from tkinter import messagebox, scrolledtext, ttk
 
-from printer_agent import CONFIG_PATH, PrinterAgent, setup_logging
+from printer_agent import (
+    CONFIG_PATH,
+    PrinterAgent,
+    setup_logging,
+    encrypt_token,
+    resolve_token,
+)
 
 try:
     import win32print
 except ImportError:  # pragma: no cover
     win32print = None
 
+# System tray (optionnel : icone barre des taches + minimiser en fond).
+try:
+    import pystray
+    from PIL import Image, ImageDraw
+except Exception:  # pragma: no cover
+    pystray = None
+    Image = None
+    ImageDraw = None
+
 
 DEFAULT_SERVER = "https://speedz.microtechdz13.com"
 AUTO_PRINTER_LABEL = "Imprimante par defaut de Windows"
+APP_NAME = "SpeedZ Printer"
+
+
+def startup_shortcut_path():
+    """Chemin du raccourci de demarrage automatique (dossier shell:startup)."""
+    startup = Path(os.environ.get("APPDATA", "")) / "Microsoft/Windows/Start Menu/Programs/Startup"
+    return startup / f"{APP_NAME}.lnk"
+
+
+def _launch_target():
+    """(cible, arguments) a lancer au demarrage : l'exe si compile, sinon le script."""
+    if getattr(sys, "frozen", False):
+        return sys.executable, ""
+    script = str(Path(__file__).resolve())
+    # pythonw.exe pour lancer sans fenetre console.
+    pyw = str(Path(sys.executable).with_name("pythonw.exe"))
+    exe = pyw if Path(pyw).exists() else sys.executable
+    return exe, f'"{script}"'
+
+
+def is_autostart_enabled():
+    return startup_shortcut_path().exists()
+
+
+def set_autostart(enabled):
+    """Cree ou supprime le raccourci de demarrage automatique. Retourne True si OK."""
+    link = startup_shortcut_path()
+    try:
+        if not enabled:
+            if link.exists():
+                link.unlink()
+            return True
+        target, args = _launch_target()
+        # Cree un .lnk via WScript.Shell (fourni par pywin32).
+        import win32com.client  # import tardif : dispo seulement sous Windows
+
+        shell = win32com.client.Dispatch("WScript.Shell")
+        shortcut = shell.CreateShortcut(str(link))
+        shortcut.TargetPath = target
+        if args:
+            shortcut.Arguments = args
+        shortcut.WorkingDirectory = str(Path(target).parent)
+        shortcut.Description = "SpeedZ - Agent d'impression"
+        shortcut.save()
+        return True
+    except Exception:
+        return False
+
+
+def _make_tray_image(online):
+    """Icone tray : rond vert (en ligne) ou rouge (hors ligne)."""
+    if Image is None:
+        return None
+    img = Image.new("RGBA", (64, 64), (15, 15, 18, 0))
+    draw = ImageDraw.Draw(img)
+    color = (34, 197, 94, 255) if online else (239, 68, 68, 255)
+    draw.ellipse((10, 10, 54, 54), fill=color)
+    return img
 
 
 def list_printers():
@@ -48,13 +123,24 @@ class PrinterGUI:
         self.account_win = None
         self.account_menu_url = None
 
+        self.online = False
+        self.tray = None
+        self.update_info = None
+        self._printer_check_tick = 0
+
         root.title("SpeedZ - Agent d'impression")
-        root.geometry("560x520")
+        root.geometry("560x620")
         root.configure(bg="#0F0F12")
-        root.minsize(520, 480)
+        root.minsize(520, 560)
 
         self._build_ui()
         self._load_saved()
+        self._setup_tray()
+        # Fermer la fenetre = minimiser en fond (si tray dispo), sinon quitter.
+        root.protocol("WM_DELETE_WINDOW", self._on_close)
+        # Demarrage minimise si lance au boot (argument --minimized).
+        if "--minimized" in sys.argv and self.tray is not None:
+            self.root.after(300, self._hide_to_tray)
         self.root.after(200, self._drain_events)
 
     # ── UI ───────────────────────────────────────────────────────────────────
@@ -97,6 +183,14 @@ class PrinterGUI:
                                 bg="#232329", fg="#F3F4F6", activebackground="#2E2E36", activeforeground="#FFFFFF",
                                 relief="flat", cursor="hand2", state="disabled", command=self._on_print_qr)
         self.qr_btn.pack(side="left", padx=(8, 0))
+        self.table_qr_btn = tk.Button(actions, text="🍽 QR par table", font=("Segoe UI", 9, "bold"),
+                                      bg="#232329", fg="#F3F4F6", activebackground="#2E2E36", activeforeground="#FFFFFF",
+                                      relief="flat", cursor="hand2", state="disabled", command=self._on_print_table_qr)
+        self.table_qr_btn.pack(side="left", padx=(8, 0))
+        self.test_btn = tk.Button(actions, text="🧪 Test", font=("Segoe UI", 9, "bold"),
+                                  bg="#232329", fg="#F3F4F6", activebackground="#2E2E36", activeforeground="#FFFFFF",
+                                  relief="flat", cursor="hand2", state="disabled", command=self._on_test_print)
+        self.test_btn.pack(side="left", padx=(8, 0))
         self.disconnect_btn = tk.Button(actions, text="Changer de compte", font=("Segoe UI", 9),
                                         bg="#1A1A20", fg="#9CA3AF", activebackground="#232329", activeforeground="#F3F4F6",
                                         relief="flat", cursor="hand2", command=self._on_disconnect)
@@ -107,8 +201,28 @@ class PrinterGUI:
         self.status_label = tk.Label(wrap, textvariable=self.status_var, font=("Segoe UI", 11, "bold"), fg="#9CA3AF", bg="#0F0F12")
         self.status_label.pack(anchor="w")
 
+        # Statut imprimante (hors ligne / plus de papier...).
+        self.printer_status_var = tk.StringVar(value="")
+        self.printer_status_label = tk.Label(wrap, textvariable=self.printer_status_var, font=("Segoe UI", 9), fg="#9CA3AF", bg="#0F0F12")
+        self.printer_status_label.pack(anchor="w")
+
+        # Reimpression + demarrage auto.
+        tools = tk.Frame(wrap, bg="#0F0F12")
+        tools.pack(fill="x", pady=(8, 0))
+        self.reprint_combo = ttk.Combobox(tools, values=[], state="readonly", width=34)
+        self.reprint_combo.pack(side="left")
+        self.reprint_btn = tk.Button(tools, text="Reimprimer", font=("Segoe UI", 9, "bold"),
+                                     bg="#232329", fg="#F3F4F6", activebackground="#2E2E36", activeforeground="#FFFFFF",
+                                     relief="flat", cursor="hand2", state="disabled", command=self._on_reprint)
+        self.reprint_btn.pack(side="left", padx=(8, 0))
+
+        self.autostart_var = tk.BooleanVar(value=is_autostart_enabled())
+        tk.Checkbutton(wrap, text="Demarrer automatiquement avec Windows", variable=self.autostart_var,
+                       command=self._on_toggle_autostart, fg="#9CA3AF", bg="#0F0F12", selectcolor="#1A1A20",
+                       activebackground="#0F0F12", activeforeground="#F3F4F6").pack(anchor="w", pady=(8, 0))
+
         # Journal
-        self.log = scrolledtext.ScrolledText(wrap, height=8, font=("Consolas", 9), bg="#151519", fg="#D1D5DB", relief="flat", state="disabled")
+        self.log = scrolledtext.ScrolledText(wrap, height=7, font=("Consolas", 9), bg="#151519", fg="#D1D5DB", relief="flat", state="disabled")
         self.log.pack(fill="both", expand=True, pady=(8, 0))
 
     def _toggle_token(self):
@@ -128,11 +242,13 @@ class PrinterGUI:
             cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
         except Exception:
             return
-        self.token_var.set(cfg.get("api_token", ""))
+        # Token : dechiffre depuis api_token_enc (DPAPI) si present, sinon clair.
+        token = resolve_token(cfg)
+        self.token_var.set(token or "")
         printer = cfg.get("printer_name") or ""
         self.printer_var.set(printer if printer else AUTO_PRINTER_LABEL)
         # Connexion automatique si un token est deja enregistre.
-        if cfg.get("api_token"):
+        if token:
             self._log("Token enregistre trouve - connexion automatique...")
             self.root.after(400, self._on_connect)
 
@@ -144,11 +260,20 @@ class PrinterGUI:
             except Exception:
                 existing = {}
         printer = self.printer_var.get()
+        token = self.token_var.get().strip()
         existing.update({
             "api_base_url": existing.get("api_base_url") or DEFAULT_SERVER,
-            "api_token": self.token_var.get().strip(),
             "printer_name": "" if printer == AUTO_PRINTER_LABEL else printer,
         })
+        # Chiffre le token au repos (DPAPI). En cas d'echec (pas de win32crypt),
+        # repli sur le stockage en clair pour ne pas bloquer.
+        enc = encrypt_token(token)
+        if enc:
+            existing["api_token_enc"] = enc
+            existing.pop("api_token", None)
+        else:
+            existing["api_token"] = token
+            existing.pop("api_token_enc", None)
         # Valeurs par defaut si absentes.
         existing.setdefault("paper_columns", 32)
         existing.setdefault("poll_interval_seconds", 5)
@@ -158,6 +283,13 @@ class PrinterGUI:
         existing.setdefault("auto_cut", True)
         existing.setdefault("feed_lines", 4)
         existing.setdefault("print_retries", 3)
+        existing.setdefault("max_backoff_seconds", 60)
+        existing.setdefault("encoding", "cp858")
+        existing.setdefault("codepage", 19)
+        existing.setdefault("print_mode", "combined")
+        existing.setdefault("use_websocket", True)
+        existing.setdefault("kitchen_printer_name", "")
+        existing.setdefault("receipt_printer_name", "")
         return existing
 
     # ── Connexion ────────────────────────────────────────────────────────────
@@ -206,6 +338,55 @@ class PrinterGUI:
             self.agent.print_qr_code(data["url"])
         except Exception as exc:
             self.events.put(f"ERREUR QR: {exc}")
+
+    def _on_print_table_qr(self):
+        if not self.agent or not self.running:
+            messagebox.showinfo("QR par table", "Connectez-vous d'abord.")
+            return
+        threading.Thread(target=self._print_table_qr_worker, daemon=True).start()
+
+    def _print_table_qr_worker(self):
+        try:
+            data = self.agent.fetch_tables()
+            tables = data.get("tables", [])
+            if not tables:
+                self.events.put("Aucune table configuree (creez-les dans l'espace restaurant).")
+                return
+            for t in tables:
+                if t.get("url"):
+                    self.agent.print_table_qr(t.get("label"), t["url"])
+            self.events.put(f"{len(tables)} QR de table imprime(s)")
+        except Exception as exc:
+            self.events.put(f"ERREUR QR table: {exc}")
+
+    def _on_test_print(self):
+        if not self.agent or not self.running:
+            messagebox.showinfo("Test", "Connectez-vous d'abord.")
+            return
+        threading.Thread(target=self._test_print_worker, daemon=True).start()
+
+    def _test_print_worker(self):
+        # Ticket de test : verifie imprimante + accents avant le service.
+        order = {
+            "id": "TEST00",
+            "channel": "QR_ONSITE",
+            "tableLabel": "Test",
+            "customerName": "Ticket de test",
+            "customerPhone": "-",
+            "items": [
+                {"quantity": 1, "name": "Cafe creme", "selectedOptions": [{"choiceName": "Sucre"}]},
+                {"quantity": 2, "name": "Crepe au sucre", "selectedOptions": []},
+            ],
+            "total": 0.0,
+            "paymentMethod": "-",
+            "notes": "Accents: e a c u o - impression OK",
+        }
+        try:
+            for data, role in self.agent.tickets_for_order(order):
+                self.agent.send_to_printer(data, role)
+            self.events.put("Ticket de test envoye a l'imprimante")
+        except Exception as exc:
+            self.events.put(f"ERREUR test: {exc}")
 
     # ── Mon compte / Facturation ─────────────────────────────────────────────
     def _on_show_account(self):
@@ -323,16 +504,103 @@ class PrinterGUI:
         self.account_status_var.set("Lien copie dans le presse-papiers ✓")
 
     def _on_disconnect(self):
-        # Efface le token enregistre ; l'agent s'arrete au prochain lancement.
+        # Efface le token enregistre (clair + chiffre) ; l'agent s'arrete au
+        # prochain lancement.
         if CONFIG_PATH.exists():
             try:
                 cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-                cfg["api_token"] = ""
+                cfg.pop("api_token", None)
+                cfg.pop("api_token_enc", None)
                 CONFIG_PATH.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
             except Exception:
                 pass
         self.token_var.set("")
         messagebox.showinfo("Deconnexion", "Token efface. Fermez et rouvrez l'application pour changer de compte.")
+
+    # ── Reimpression manuelle ────────────────────────────────────────────────
+    def _refresh_reprint_list(self):
+        if not self.agent:
+            return
+        orders = list(self.agent.recent_orders)
+        labels = []
+        self._reprint_map = {}
+        for o in orders:
+            oid = str(o.get("id", ""))
+            dest = o.get("tableLabel") or o.get("address") or "-"
+            label = f"#{oid[-6:].upper()}  {dest}"
+            labels.append(label)
+            self._reprint_map[label] = o
+        self.reprint_combo.config(values=labels)
+        if labels and not self.reprint_combo.get():
+            self.reprint_combo.set(labels[0])
+        self.reprint_btn.config(state="normal" if labels else "disabled")
+
+    def _on_reprint(self):
+        label = self.reprint_combo.get()
+        order = getattr(self, "_reprint_map", {}).get(label)
+        if not order or not self.agent:
+            messagebox.showinfo("Reimpression", "Selectionnez une commande.")
+            return
+        threading.Thread(target=self._reprint_worker, args=(order,), daemon=True).start()
+
+    def _reprint_worker(self, order):
+        try:
+            self.agent.reprint_order(order)
+            self.events.put(f"Commande #{str(order.get('id',''))[-6:].upper()} reimprimee")
+        except Exception as exc:
+            self.events.put(f"ERREUR reimpression: {exc}")
+
+    # ── Demarrage automatique ────────────────────────────────────────────────
+    def _on_toggle_autostart(self):
+        ok = set_autostart(self.autostart_var.get())
+        if not ok:
+            messagebox.showwarning("Demarrage auto", "Impossible de modifier le demarrage automatique.")
+            self.autostart_var.set(is_autostart_enabled())
+        else:
+            self._log("Demarrage auto " + ("active" if self.autostart_var.get() else "desactive"))
+
+    # ── System tray ──────────────────────────────────────────────────────────
+    def _setup_tray(self):
+        if pystray is None:
+            return
+        menu = pystray.Menu(
+            pystray.MenuItem("Afficher", lambda: self.root.after(0, self._show_from_tray), default=True),
+            pystray.MenuItem("Quitter", lambda: self.root.after(0, self._quit_app)),
+        )
+        self.tray = pystray.Icon(APP_NAME, _make_tray_image(False), APP_NAME, menu)
+        threading.Thread(target=self.tray.run, daemon=True).start()
+
+    def _update_tray(self):
+        if self.tray is not None:
+            try:
+                self.tray.icon = _make_tray_image(self.online)
+                self.tray.title = f"{APP_NAME} - {'EN LIGNE' if self.online else 'hors ligne'}"
+            except Exception:
+                pass
+
+    def _hide_to_tray(self):
+        self.root.withdraw()
+
+    def _show_from_tray(self):
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
+
+    def _on_close(self):
+        # Fermeture = minimiser en fond si le tray est dispo, sinon quitter.
+        if self.tray is not None:
+            self._hide_to_tray()
+            self._log("Reduit dans la barre des taches (l'impression continue).")
+        else:
+            self._quit_app()
+
+    def _quit_app(self):
+        try:
+            if self.tray is not None:
+                self.tray.stop()
+        except Exception:
+            pass
+        self.root.destroy()
 
     # ── Boucle d'evenements (thread-safe) ────────────────────────────────────
     def _drain_events(self):
@@ -351,21 +619,47 @@ class PrinterGUI:
                     continue
                 if msg == "__DISCONNECTED__":
                     self.running = False
+                    self.online = False
+                    self._update_tray()
                     self.connect_btn.config(state="normal", text="Se connecter et demarrer")
                     self.qr_btn.config(state="disabled")
+                    self.table_qr_btn.config(state="disabled")
+                    self.test_btn.config(state="disabled")
+                    self.reprint_btn.config(state="disabled")
                     self.account_btn.config(state="disabled")
                     self.status_var.set("Deconnecte - verifiez le token")
                     self.status_label.config(fg="#EF4444")
                     continue
                 if msg.startswith("Connecte au restaurant"):
+                    self.online = True
+                    self._update_tray()
                     self.status_var.set("EN LIGNE - " + msg.split(":", 1)[-1].strip())
                     self.status_label.config(fg="#22C55E")
                     self.connect_btn.config(text="Impression active")
                     self.qr_btn.config(state="normal")
+                    self.table_qr_btn.config(state="normal")
+                    self.test_btn.config(state="normal")
                     self.account_btn.config(state="normal")
+                if msg.startswith("Mise a jour disponible"):
+                    self.update_info = msg
+                    self.status_label.config(fg="#F59E0B")
                 self._log(msg)
         except queue.Empty:
             pass
+
+        # Rafraichit statut imprimante + liste de reimpression toutes les ~2 s.
+        self._printer_check_tick += 1
+        if self.running and self._printer_check_tick >= 10:
+            self._printer_check_tick = 0
+            if self.agent is not None:
+                try:
+                    ok, message = self.agent.printer_status()
+                    self.printer_status_var.set(("🟢 Imprimante : " if ok else "🔴 Imprimante : ") + message)
+                    self.printer_status_label.config(fg="#22C55E" if ok else "#EF4444")
+                except Exception:
+                    pass
+            self._refresh_reprint_list()
+
         self.root.after(200, self._drain_events)
 
 

@@ -50,6 +50,14 @@ enum CourierStatus {
   OFFLINE
 }
 
+// Qui livre pour ce restaurant.
+// SPEEDZ : flotte SpeedZ, livraison facturée au client (barème distance/zone).
+// OWN    : livreurs propres au restaurant, livraison gratuite sous un rayon donné.
+enum DeliveryMode {
+  SPEEDZ
+  OWN
+}
+
 enum PromotionType {
   PERCENTAGE
   FIXED
@@ -111,6 +119,7 @@ model Restaurant {
   shortDescription String
   address          String
   openingHours     String
+  weeklyHours      Json?
   deliveryTime     String
   rating           Float
   reviewCount      Int
@@ -130,11 +139,20 @@ model Restaurant {
   qrCodeToken      String?     @unique
   validatedAt      DateTime?
   printerLastSeenAt DateTime?
+  // Livraison : flotte SpeedZ (payante) ou livreurs propres au restaurant (gratuite).
+  deliveryMode     DeliveryMode @default(SPEEDZ)
+  // Mode OWN : rayon de gratuité. Au-delà, le barème SpeedZ normal s'applique.
+  freeDeliveryRadiusKm Float?   @default(5)
+  // Mode OWN : si aucun livreur propre ne prend la course, la basculer vers la
+  // flotte SpeedZ (sinon elle reste en attente des livreurs du restaurant).
+  allowSpeedzFallback Boolean   @default(false)
   menuItems        MenuItem[]
   orders           Order[]
   favorites        Favorite[]
   promotions       Promotion[]
   tables           RestaurantTable[]
+  couriers         Courier[]
+  preferredCouriers RestaurantPreferredCourier[]
   managerAccount   User?        @relation("RestaurantManager")
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
@@ -212,6 +230,9 @@ model Order {
   paymentMethod          String
   notes                  String?
   channel                OrderChannel  @default(DELIVERY)
+  // Commande d'un restaurant en mode OWN reprise par la flotte SpeedZ faute de
+  // livreur propre : le client garde sa livraison gratuite, le coût est à refacturer.
+  fellBackToSpeedz       Boolean       @default(false)
   tableLabel             String?
   tableId                String?
   printerPrintedAt       DateTime?
@@ -255,10 +276,29 @@ model Courier {
   currentLng   Float?
   zoneLabel    String?
   pushToken    String?
+  // Livreur propre à un restaurant (null = flotte SpeedZ globale).
+  // Un livreur rattaché ne voit que les courses de son restaurant.
+  restaurantId String?
+  restaurant   Restaurant?   @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
   orders       Order[]
   favoritedBy  CourierFavorite[]
+  preferredBy  RestaurantPreferredCourier[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+}
+
+// Livreurs préférés d'un restaurant : ils sont notifiés en priorité pendant
+// RESTAURANT_PREFERRED_WINDOW_MS avant que la course s'ouvre aux autres.
+model RestaurantPreferredCourier {
+  id           String     @id @default(cuid())
+  restaurantId String
+  courierId    String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  courier      Courier    @relation(fields: [courierId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([restaurantId, courierId])
+  @@index([restaurantId])
 }
 
 model CourierFavorite {

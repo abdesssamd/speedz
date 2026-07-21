@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { api } from "../api";
 import { Card, PrimaryButton } from "../components";
 import { useCourier } from "../CourierContext";
+import { formatCurrency } from "../format";
 import { theme } from "../theme";
 import { Courier, CourierJob, CourierStats } from "../types";
 
@@ -11,11 +12,13 @@ export function ProfileScreen({
   stats,
   history,
   onChanged,
+  refreshing = false,
 }: {
   courier: Courier | null;
   stats?: CourierStats;
   history: CourierJob[];
   onChanged: () => void;
+  refreshing?: boolean;
 }) {
   const { logout, setCourier } = useCourier();
   const [toggling, setToggling] = useState(false);
@@ -38,7 +41,12 @@ export function ProfileScreen({
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView
+      contentContainerStyle={styles.container}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onChanged} tintColor={theme.colors.primary} />
+      }
+    >
       <Text style={styles.title}>Mon profil</Text>
 
       {/* Statut en ligne / hors ligne */}
@@ -69,12 +77,12 @@ export function ProfileScreen({
 
       {/* KPI du jour */}
       <View style={styles.kpiRow}>
-        <Kpi label="Gains du jour" value={`${(stats?.todayEarnings ?? 0).toFixed(2)} €`} accent={theme.colors.success} />
+        <Kpi label="Gains du jour" value={formatCurrency(stats?.todayEarnings)} accent={theme.colors.success} />
         <Kpi label="Livraisons du jour" value={String(stats?.todayDeliveries ?? 0)} accent={theme.colors.primary} />
       </View>
       <View style={styles.kpiRow}>
         <Kpi label="Total livraisons" value={String(stats?.totalDeliveries ?? 0)} accent={theme.colors.info} />
-        <Kpi label="Gains cumulés" value={`${(stats?.totalEarnings ?? 0).toFixed(2)} €`} accent={theme.colors.text} />
+        <Kpi label="Gains cumulés" value={formatCurrency(stats?.totalEarnings)} accent={theme.colors.text} />
       </View>
 
       {/* Identité + code livreur */}
@@ -102,7 +110,7 @@ export function ProfileScreen({
           <Card key={job.id} style={styles.deliveryCard}>
             <View style={styles.deliveryTop}>
               <Text style={styles.deliveryResto}>{job.restaurantName}</Text>
-              <Text style={styles.deliveryPay}>+{(job.compensation?.total ?? 0).toFixed(2)} €</Text>
+              <Text style={styles.deliveryPay}>+{formatCurrency(job.compensation?.total)}</Text>
             </View>
             <Text style={styles.deliveryAddr} numberOfLines={1}>{job.destinationAddress}</Text>
             <Text style={styles.deliveryDate}>{formatDate(job.createdAt)}</Text>

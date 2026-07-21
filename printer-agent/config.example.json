@@ -5,9 +5,19 @@
   "paper_columns": 32,
   "poll_interval_seconds": 5,
   "heartbeat_interval_seconds": 30,
+  "max_backoff_seconds": 60,
   "sound_enabled": true,
   "notifications_enabled": true,
   "auto_cut": true,
   "feed_lines": 4,
-  "print_retries": 3
+  "print_retries": 3,
+  "encoding": "cp858",
+  "codepage": 19,
+  "print_mode": "combined",
+  "header_lines": [],
+  "footer_lines": ["Merci et a bientot !"],
+  "logo_path": "",
+  "use_websocket": true,
+  "kitchen_printer_name": "",
+  "receipt_printer_name": ""
 }

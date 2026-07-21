@@ -9,5 +9,12 @@
   "notifications_enabled": true,
   "auto_cut": true,
   "feed_lines": 4,
-  "print_retries": 3
+  "print_retries": 3,
+  "max_backoff_seconds": 60,
+  "encoding": "cp858",
+  "codepage": 19,
+  "print_mode": "combined",
+  "use_websocket": true,
+  "kitchen_printer_name": "",
+  "receipt_printer_name": ""
 }

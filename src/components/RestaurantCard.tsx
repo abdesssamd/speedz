@@ -32,10 +32,21 @@ export function RestaurantCard({
         : `${parsedMinutes[0]} min`
       : "Bientot disponible";
 
+  // Hors service : l'agent d'impression du restaurant ne répond plus.
+  const isOffline = restaurant.isOnline === false;
+
   return (
     <ScalePressable containerStyle={styles.card} onPress={onPress}>
       <View>
-        <Image source={{ uri: restaurant.image }} style={styles.image} />
+        <Image source={{ uri: restaurant.image }} style={[styles.image, isOffline && styles.imageOffline]} />
+        {isOffline ? (
+          <View style={styles.offlineOverlay}>
+            <View style={styles.offlineBadge}>
+              <Ionicons name="moon" size={13} color="#FFFFFF" />
+              <Text style={styles.offlineBadgeText}>Hors service</Text>
+            </View>
+          </View>
+        ) : null}
         <ScalePressable containerStyle={styles.favoriteButton} onPress={onToggleFavorite}>
           <Ionicons name={isFavorite ? "heart" : "heart-outline"} size={18} color={isFavorite ? "#DC2626" : "#111827"} />
         </ScalePressable>
@@ -82,6 +93,26 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 186,
   },
+  imageOffline: { opacity: 0.45 },
+  offlineOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 186,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  offlineBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(17,24,39,0.88)",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  offlineBadgeText: { color: "#FFFFFF", fontWeight: "800", fontSize: 12.5 },
   favoriteButton: {
     position: "absolute",
     top: 14,

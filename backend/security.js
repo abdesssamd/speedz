@@ -378,6 +378,8 @@ const Schemas = {
     payPerDelivery: z.number().min(0).optional(),
     payPerKm: z.number().min(0).optional(),
     zoneLabel: z.string().max(100).optional(),
+    // Rattachement à un restaurant (livreur propre). Absent/null = flotte SpeedZ.
+    restaurantId: z.string().nullable().optional(),
   }),
 
   // Admin: update menu item
@@ -416,6 +418,7 @@ const Schemas = {
     payPerDelivery: z.number().min(0).optional(),
     payPerKm: z.number().min(0).optional(),
     zoneLabel: z.string().max(100).nullable().optional(),
+    restaurantId: z.string().nullable().optional(),
     currentLat: z.number().nullable().optional(),
     currentLng: z.number().nullable().optional(),
   }),
@@ -574,6 +577,36 @@ const Schemas = {
 
   tableStatus: z.object({
     status: z.enum(["FREE", "OCCUPIED", "ORDER_IN_PROGRESS", "BILL_REQUESTED"]),
+  }),
+
+  // Édition du profil restaurant depuis le portail.
+  portalProfile: z.object({
+    shortDescription: z.string().max(500).optional(),
+    openingHours: z.string().max(120).optional(),
+    deliveryTime: z.string().max(60).optional(),
+    address: z.string().max(300).optional(),
+    ownerPhone: z.string().max(40).nullable().optional(),
+    image: z.string().max(2000).optional(),
+    heroColor: z.string().max(30).optional(),
+    weeklyHours: z
+      .record(
+        z.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+        z.object({
+          closed: z.boolean().optional().default(false),
+          open: z.string().max(5).optional(),
+          close: z.string().max(5).optional(),
+        })
+      )
+      .optional(),
+  }),
+
+  renameCategory: z.object({
+    from: z.string().min(1).max(100),
+    to: z.string().min(1).max(100).trim(),
+  }),
+
+  reorderCategories: z.object({
+    order: z.array(z.string().min(1).max(100)).max(100),
   }),
 };
 

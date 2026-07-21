@@ -15,10 +15,20 @@ import {
   Clock,
   CheckCircle2,
   Bell,
+  BellOff,
   RefreshCcw,
   TriangleAlert,
+  Upload,
+  KeyRound,
+  Save,
+  History,
+  BarChart3,
+  Tags,
+  Printer as PrinterIcon,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
-import { apiRequest, WS_URL } from "./lib/api";
+import { apiRequest, WS_URL, API_URL } from "./lib/api";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Espace restaurateur (portail web) — piloté par un compte User role=RESTAURANT.
@@ -27,10 +37,28 @@ import { apiRequest, WS_URL } from "./lib/api";
 
 const money = (value) => `${Number(value || 0).toFixed(2)} Da`;
 
+// Upload d'image via FormData (apiRequest force du JSON, on passe donc par fetch).
+async function uploadImageFile(file, token) {
+  const body = new FormData();
+  body.append("image", file);
+  const res = await fetch(`${API_URL}/api/restaurant/portal/upload-image`, {
+    method: "POST",
+    credentials: "include",
+    headers: token && token !== "__cookie_session__" ? { Authorization: `Bearer ${token}` } : {},
+    body,
+  });
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(payload.message || "Upload de l'image impossible.");
+  }
+  return payload.url;
+}
+
 const NAV = [
   { id: "dashboard", label: "Tableau de bord", icon: LayoutDashboard },
   { id: "kds", label: "Commandes (Cuisine)", icon: ChefHat },
   { id: "menu", label: "Menu", icon: UtensilsCrossed },
+  { id: "stats", label: "Statistiques", icon: BarChart3 },
   { id: "floor", label: "Plan de salle", icon: LayoutGrid },
   { id: "qr", label: "QR Code", icon: QrCode },
   { id: "settings", label: "Réglages", icon: Settings },
@@ -213,10 +241,20 @@ export default function RestaurantPortal({ token, user, onLogout }) {
             notify={notify}
           />
         )}
-        {view === "menu" && <MenuScreen call={call} notify={notify} />}
+        {view === "menu" && <MenuScreen call={call} token={token} notify={notify} />}
+        {view === "stats" && <StatsScreen call={call} />}
         {view === "floor" && <FloorScreen call={call} wsTick={wsTick} notify={notify} />}
         {view === "qr" && <QrScreen call={call} restaurant={restaurant} />}
-        {view === "settings" && <SettingsScreen restaurant={restaurant} account={account} onLogout={onLogout} />}
+        {view === "settings" && (
+          <SettingsScreen
+            call={call}
+            restaurant={restaurant}
+            account={account}
+            onLogout={onLogout}
+            notify={notify}
+            onProfileUpdated={setRestaurant}
+          />
+        )}
       </section>
 
       {toast ? (
@@ -384,9 +422,35 @@ function StatRow({ label, value, alert }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // CUISINE / KDS
 // ─────────────────────────────────────────────────────────────────────────────
+function playBeep() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = "sine";
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.5);
+    osc.onended = () => ctx.close();
+  } catch {
+    /* audio non disponible */
+  }
+}
+
 function KdsScreen({ call, wsTick, newOrderPing, clearPing, notify }) {
+  const [tab, setTab] = useState("active"); // "active" | "history"
   const [orders, setOrders] = useState([]);
+  const [history, setHistory] = useState([]);
   const [busyId, setBusyId] = useState("");
+  const [soundOn, setSoundOn] = useState(true);
+  const prevPingRef = useRef(newOrderPing);
 
   const load = useCallback(async () => {
     try {
@@ -397,10 +461,31 @@ function KdsScreen({ call, wsTick, newOrderPing, clearPing, notify }) {
     }
   }, [call]);
 
+  const loadHistory = useCallback(async () => {
+    try {
+      const list = await call("/api/restaurant/portal/orders?scope=today");
+      setHistory(list);
+    } catch {
+      /* garde l'ancien */
+    }
+  }, [call]);
+
   useEffect(() => {
     load();
     clearPing();
   }, [load, wsTick]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (tab === "history") loadHistory();
+  }, [tab, wsTick, loadHistory]);
+
+  // Bip sonore à chaque nouvelle commande.
+  useEffect(() => {
+    if (newOrderPing > prevPingRef.current && soundOn) {
+      playBeep();
+    }
+    prevPingRef.current = newOrderPing;
+  }, [newOrderPing, soundOn]);
 
   const changeStatus = async (order, status) => {
     setBusyId(order.id);
@@ -410,6 +495,7 @@ function KdsScreen({ call, wsTick, newOrderPing, clearPing, notify }) {
         body: JSON.stringify({ status }),
       });
       await load();
+      if (tab === "history") await loadHistory();
       notify(`Commande #${order.id.slice(-5)} → ${status}`);
     } catch (err) {
       notify(err.message || "Action impossible");
@@ -427,38 +513,94 @@ function KdsScreen({ call, wsTick, newOrderPing, clearPing, notify }) {
     return buckets;
   }, [orders]);
 
+  const historyStats = useMemo(() => {
+    const done = history.filter((o) => normalizeStatus(o.status) === "Delivered");
+    const revenue = done.reduce((sum, o) => sum + (o.total || 0), 0);
+    return { count: done.length, revenue };
+  }, [history]);
+
   return (
     <div>
       <ScreenHeader
         title="Cuisine — commandes"
         subtitle="Réception → préparation → prête. Mise à jour en temps réel."
         actions={
-          <button onClick={load} className="rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm flex items-center gap-2">
-            <RefreshCcw size={15} /> Actualiser
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSoundOn((s) => !s)}
+              title={soundOn ? "Son activé" : "Son coupé"}
+              className={`rounded-xl border px-3 py-2 text-sm flex items-center gap-2 ${soundOn ? "border-emerald-300 text-emerald-600 dark:border-emerald-800" : "border-slate-200 dark:border-slate-700 text-slate-400"}`}
+            >
+              {soundOn ? <Bell size={15} /> : <BellOff size={15} />}
+            </button>
+            <button onClick={() => (tab === "history" ? loadHistory() : load())} className="rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm flex items-center gap-2">
+              <RefreshCcw size={15} /> Actualiser
+            </button>
+          </div>
         }
       />
 
-      <div className="grid lg:grid-cols-3 gap-4 items-start">
-        {KDS_COLUMNS.map((col) => (
-          <div key={col.id} className="rounded-2xl bg-slate-100/60 dark:bg-slate-900/60 p-3">
-            <div className="flex items-center justify-between px-1 mb-3">
-              <h3 className="font-bold text-slate-700 dark:text-slate-200">{col.title}</h3>
-              <span className="rounded-full bg-white dark:bg-slate-800 px-2.5 py-0.5 text-xs font-bold shadow-soft">
-                {grouped[col.id].length}
-              </span>
-            </div>
-            <div className="space-y-3">
-              {grouped[col.id].map((order) => (
-                <KdsTicket key={order.id} order={order} column={col.id} busy={busyId === order.id} onChange={changeStatus} />
-              ))}
-              {grouped[col.id].length === 0 ? (
-                <p className="text-center text-slate-400 text-sm py-6">Aucune commande</p>
-              ) : null}
-            </div>
-          </div>
-        ))}
+      <div className="flex gap-2 mb-4">
+        <button onClick={() => setTab("active")} className={`rounded-xl px-4 py-2 text-sm font-semibold ${tab === "active" ? "bg-slate-900 dark:bg-white dark:text-slate-900 text-white" : "border border-slate-200 dark:border-slate-700 text-slate-500"}`}>
+          En cours
+        </button>
+        <button onClick={() => setTab("history")} className={`rounded-xl px-4 py-2 text-sm font-semibold flex items-center gap-2 ${tab === "history" ? "bg-slate-900 dark:bg-white dark:text-slate-900 text-white" : "border border-slate-200 dark:border-slate-700 text-slate-500"}`}>
+          <History size={15} /> Historique du jour
+        </button>
       </div>
+
+      {tab === "active" ? (
+        <div className="grid lg:grid-cols-3 gap-4 items-start">
+          {KDS_COLUMNS.map((col) => (
+            <div key={col.id} className="rounded-2xl bg-slate-100/60 dark:bg-slate-900/60 p-3">
+              <div className="flex items-center justify-between px-1 mb-3">
+                <h3 className="font-bold text-slate-700 dark:text-slate-200">{col.title}</h3>
+                <span className="rounded-full bg-white dark:bg-slate-800 px-2.5 py-0.5 text-xs font-bold shadow-soft">
+                  {grouped[col.id].length}
+                </span>
+              </div>
+              <div className="space-y-3">
+                {grouped[col.id].map((order) => (
+                  <KdsTicket key={order.id} order={order} column={col.id} busy={busyId === order.id} onChange={changeStatus} />
+                ))}
+                {grouped[col.id].length === 0 ? (
+                  <p className="text-center text-slate-400 text-sm py-6">Aucune commande</p>
+                ) : null}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div>
+          <div className="flex gap-4 mb-4">
+            <Card className="p-4 flex-1"><p className="text-slate-500 text-xs uppercase">Commandes servies</p><p className="text-2xl font-extrabold mt-1">{historyStats.count}</p></Card>
+            <Card className="p-4 flex-1"><p className="text-slate-500 text-xs uppercase">CA encaissé</p><p className="text-2xl font-extrabold mt-1 text-emerald-600">{money(historyStats.revenue)}</p></Card>
+          </div>
+          <Card className="p-0 overflow-hidden">
+            {history.length === 0 ? (
+              <p className="text-center text-slate-400 text-sm py-10">Aucune commande aujourd'hui.</p>
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                {history.map((o) => (
+                  <div key={o.id} className="flex items-center justify-between px-4 py-3 text-sm">
+                    <div className="flex items-center gap-3">
+                      <span className="text-slate-400">#{o.id.slice(-5)}</span>
+                      <span className={`rounded-lg px-2 py-0.5 text-xs font-bold ${o.channel === "QR_ONSITE" ? "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300" : "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300"}`}>
+                        {o.channel === "QR_ONSITE" ? (o.tableLabel ? `Table ${o.tableLabel}` : "Sur place") : "Livraison"}
+                      </span>
+                      <span className="text-slate-500">{new Date(o.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-slate-400 text-xs">{normalizeStatus(o.status)}</span>
+                      <span className="font-bold">{money(o.total)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
@@ -503,7 +645,12 @@ function KdsTicket({ order, column, busy, onChange }) {
       {order.notes ? <p className="text-xs italic text-amber-600 dark:text-amber-400 mb-2">Note : {order.notes}</p> : null}
 
       <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-2">
-        <span className="text-sm font-bold">{money(order.total)}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-bold">{money(order.total)}</span>
+          <button onClick={() => printKitchenTicket(order)} title="Imprimer le ticket cuisine" className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+            <PrinterIcon size={14} />
+          </button>
+        </div>
         <div className="flex gap-2">
           {column === "new" && (
             <TicketButton disabled={busy} onClick={() => onChange(order, "Preparing")} tone="primary">
@@ -552,10 +699,11 @@ function TicketButton({ children, tone = "primary", ...props }) {
 // ─────────────────────────────────────────────────────────────────────────────
 const EMPTY_ITEM = { name: "", description: "", price: "", category: "", image: "", stock: 0, isAvailable: true, options: [] };
 
-function MenuScreen({ call, notify }) {
+function MenuScreen({ call, token, notify }) {
   const [items, setItems] = useState([]);
   const [categories, setCategories] = useState([]);
   const [editing, setEditing] = useState(null); // objet en cours d'édition ou null
+  const [showCategories, setShowCategories] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -595,26 +743,43 @@ function MenuScreen({ call, notify }) {
     }
   };
 
+  // Ordre des catégories : selon le sortOrder déclaré (MenuCategory), puis alpha.
   const grouped = useMemo(() => {
+    const rank = {};
+    (categories || []).forEach((c, i) => {
+      rank[c.name] = c.sortOrder ?? i;
+    });
     const map = {};
     for (const item of items) {
       (map[item.category || "Divers"] ||= []).push(item);
     }
-    return Object.entries(map).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [items]);
+    return Object.entries(map).sort((a, b) => {
+      const ra = rank[a[0]] ?? 999;
+      const rb = rank[b[0]] ?? 999;
+      return ra - rb || a[0].localeCompare(b[0]);
+    });
+  }, [items, categories]);
 
   return (
     <div>
       <ScreenHeader
         title="Menu"
-        subtitle={`${items.length} plat(s) · ${categories.length} catégorie(s)`}
+        subtitle={`${items.length} plat(s) · ${grouped.length} catégorie(s)`}
         actions={
-          <button
-            onClick={() => setEditing({ ...EMPTY_ITEM })}
-            className="rounded-xl bg-slate-900 dark:bg-white dark:text-slate-900 text-white px-3 py-2 text-sm font-semibold flex items-center gap-2"
-          >
-            <Plus size={15} /> Ajouter un plat
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowCategories(true)}
+              className="rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm font-semibold flex items-center gap-2"
+            >
+              <Tags size={15} /> Catégories
+            </button>
+            <button
+              onClick={() => setEditing({ ...EMPTY_ITEM })}
+              className="rounded-xl bg-slate-900 dark:bg-white dark:text-slate-900 text-white px-3 py-2 text-sm font-semibold flex items-center gap-2"
+            >
+              <Plus size={15} /> Ajouter un plat
+            </button>
+          </div>
         }
       />
 
@@ -674,6 +839,7 @@ function MenuScreen({ call, notify }) {
       {editing ? (
         <MenuItemModal
           call={call}
+          token={token}
           item={editing}
           categories={categories}
           onClose={() => setEditing(null)}
@@ -684,11 +850,140 @@ function MenuScreen({ call, notify }) {
           }}
         />
       ) : null}
+
+      {showCategories ? (
+        <CategoriesModal
+          call={call}
+          notify={notify}
+          onClose={() => setShowCategories(false)}
+          onChanged={load}
+        />
+      ) : null}
     </div>
   );
 }
 
-function MenuItemModal({ call, item, categories, onClose, onSaved }) {
+function CategoriesModal({ call, notify, onClose, onChanged }) {
+  const [cats, setCats] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [newName, setNewName] = useState("");
+  const [renaming, setRenaming] = useState(null); // { from, to }
+
+  const load = useCallback(async () => {
+    try {
+      const list = await call("/api/restaurant/portal/categories");
+      setCats(list);
+    } finally {
+      setLoading(false);
+    }
+  }, [call]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const persistOrder = async (list) => {
+    setCats(list);
+    try {
+      await call("/api/restaurant/portal/categories/reorder", {
+        method: "PATCH",
+        body: JSON.stringify({ order: list.map((c) => c.name) }),
+      });
+      await onChanged?.();
+    } catch (err) {
+      notify(err.message);
+    }
+  };
+
+  const move = (index, dir) => {
+    const next = [...cats];
+    const j = index + dir;
+    if (j < 0 || j >= next.length) return;
+    [next[index], next[j]] = [next[j], next[index]];
+    persistOrder(next);
+  };
+
+  const addCategory = async () => {
+    const name = newName.trim();
+    if (!name) return;
+    try {
+      await call("/api/restaurant/portal/menu-categories", { method: "POST", body: JSON.stringify({ name }) });
+      setNewName("");
+      await load();
+      await onChanged?.();
+      notify("Catégorie ajoutée");
+    } catch (err) {
+      notify(err.message);
+    }
+  };
+
+  const rename = async () => {
+    if (!renaming?.to?.trim() || renaming.to.trim() === renaming.from) {
+      setRenaming(null);
+      return;
+    }
+    try {
+      await call("/api/restaurant/portal/categories/rename", {
+        method: "PATCH",
+        body: JSON.stringify({ from: renaming.from, to: renaming.to.trim() }),
+      });
+      setRenaming(null);
+      await load();
+      await onChanged?.();
+      notify("Catégorie renommée");
+    } catch (err) {
+      notify(err.message);
+    }
+  };
+
+  return (
+    <Modal title="Gérer les catégories" onClose={onClose}>
+      {loading ? (
+        <p className="text-slate-500 text-sm">Chargement…</p>
+      ) : (
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            <input className="input" placeholder="Nouvelle catégorie" value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addCategory()} />
+            <button onClick={addCategory} className="rounded-xl bg-slate-900 dark:bg-white dark:text-slate-900 text-white px-3 text-sm font-semibold whitespace-nowrap">
+              Ajouter
+            </button>
+          </div>
+
+          {cats.length === 0 ? (
+            <p className="text-slate-400 text-sm">Aucune catégorie. Ajoutez-en une ou créez un plat.</p>
+          ) : (
+            <ul className="space-y-1">
+              {cats.map((c, i) => (
+                <li key={c.name} className="flex items-center gap-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 px-3 py-2">
+                  <div className="flex flex-col">
+                    <button onClick={() => move(i, -1)} disabled={i === 0} className="text-slate-400 disabled:opacity-30"><ArrowUp size={13} /></button>
+                    <button onClick={() => move(i, 1)} disabled={i === cats.length - 1} className="text-slate-400 disabled:opacity-30"><ArrowDown size={13} /></button>
+                  </div>
+                  {renaming?.from === c.name ? (
+                    <>
+                      <input className="input flex-1" value={renaming.to} autoFocus onChange={(e) => setRenaming({ ...renaming, to: e.target.value })} onKeyDown={(e) => e.key === "Enter" && rename()} />
+                      <button onClick={rename} className="text-emerald-600 text-sm font-semibold">OK</button>
+                      <button onClick={() => setRenaming(null)} className="text-slate-400 text-sm">Annuler</button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="flex-1 font-medium">{c.name}</span>
+                      <span className="text-xs text-slate-400">{c.count} plat(s)</span>
+                      <button onClick={() => setRenaming({ from: c.name, to: c.name })} className="text-slate-400 hover:text-slate-600"><Pencil size={14} /></button>
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="text-xs text-slate-400">Renommer une catégorie met à jour tous les plats concernés. L'ordre définit l'affichage du menu.</p>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+function MenuItemModal({ call, token, item, categories, onClose, onSaved }) {
   const [form, setForm] = useState({
     ...EMPTY_ITEM,
     ...item,
@@ -696,8 +991,25 @@ function MenuItemModal({ call, item, categories, onClose, onSaved }) {
     options: Array.isArray(item.options) ? item.options : [],
   });
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState("");
   const isEdit = Boolean(item.id);
+
+  const handleUpload = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setUploading(true);
+    setErr("");
+    try {
+      const url = await uploadImageFile(file, token);
+      setForm((f) => ({ ...f, image: url }));
+    } catch (error) {
+      setErr(error.message || "Upload impossible.");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
 
@@ -788,8 +1100,23 @@ function MenuItemModal({ call, item, categories, onClose, onSaved }) {
           <textarea className="input" rows={2} value={form.description} onChange={(e) => set({ description: e.target.value })} />
         </Field>
 
-        <Field label="Image (URL)">
-          <input className="input" value={form.image} onChange={(e) => set({ image: e.target.value })} placeholder="https://…" />
+        <Field label="Photo du plat">
+          <div className="flex items-center gap-3">
+            {form.image ? (
+              <img src={form.image} alt="" className="w-16 h-16 rounded-xl object-cover border border-slate-200 dark:border-slate-700" />
+            ) : (
+              <div className="w-16 h-16 rounded-xl bg-slate-100 dark:bg-slate-800 grid place-items-center">
+                <UtensilsCrossed size={18} className="text-slate-300" />
+              </div>
+            )}
+            <div className="flex-1 space-y-2">
+              <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm font-medium cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
+                <Upload size={15} /> {uploading ? "Envoi…" : "Choisir une photo"}
+                <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={uploading} />
+              </label>
+              <input className="input" value={form.image} onChange={(e) => set({ image: e.target.value })} placeholder="ou coller une URL https://…" />
+            </div>
+          </div>
         </Field>
 
         <label className="flex items-center gap-2 text-sm">
@@ -875,6 +1202,100 @@ function MenuItemModal({ call, item, categories, onClose, onSaved }) {
         </div>
       </form>
     </Modal>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STATISTIQUES
+// ─────────────────────────────────────────────────────────────────────────────
+function StatsScreen({ call }) {
+  const [range, setRange] = useState("week");
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const payload = await call(`/api/restaurant/portal/stats?range=${range}`);
+      setData(payload);
+    } finally {
+      setLoading(false);
+    }
+  }, [call, range]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const maxRevenue = useMemo(() => Math.max(1, ...(data?.daily || []).map((d) => d.revenue)), [data]);
+  const maxDish = useMemo(() => Math.max(1, ...(data?.topDishes || []).map((d) => d.quantity)), [data]);
+
+  const dayLabel = (iso) => {
+    const d = new Date(iso + "T00:00:00");
+    return range === "week"
+      ? d.toLocaleDateString("fr-FR", { weekday: "short" })
+      : d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
+  };
+
+  return (
+    <div>
+      <ScreenHeader
+        title="Statistiques"
+        subtitle={range === "week" ? "7 derniers jours" : "30 derniers jours"}
+        actions={
+          <div className="flex rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden text-sm">
+            <button onClick={() => setRange("week")} className={`px-3 py-2 font-semibold ${range === "week" ? "bg-slate-900 dark:bg-white dark:text-slate-900 text-white" : "text-slate-500"}`}>Semaine</button>
+            <button onClick={() => setRange("month")} className={`px-3 py-2 font-semibold ${range === "month" ? "bg-slate-900 dark:bg-white dark:text-slate-900 text-white" : "text-slate-500"}`}>Mois</button>
+          </div>
+        }
+      />
+
+      {loading && !data ? (
+        <p className="text-slate-500">Chargement des statistiques…</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-3 gap-4 mb-5">
+            <Card className="p-4"><p className="text-slate-500 text-xs uppercase">CA période</p><p className="text-2xl font-extrabold mt-1 text-emerald-600">{money(data?.totals?.revenue)}</p></Card>
+            <Card className="p-4"><p className="text-slate-500 text-xs uppercase">Commandes</p><p className="text-2xl font-extrabold mt-1">{data?.totals?.orders ?? 0}</p></Card>
+            <Card className="p-4"><p className="text-slate-500 text-xs uppercase">Panier moyen</p><p className="text-2xl font-extrabold mt-1">{money(data?.totals?.averageBasket)}</p></Card>
+          </div>
+
+          <Card className="p-5 mb-5">
+            <h3 className="font-bold mb-4">Chiffre d'affaires par jour</h3>
+            <div className="flex items-end gap-1.5 h-52" role="img" aria-label="Chiffre d'affaires par jour">
+              {(data?.daily || []).map((d) => (
+                <div key={d.date} className="flex-1 flex flex-col items-center justify-end h-full min-w-0" title={`${dayLabel(d.date)} : ${money(d.revenue)} (${d.orders} cmd)`}>
+                  <div
+                    className="w-full bg-orange-500 hover:bg-orange-600 transition-colors"
+                    style={{ height: `${(d.revenue / maxRevenue) * 100}%`, minHeight: d.revenue > 0 ? 3 : 0, borderRadius: "4px 4px 0 0" }}
+                  />
+                  <span className="mt-1 text-[10px] text-slate-400 whitespace-nowrap overflow-hidden text-ellipsis max-w-full">{dayLabel(d.date)}</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card className="p-5">
+            <h3 className="font-bold mb-4">Plats les plus vendus</h3>
+            {data?.topDishes?.length ? (
+              <div className="space-y-2">
+                {data.topDishes.map((dish) => (
+                  <div key={dish.name} className="flex items-center gap-3">
+                    <span className="w-40 truncate text-sm">{dish.name}</span>
+                    <div className="flex-1 bg-slate-100 dark:bg-slate-800 rounded-full h-3 overflow-hidden">
+                      <div className="h-full bg-orange-500 rounded-full" style={{ width: `${(dish.quantity / maxDish) * 100}%` }} />
+                    </div>
+                    <span className="w-10 text-right text-sm font-bold">{dish.quantity}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-slate-400 text-sm">Aucune vente sur la période.</p>
+            )}
+          </Card>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -1148,6 +1569,40 @@ function QrModal({ data, onClose, title }) {
   );
 }
 
+function printKitchenTicket(order) {
+  const win = window.open("", "_blank", "width=380,height=640");
+  if (!win) return;
+  const esc = (s) => String(s || "").replace(/[<>&]/g, "");
+  const where = order.channel === "QR_ONSITE" ? (order.tableLabel ? `TABLE ${esc(order.tableLabel)}` : "SUR PLACE") : "LIVRAISON";
+  const time = new Date(order.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  const lines = (order.items || [])
+    .map((it) => {
+      const opts = (it.selectedOptions || []).map((o) => `<div class="opt">+ ${esc(o.choiceName || o.name)}</div>`).join("");
+      return `<div class="line"><span class="qty">${it.quantity || 1}x</span> <span>${esc(it.name)}</span></div>${opts}`;
+    })
+    .join("");
+  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Ticket ${esc(order.id.slice(-5))}</title>
+    <style>
+      *{font-family:'Courier New',monospace;margin:0}
+      body{padding:10px;width:280px;color:#000}
+      h1{font-size:20px;text-align:center;border-bottom:2px dashed #000;padding-bottom:6px}
+      .meta{display:flex;justify-content:space-between;font-size:13px;margin:8px 0}
+      .line{font-size:16px;font-weight:bold;margin-top:8px}
+      .qty{display:inline-block;min-width:28px}
+      .opt{font-size:13px;font-weight:normal;padding-left:28px}
+      .note{margin-top:12px;padding-top:8px;border-top:1px dashed #000;font-size:13px;font-style:italic}
+      .foot{margin-top:12px;border-top:2px dashed #000;padding-top:6px;text-align:center;font-size:12px}
+    </style></head><body>
+      <h1>${where}</h1>
+      <div class="meta"><span>#${esc(order.id.slice(-5))}</span><span>${time}</span></div>
+      ${lines}
+      ${order.notes ? `<div class="note">Note: ${esc(order.notes)}</div>` : ""}
+      <div class="foot">SpeedZ — ticket cuisine</div>
+      <script>window.onload=function(){window.print();}</script>
+    </body></html>`);
+  win.document.close();
+}
+
 function printQr(dataUrl, title) {
   if (!dataUrl) return;
   const win = window.open("", "_blank", "width=480,height=640");
@@ -1163,21 +1618,193 @@ function printQr(dataUrl, title) {
 // ─────────────────────────────────────────────────────────────────────────────
 // RÉGLAGES
 // ─────────────────────────────────────────────────────────────────────────────
-function SettingsScreen({ restaurant, account, onLogout }) {
+const WEEK = [
+  { key: "mon", label: "Lundi" },
+  { key: "tue", label: "Mardi" },
+  { key: "wed", label: "Mercredi" },
+  { key: "thu", label: "Jeudi" },
+  { key: "fri", label: "Vendredi" },
+  { key: "sat", label: "Samedi" },
+  { key: "sun", label: "Dimanche" },
+];
+
+function SettingsScreen({ call, restaurant, account, onLogout, notify, onProfileUpdated }) {
+  const [profile, setProfile] = useState({
+    shortDescription: restaurant?.shortDescription || "",
+    openingHours: restaurant?.openingHours || "",
+    deliveryTime: restaurant?.deliveryTime || "",
+    address: restaurant?.address || "",
+    ownerPhone: restaurant?.ownerPhone || "",
+  });
+  const [weekly, setWeekly] = useState(() => {
+    const base = restaurant?.weeklyHours || {};
+    const init = {};
+    for (const d of WEEK) {
+      const cur = base[d.key] || {};
+      init[d.key] = { closed: cur.closed ?? false, open: cur.open || "11:00", close: cur.close || "23:00" };
+    }
+    return init;
+  });
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [savingHours, setSavingHours] = useState(false);
+  const [pwd, setPwd] = useState({ currentPassword: "", newPassword: "", confirm: "" });
+  const [savingPwd, setSavingPwd] = useState(false);
+  const [pwdMsg, setPwdMsg] = useState("");
+
+  const saveProfile = async (e) => {
+    e.preventDefault();
+    setSavingProfile(true);
+    try {
+      const updated = await call("/api/restaurant/portal/profile", {
+        method: "PATCH",
+        body: JSON.stringify(profile),
+      });
+      onProfileUpdated?.(updated);
+      notify("Informations mises à jour");
+    } catch (err) {
+      notify(err.message || "Enregistrement impossible");
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const saveHours = async () => {
+    setSavingHours(true);
+    try {
+      const updated = await call("/api/restaurant/portal/profile", {
+        method: "PATCH",
+        body: JSON.stringify({ weeklyHours: weekly }),
+      });
+      onProfileUpdated?.(updated);
+      setProfile((p) => ({ ...p, openingHours: updated.openingHours || p.openingHours }));
+      notify("Horaires mis à jour");
+    } catch (err) {
+      notify(err.message || "Enregistrement impossible");
+    } finally {
+      setSavingHours(false);
+    }
+  };
+
+  const setDay = (key, patch) => setWeekly((w) => ({ ...w, [key]: { ...w[key], ...patch } }));
+
+  const savePassword = async (e) => {
+    e.preventDefault();
+    setPwdMsg("");
+    if (pwd.newPassword.length < 8) {
+      setPwdMsg("Le nouveau mot de passe doit faire au moins 8 caractères.");
+      return;
+    }
+    if (pwd.newPassword !== pwd.confirm) {
+      setPwdMsg("La confirmation ne correspond pas.");
+      return;
+    }
+    setSavingPwd(true);
+    try {
+      await call("/api/auth/change-password", {
+        method: "PATCH",
+        body: JSON.stringify({ currentPassword: pwd.currentPassword, newPassword: pwd.newPassword }),
+      });
+      setPwd({ currentPassword: "", newPassword: "", confirm: "" });
+      notify("Mot de passe modifié");
+    } catch (err) {
+      setPwdMsg(err.message || "Modification impossible.");
+    } finally {
+      setSavingPwd(false);
+    }
+  };
+
   return (
     <div>
-      <ScreenHeader title="Réglages" subtitle="Informations de votre compte restaurant" />
-      <Card className="p-6 max-w-lg space-y-3">
-        <Info label="Restaurant" value={restaurant?.name} />
-        <Info label="Catégorie" value={restaurant?.category} />
-        <Info label="Adresse" value={restaurant?.address} />
-        <Info label="Horaires" value={restaurant?.openingHours} />
-        <Info label="Compte" value={account?.email} />
-        <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
-          <button onClick={onLogout} className="rounded-xl border border-red-200 dark:border-red-900 text-red-600 px-4 py-2 text-sm font-semibold flex items-center gap-2">
-            <LogOut size={15} /> Se déconnecter
+      <ScreenHeader title="Réglages" subtitle="Informations du restaurant et sécurité du compte" />
+
+      <div className="grid lg:grid-cols-2 gap-4 items-start">
+        <Card className="p-6">
+          <h3 className="font-bold mb-4">Informations du restaurant</h3>
+          <form onSubmit={saveProfile} className="space-y-3">
+            <Info label="Nom" value={restaurant?.name} />
+            <Info label="Catégorie" value={restaurant?.category} />
+            <Field label="Description">
+              <textarea className="input" rows={2} value={profile.shortDescription} onChange={(e) => setProfile((p) => ({ ...p, shortDescription: e.target.value }))} />
+            </Field>
+            <Field label="Horaires d'ouverture">
+              <input className="input" value={profile.openingHours} onChange={(e) => setProfile((p) => ({ ...p, openingHours: e.target.value }))} placeholder="11:00 - 23:00" />
+            </Field>
+            <Field label="Délai de préparation / livraison">
+              <input className="input" value={profile.deliveryTime} onChange={(e) => setProfile((p) => ({ ...p, deliveryTime: e.target.value }))} placeholder="25-35 min" />
+            </Field>
+            <Field label="Adresse">
+              <input className="input" value={profile.address} onChange={(e) => setProfile((p) => ({ ...p, address: e.target.value }))} />
+            </Field>
+            <Field label="Téléphone">
+              <input className="input" value={profile.ownerPhone} onChange={(e) => setProfile((p) => ({ ...p, ownerPhone: e.target.value }))} />
+            </Field>
+            <button type="submit" disabled={savingProfile} className="rounded-xl bg-slate-900 dark:bg-white dark:text-slate-900 text-white px-4 py-2.5 text-sm font-semibold flex items-center gap-2 disabled:opacity-50">
+              <Save size={15} /> {savingProfile ? "Enregistrement…" : "Enregistrer"}
+            </button>
+          </form>
+        </Card>
+
+        <div className="space-y-4">
+          <Card className="p-6">
+            <h3 className="font-bold mb-4 flex items-center gap-2"><KeyRound size={16} /> Mot de passe</h3>
+            <form onSubmit={savePassword} className="space-y-3">
+              {pwdMsg ? <p className="rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 text-sm px-3 py-2">{pwdMsg}</p> : null}
+              <Field label="Mot de passe actuel">
+                <input type="password" className="input" value={pwd.currentPassword} onChange={(e) => setPwd((p) => ({ ...p, currentPassword: e.target.value }))} autoComplete="current-password" />
+              </Field>
+              <Field label="Nouveau mot de passe">
+                <input type="password" className="input" value={pwd.newPassword} onChange={(e) => setPwd((p) => ({ ...p, newPassword: e.target.value }))} autoComplete="new-password" />
+              </Field>
+              <Field label="Confirmer le nouveau mot de passe">
+                <input type="password" className="input" value={pwd.confirm} onChange={(e) => setPwd((p) => ({ ...p, confirm: e.target.value }))} autoComplete="new-password" />
+              </Field>
+              <button type="submit" disabled={savingPwd} className="rounded-xl bg-slate-900 dark:bg-white dark:text-slate-900 text-white px-4 py-2.5 text-sm font-semibold disabled:opacity-50">
+                {savingPwd ? "…" : "Modifier le mot de passe"}
+              </button>
+            </form>
+          </Card>
+
+          <Card className="p-6">
+            <h3 className="font-bold mb-2">Compte</h3>
+            <Info label="Email de connexion" value={account?.email} />
+            <div className="pt-4 mt-2 border-t border-slate-100 dark:border-slate-800">
+              <button onClick={onLogout} className="rounded-xl border border-red-200 dark:border-red-900 text-red-600 px-4 py-2 text-sm font-semibold flex items-center gap-2">
+                <LogOut size={15} /> Se déconnecter
+              </button>
+            </div>
+          </Card>
+        </div>
+      </div>
+
+      <Card className="p-6 mt-4">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold flex items-center gap-2"><Clock size={16} /> Horaires par jour</h3>
+          <button onClick={saveHours} disabled={savingHours} className="rounded-xl bg-slate-900 dark:bg-white dark:text-slate-900 text-white px-4 py-2 text-sm font-semibold flex items-center gap-2 disabled:opacity-50">
+            <Save size={15} /> {savingHours ? "…" : "Enregistrer les horaires"}
           </button>
         </div>
+        <div className="space-y-2">
+          {WEEK.map((d) => {
+            const day = weekly[d.key];
+            return (
+              <div key={d.key} className="flex flex-wrap items-center gap-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 px-3 py-2">
+                <span className="w-24 font-medium text-sm">{d.label}</span>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={!day.closed} onChange={(e) => setDay(d.key, { closed: !e.target.checked })} />
+                  {day.closed ? "Fermé" : "Ouvert"}
+                </label>
+                {!day.closed && (
+                  <div className="flex items-center gap-2">
+                    <input type="time" className="input w-auto" value={day.open} onChange={(e) => setDay(d.key, { open: e.target.value })} />
+                    <span className="text-slate-400">→</span>
+                    <input type="time" className="input w-auto" value={day.close} onChange={(e) => setDay(d.key, { close: e.target.value })} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <p className="text-xs text-slate-400 mt-3">Le résumé « Horaires d'ouverture » et la page QR se mettent à jour automatiquement.</p>
       </Card>
     </div>
   );

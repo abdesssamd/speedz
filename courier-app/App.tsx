@@ -111,13 +111,19 @@ function Dashboard() {
       <CourierAdSplash />
       <View style={styles.body}>
         {tab === "jobs" && (
-          <JobsScreen jobs={availableJobs} refreshing={refreshing} onRefresh={refresh} onChanged={refresh} />
+          <JobsScreen
+            jobs={availableJobs}
+            refreshing={refreshing}
+            onRefresh={refresh}
+            onChanged={refresh}
+            offline={courier?.status === "OFFLINE"}
+          />
         )}
         {tab === "active" && (
           <ActiveScreen jobs={activeJobs} refreshing={refreshing} onRefresh={refresh} onChanged={refresh} />
         )}
         {tab === "profile" && (
-          <ProfileScreen courier={courier} stats={dashboard?.stats} history={history} onChanged={refresh} />
+          <ProfileScreen courier={courier} stats={dashboard?.stats} history={history} onChanged={refresh} refreshing={refreshing} />
         )}
       </View>
 

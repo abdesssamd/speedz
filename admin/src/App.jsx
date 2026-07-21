@@ -416,6 +416,10 @@ const emptyRestaurant = {
   coordinates: { latitude: 0, longitude: 0 },
   tags: "",
   pointsPerEuro: 10,
+  // Livraison : flotte SpeedZ (payante) ou livreurs propres au restaurant (offerte).
+  deliveryMode: "SPEEDZ",
+  freeDeliveryRadiusKm: 5,
+  allowSpeedzFallback: false,
   weeklyHours: createDefaultWeeklyHours(),
 };
 
@@ -1049,6 +1053,7 @@ export default function App() {
     vehicle: "",
     status: "AVAILABLE",
     zoneLabel: "",
+    restaurantId: "",
     currentLat: "",
     currentLng: "",
   });
@@ -1069,6 +1074,9 @@ export default function App() {
   const [loyaltyConfig, setLoyaltyConfig] = useState(null);
   const [loyaltySaving, setLoyaltySaving] = useState(false);
   const [pushForm, setPushForm] = useState({ audience: "ALL", title: "", body: "", userId: "", zoneLabel: "", clientQuery: "" });
+  // Livreurs préférés du restaurant en cours d'édition (ids).
+  const [preferredCourierIds, setPreferredCourierIds] = useState([]);
+  const [preferredSaving, setPreferredSaving] = useState(false);
   const [pushSending, setPushSending] = useState(false);
   const [pushInfo, setPushInfo] = useState({ audiences: { clients: 0, couriers: 0 }, campaigns: [] });
   const [billingOverview, setBillingOverview] = useState({ restaurants: [], settlements: [] });
@@ -1558,6 +1566,7 @@ export default function App() {
       vehicle: "",
       status: "AVAILABLE",
       zoneLabel: "",
+      restaurantId: "",
       currentLat: "",
       currentLng: "",
     });
@@ -1686,6 +1695,16 @@ export default function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeView, token]);
+
+  // Charge les livreurs préférés dès qu'on ouvre la fiche d'un restaurant.
+  useEffect(() => {
+    if (selectedRestaurant?.id && token) {
+      loadPreferredCouriers(selectedRestaurant.id);
+    } else {
+      setPreferredCourierIds([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRestaurant?.id, token]);
 
   useEffect(() => {
     const source = selectedPromotion ?? promotionForm;
@@ -2259,6 +2278,9 @@ export default function App() {
             rating: Number(restaurantForm.rating),
             reviewCount: Number(restaurantForm.reviewCount),
             pointsPerEuro: Number(restaurantForm.pointsPerEuro),
+            deliveryMode: restaurantForm.deliveryMode,
+            freeDeliveryRadiusKm: Number(restaurantForm.freeDeliveryRadiusKm) || 0,
+            allowSpeedzFallback: Boolean(restaurantForm.allowSpeedzFallback),
           }),
         },
         token
@@ -3221,6 +3243,34 @@ export default function App() {
       setErrorMessage(error.message);
     } finally {
       setLoyaltySaving(false);
+    }
+  }
+
+  // Livreurs préférés d'un restaurant : notifiés en priorité pendant 5 min.
+  async function loadPreferredCouriers(restaurantId) {
+    if (!restaurantId) return;
+    try {
+      const res = await apiRequest(`/api/admin/restaurants/${restaurantId}/preferred-couriers`, {}, token);
+      const list = res?.data || res || [];
+      setPreferredCourierIds(list.map((c) => c.id));
+    } catch {
+      setPreferredCourierIds([]);
+    }
+  }
+
+  async function handleSavePreferredCouriers(restaurantId) {
+    setPreferredSaving(true);
+    try {
+      await apiRequest(
+        `/api/admin/restaurants/${restaurantId}/preferred-couriers`,
+        { method: "PUT", body: JSON.stringify({ courierIds: preferredCourierIds }) },
+        token
+      );
+      setStatusMessage("Livreurs preferes enregistres.");
+    } catch (error) {
+      setErrorMessage(error.message);
+    } finally {
+      setPreferredSaving(false);
     }
   }
 
@@ -6306,6 +6356,91 @@ export default function App() {
                   </FormField>
                 </div>
               </FormSection>
+              <FormSection
+                title="Livraison"
+                hint="Qui livre pour ce restaurant, et ce que paie le client."
+              >
+                <FormField label="Mode de livraison">
+                  <select
+                    className="inline-select"
+                    value={selectedRestaurant.deliveryMode || "SPEEDZ"}
+                    onChange={(event) => updateSelectedRestaurant("deliveryMode", event.target.value)}
+                  >
+                    <option value="SPEEDZ">Flotte SpeedZ — livraison facturée au client</option>
+                    <option value="OWN">Livreurs du restaurant — livraison offerte</option>
+                  </select>
+                </FormField>
+
+                {(selectedRestaurant.deliveryMode || "SPEEDZ") === "OWN" ? (
+                  <>
+                    <FormField
+                      label="Rayon de gratuité (km)"
+                      hint="Au-delà de cette distance, le barème SpeedZ normal s'applique."
+                    >
+                      <input
+                        value={selectedRestaurant.freeDeliveryRadiusKm ?? 5}
+                        onChange={(event) => updateSelectedRestaurant("freeDeliveryRadiusKm", event.target.value)}
+                        placeholder="5"
+                        inputMode="decimal"
+                      />
+                    </FormField>
+                    <label className="inline-actions" style={{ gap: 8, alignItems: "center", cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(selectedRestaurant.allowSpeedzFallback)}
+                        onChange={(event) => updateSelectedRestaurant("allowSpeedzFallback", event.target.checked)}
+                      />
+                      <span>
+                        Si aucun livreur du restaurant ne prend la course, la confier à la flotte SpeedZ
+                        <br />
+                        <small className="muted">
+                          Décoché : la commande attend les livreurs du restaurant. Le client garde sa livraison offerte dans les deux cas.
+                        </small>
+                      </span>
+                    </label>
+                  </>
+                ) : null}
+
+                {/* Livreurs préférés : notifiés en priorité pendant 5 min. */}
+                <FormField
+                  label="Livreurs préférés"
+                  hint="Ils reçoivent la course en priorité pendant 5 min, avant les autres livreurs."
+                >
+                  <div className="stack" style={{ gap: 6, maxHeight: 190, overflowY: "auto" }}>
+                    {couriers.length === 0 ? (
+                      <p className="muted" style={{ fontSize: 13 }}>Aucun livreur enregistré.</p>
+                    ) : (
+                      couriers.map((c) => (
+                        <label key={c.id} className="inline-actions" style={{ gap: 8, alignItems: "center", cursor: "pointer" }}>
+                          <input
+                            type="checkbox"
+                            checked={preferredCourierIds.includes(c.id)}
+                            onChange={(event) =>
+                              setPreferredCourierIds((current) =>
+                                event.target.checked
+                                  ? [...current, c.id]
+                                  : current.filter((id) => id !== c.id)
+                              )
+                            }
+                          />
+                          <span>
+                            {c.name}
+                            <small className="muted"> · {c.vehicle}{c.zoneLabel ? ` · ${c.zoneLabel}` : ""}</small>
+                          </span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                </FormField>
+                <button
+                  type="button"
+                  className="ghost"
+                  disabled={preferredSaving}
+                  onClick={() => handleSavePreferredCouriers(selectedRestaurant.id)}
+                >
+                  {preferredSaving ? "Enregistrement…" : "Enregistrer les livreurs préférés"}
+                </button>
+              </FormSection>
               <FormSection title={t("address")} hint="Adresse affichee aux clients sur la fiche.">
                 <FormField label={t("address")} error={restaurantEditErrors.address}>
                   <input
@@ -6717,6 +6852,25 @@ export default function App() {
                 }
                 placeholder="Centre-ville"
               />
+            </FormField>
+            <FormField
+              label="Rattachement"
+              hint="Livreur propre à un restaurant : il ne verra que les commandes de ce restaurant."
+            >
+              <select
+                className="inline-select"
+                value={(selectedCourier ? selectedCourier.restaurantId : courierForm.restaurantId) || ""}
+                onChange={(event) =>
+                  selectedCourier
+                    ? setSelectedCourier({ ...selectedCourier, restaurantId: event.target.value })
+                    : setCourierForm({ ...courierForm, restaurantId: event.target.value })
+                }
+              >
+                <option value="">Flotte SpeedZ (toutes les commandes)</option>
+                {restaurants.map((r) => (
+                  <option key={r.id} value={r.id}>Livreur de « {r.name} »</option>
+                ))}
+              </select>
             </FormField>
           </FormSection>
           <FormSection title="Position GPS" hint="Facultatif pour le suivi live du livreur.">

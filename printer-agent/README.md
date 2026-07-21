@@ -91,6 +91,46 @@ python printer_agent.py
 | `print_retries` | `3` | Nombre d'essais avant abandon |
 | `poll_interval_seconds` | `5` | Fréquence d'interrogation |
 | `heartbeat_interval_seconds` | `30` | Fréquence du signal « en ligne » |
+| `max_backoff_seconds` | `60` | Plafond du délai de ré-essai en cas de réseau instable / 429 |
+| `encoding` | `cp858` | Encodage texte (cp858 gère les accents FR + € ; `cp437` = ancien) |
+| `codepage` | `19` | Codepage ESC/POS envoyé à l'imprimante (19 = PC858). À ajuster selon le modèle |
+| `print_mode` | `combined` | `combined` (1 ticket détaillé), `kitchen_and_receipt` (ticket cuisine + reçu), `kitchen_only` |
+| `header_lines` | `[]` | Lignes libres imprimées en en-tête (ex. adresse, téléphone) |
+| `footer_lines` | `[]` | Lignes libres imprimées en pied de ticket (ex. « Merci ! ») |
+| `logo_path` | `""` | Chemin d'un logo PNG à imprimer en tête (nécessite `Pillow`) |
+| `use_websocket` | `true` | Réception temps réel des commandes (accélère le poll ; nécessite `websocket-client`) |
+| `kitchen_printer_name` | `""` | Imprimante dédiée aux tickets **cuisine** (mode double imprimante) |
+| `receipt_printer_name` | `""` | Imprimante dédiée aux **reçus** client (mode double imprimante) |
+| `api_token_enc` | — | Token chiffré (DPAPI). Généré automatiquement à la place de `api_token` en clair |
+
+### Améliorations de fiabilité (v2)
+
+- **Heartbeat isolé** : un échec du signal « en ligne » ne bloque plus l'impression des commandes.
+- **Reconnexion automatique** : ré-authentification avec back-off exponentiel si le réseau tombe.
+- **Back-off + `Retry-After`** : en cas de `429`/`503`/timeout, l'agent ralentit puis réaccélère (respecte l'en-tête `Retry-After`).
+- **Anti-doublon** : une commande déjà imprimée n'est jamais réimprimée dans la session, même si l'accusé réseau échoue.
+- **Rotation des logs** : `printer-agent.log` limité (512 Ko × 3), ne grossit plus indéfiniment.
+
+### Nouveaux boutons GUI
+
+- **🍽 QR par table** — imprime un QR distinct par table (issu du plan de salle de l'espace restaurant).
+- **🧪 Test** — imprime un ticket de test (vérifie imprimante + accents) avant le service.
+
+> Pour `logo_path`, installez Pillow : `pip install Pillow`. Sans Pillow, le logo est simplement ignoré (aucun blocage).
+
+### Ergonomie / exploitation (v2)
+
+- **Icône barre des tâches (system tray)** : fermer la fenêtre la **réduit en fond** (l'impression continue) ; l'icône est **verte** (en ligne) ou **rouge** (hors ligne). Menu clic droit : *Afficher* / *Quitter*. (Nécessite `pystray` + `Pillow`.)
+- **Démarrage minimisé** : lancé avec `--minimized`, l'agent démarre directement dans le tray.
+- **Démarrage automatique avec Windows** : case à cocher qui crée/supprime un raccourci dans `shell:startup` (plus simple que le service).
+- **Réimpression manuelle** : liste déroulante des dernières commandes + bouton **Réimprimer**.
+- **Statut imprimante en direct** : détection *hors-ligne / plus de papier / bourrage / erreur* avec pastille 🟢/🔴.
+- **Token chiffré au repos (DPAPI)** : le token est stocké chiffré (`api_token_enc`), lié au compte Windows — un `config.json` volé n'est pas réutilisable ailleurs. Repli automatique en clair si DPAPI indisponible.
+- **Temps réel (WebSocket)** : les nouvelles commandes réveillent immédiatement la boucle → impression quasi instantanée, avec repli sur le polling.
+- **Double imprimante** : `kitchen_printer_name` (cuisine) + `receipt_printer_name` (comptoir) ; sinon tout part sur `printer_name`.
+- **Auto-update** : au démarrage, l'agent vérifie `GET /api/printer-agent/version` et signale si une version plus récente existe.
+
+> Installer les optionnels : `pip install pystray Pillow websocket-client`. Chacun est facultatif — l'agent fonctionne sans (fonction correspondante simplement désactivée).
 
 ## Installation comme service Windows
 
