@@ -376,6 +376,11 @@ const weekdayDefinitions = [
 
 const mealCategories = ["Burgers", "Pizza", "Sushi", "Healthy", "Desserts", "Drinks"];
 
+// Code livreur affiché aux clients : les 6 derniers chiffres du téléphone.
+function courierCodeOf(phone) {
+  return String(phone || "").replace(/\D/g, "").slice(-6);
+}
+
 function createDefaultWeeklyHours() {
   return weekdayDefinitions.reduce((accumulator, day) => {
     accumulator[day.key] = { enabled: true, open: "08:00", close: "22:00" };
@@ -1076,6 +1081,19 @@ export default function App() {
   const [pushForm, setPushForm] = useState({ audience: "ALL", title: "", body: "", userId: "", zoneLabel: "", clientQuery: "" });
   // Livreurs préférés du restaurant en cours d'édition (ids).
   const [preferredCourierIds, setPreferredCourierIds] = useState([]);
+  // Filtre de la liste : nom, code (6 derniers chiffres) ou numéro complet.
+  const [preferredCourierQuery, setPreferredCourierQuery] = useState("");
+  const filteredPreferredCouriers = useMemo(() => {
+    const query = preferredCourierQuery.trim().toLowerCase();
+    if (!query) return couriers;
+    const digits = query.replace(/\D/g, "");
+    return couriers.filter((c) => {
+      if (String(c.name || "").toLowerCase().includes(query)) return true;
+      if (!digits) return false;
+      const phone = String(c.phone || "").replace(/\D/g, "");
+      return phone.includes(digits) || courierCodeOf(c.phone) === digits;
+    });
+  }, [couriers, preferredCourierQuery]);
   const [preferredSaving, setPreferredSaving] = useState(false);
   const [pushSending, setPushSending] = useState(false);
   const [pushInfo, setPushInfo] = useState({ audiences: { clients: 0, couriers: 0 }, campaigns: [] });
@@ -6406,11 +6424,20 @@ export default function App() {
                   label="Livreurs préférés"
                   hint="Ils reçoivent la course en priorité pendant 5 min, avant les autres livreurs."
                 >
+                  <input
+                    type="search"
+                    value={preferredCourierQuery}
+                    onChange={(event) => setPreferredCourierQuery(event.target.value)}
+                    placeholder="Rechercher : nom, code (6 chiffres) ou numéro de téléphone"
+                    style={{ marginBottom: 8 }}
+                  />
                   <div className="stack" style={{ gap: 6, maxHeight: 190, overflowY: "auto" }}>
-                    {couriers.length === 0 ? (
-                      <p className="muted" style={{ fontSize: 13 }}>Aucun livreur enregistré.</p>
+                    {filteredPreferredCouriers.length === 0 ? (
+                      <p className="muted" style={{ fontSize: 13 }}>
+                        {couriers.length === 0 ? "Aucun livreur enregistré." : "Aucun livreur ne correspond à cette recherche."}
+                      </p>
                     ) : (
-                      couriers.map((c) => (
+                      filteredPreferredCouriers.map((c) => (
                         <label key={c.id} className="inline-actions" style={{ gap: 8, alignItems: "center", cursor: "pointer" }}>
                           <input
                             type="checkbox"
@@ -6425,7 +6452,11 @@ export default function App() {
                           />
                           <span>
                             {c.name}
-                            <small className="muted"> · {c.vehicle}{c.zoneLabel ? ` · ${c.zoneLabel}` : ""}</small>
+                            <small className="muted">
+                              {" · "}#{courierCodeOf(c.phone)}
+                              {c.phone ? ` · ${c.phone}` : ""} · {c.vehicle}
+                              {c.zoneLabel ? ` · ${c.zoneLabel}` : ""}
+                            </small>
                           </span>
                         </label>
                       ))

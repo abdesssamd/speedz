@@ -27,6 +27,8 @@ import {
   Printer as PrinterIcon,
   ArrowUp,
   ArrowDown,
+  Bike,
+  Search,
 } from "lucide-react";
 import { apiRequest, WS_URL, API_URL } from "./lib/api";
 
@@ -1806,6 +1808,149 @@ function SettingsScreen({ call, restaurant, account, onLogout, notify, onProfile
         </div>
         <p className="text-xs text-slate-400 mt-3">Le résumé « Horaires d'ouverture » et la page QR se mettent à jour automatiquement.</p>
       </Card>
+
+      <PreferredCouriersCard call={call} notify={notify} />
+    </div>
+  );
+}
+
+// ─── Livreurs préférés ────────────────────────────────────────────────────────
+// Le restaurateur ajoute ses livreurs un par un en cherchant leur code (6 chiffres)
+// ou leur numéro complet. Le livreur doit d'abord s'être inscrit sur SpeedZ Livreur.
+function PreferredCouriersCard({ call, notify }) {
+  const [preferred, setPreferred] = useState([]);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState(null);
+  const [searching, setSearching] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    call("/api/restaurant/portal/preferred-couriers")
+      .then((payload) => setPreferred(payload.couriers || []))
+      .catch(() => {});
+  }, [call]);
+
+  const save = async (couriers) => {
+    setSaving(true);
+    try {
+      const payload = await call("/api/restaurant/portal/preferred-couriers", {
+        method: "PUT",
+        body: JSON.stringify({ courierIds: couriers.map((c) => c.id) }),
+      });
+      setPreferred(payload.couriers || []);
+      notify("Livreurs préférés mis à jour");
+    } catch (err) {
+      notify(err.message || "Enregistrement impossible");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const search = async (e) => {
+    e.preventDefault();
+    const digits = query.replace(/\D/g, "");
+    if (digits.length < 4) {
+      notify("Saisissez au moins 4 chiffres (code ou numéro).");
+      return;
+    }
+    setSearching(true);
+    try {
+      const payload = await call(`/api/restaurant/portal/couriers/search?q=${encodeURIComponent(digits)}`);
+      setResults(payload.couriers || []);
+    } catch (err) {
+      notify(err.message || "Recherche impossible");
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const add = (courier) => {
+    if (preferred.some((c) => c.id === courier.id)) return;
+    save([...preferred, courier]);
+    setResults(null);
+    setQuery("");
+  };
+
+  const remove = (courier) => save(preferred.filter((c) => c.id !== courier.id));
+
+  return (
+    <Card className="p-6 mt-4">
+      <h3 className="font-bold mb-1 flex items-center gap-2"><Bike size={16} /> Mes livreurs préférés</h3>
+      <p className="text-xs text-slate-400 mb-4">
+        Ils reçoivent vos commandes en priorité pendant 5 minutes, avant les autres livreurs SpeedZ.
+        Le livreur doit d'abord s'inscrire sur l'application SpeedZ Livreur, puis vous donner son code ou son numéro.
+      </p>
+
+      <form onSubmit={search} className="flex flex-wrap gap-2 mb-4">
+        <input
+          className="input flex-1 min-w-[220px]"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Code livreur (6 chiffres) ou numéro de téléphone"
+        />
+        <button type="submit" disabled={searching} className="rounded-xl bg-slate-900 dark:bg-white dark:text-slate-900 text-white px-4 py-2.5 text-sm font-semibold flex items-center gap-2 disabled:opacity-50">
+          <Search size={15} /> {searching ? "…" : "Rechercher"}
+        </button>
+      </form>
+
+      {results !== null && (
+        <div className="mb-4 space-y-2">
+          {results.length === 0 ? (
+            <p className="text-sm text-slate-400">
+              Aucun livreur trouvé. Vérifiez qu'il s'est bien inscrit sur SpeedZ Livreur.
+            </p>
+          ) : (
+            results.map((courier) => {
+              const already = preferred.some((c) => c.id === courier.id);
+              return (
+                <div key={courier.id} className="flex items-center gap-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 px-3 py-2">
+                  <CourierLine courier={courier} />
+                  <button
+                    type="button"
+                    onClick={() => add(courier)}
+                    disabled={already || saving}
+                    className="rounded-lg bg-slate-900 dark:bg-white dark:text-slate-900 text-white px-3 py-1.5 text-xs font-semibold flex items-center gap-1 disabled:opacity-40"
+                  >
+                    <Plus size={13} /> {already ? "Déjà ajouté" : "Ajouter"}
+                  </button>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {preferred.length === 0 ? (
+          <p className="text-sm text-slate-400">Aucun livreur préféré. Vos commandes partent directement à toute la flotte SpeedZ.</p>
+        ) : (
+          preferred.map((courier) => (
+            <div key={courier.id} className="flex items-center gap-3 rounded-lg border border-slate-100 dark:border-slate-800 px-3 py-2">
+              <CourierLine courier={courier} />
+              <button
+                type="button"
+                onClick={() => remove(courier)}
+                disabled={saving}
+                className="rounded-lg border border-red-200 dark:border-red-900 text-red-600 px-3 py-1.5 text-xs font-semibold flex items-center gap-1 disabled:opacity-40"
+              >
+                <Trash2 size={13} /> Retirer
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function CourierLine({ courier }) {
+  return (
+    <div className="flex-1 min-w-0">
+      <p className="text-sm font-semibold truncate">{courier.name}</p>
+      <p className="text-xs text-slate-400 truncate">
+        #{courier.code} · {courier.vehicle}
+        {courier.zoneLabel ? ` · ${courier.zoneLabel}` : ""}
+      </p>
     </div>
   );
 }

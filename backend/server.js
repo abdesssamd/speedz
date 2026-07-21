@@ -430,6 +430,24 @@ function courierCode(phone) {
   return digits.slice(-6);
 }
 
+// Numéro comparable : chiffres seuls, sans indicatif +213 ni 0 initial,
+// pour que 0555… / +213555… / 555… désignent le même livreur.
+function normalizePhoneDigits(phone) {
+  let digits = String(phone || "").replace(/\D/g, "");
+  if (digits.startsWith("213")) digits = digits.slice(3);
+  return digits.replace(/^0+/, "");
+}
+
+// Un livreur correspond si la saisie est son code (6 derniers chiffres) ou son
+// numéro complet, quelle que soit la forme de l'indicatif.
+function matchesCourierPhoneQuery(phone, query) {
+  const digits = String(query || "").replace(/\D/g, "");
+  if (digits.length < 4) return false;
+  if (courierCode(phone) === digits) return true;
+  const normalized = normalizePhoneDigits(phone);
+  return normalized.length > 0 && normalized === normalizePhoneDigits(digits);
+}
+
 function generateVerificationCode() {
   return `${Math.floor(100000 + Math.random() * 900000)}`;
 }
@@ -500,6 +518,35 @@ function getRequestPublicBaseUrl(req) {
   return `${protocol}://${host}`.replace(/\/$/, "");
 }
 
+// Les URLs d'images sont figées en base au moment de l'upload. Si un upload a eu
+// lieu avant que le domaine public soit configuré, l'URL stockée pointe vers
+// localhost et l'image est introuvable depuis un téléphone. On la réécrit à la
+// lecture pour éviter une migration de données.
+function toPublicAssetUrl(value) {
+  if (!value || typeof value !== "string") {
+    return value;
+  }
+
+  const publicBaseUrl = (
+    process.env.IMAGE_URL_BASE ||
+    process.env.PUBLIC_BASE_URL ||
+    process.env.API_BASE_URL ||
+    process.env.QR_WEBAPP_URL ||
+    ""
+  ).replace(/\/+$/, "");
+
+  if (!publicBaseUrl) {
+    return value;
+  }
+
+  const localHostPattern = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?(?=\/|$)/i;
+  if (!localHostPattern.test(value)) {
+    return value;
+  }
+
+  return value.replace(localHostPattern, publicBaseUrl);
+}
+
 function calculateCourierCompensation(order, courier) {
   const total = Number(((courier.payPerDelivery || 0) + (order.deliveryDistanceKm || 0) * (courier.payPerKm || 0)).toFixed(2));
   return {
@@ -524,7 +571,7 @@ function serializeRestaurant(record) {
     deliveryTime: record.deliveryTime,
     rating: record.rating,
     reviewCount: record.reviewCount,
-    image: record.image,
+    image: toPublicAssetUrl(record.image),
     heroColor: record.heroColor,
     coordinates: {
       latitude: record.latitude,
@@ -559,7 +606,7 @@ function serializeRestaurant(record) {
       description: item.description,
       price: item.price,
       category: item.category,
-      image: item.image,
+      image: toPublicAssetUrl(item.image),
       badge: item.badge || undefined,
       calories: item.calories || undefined,
       stock: item.stock,
@@ -567,6 +614,15 @@ function serializeRestaurant(record) {
       options: item.options || []
     }))
   };
+}
+
+// Version destinée aux routes non authentifiées (app cliente, page QR).
+// serializeRestaurant expose des données réservées à l'admin et au restaurateur :
+// le token d'API de l'agent d'impression (un secret qui permet de pousser des
+// commandes au nom du restaurant) et les coordonnées personnelles du gérant.
+function serializePublicRestaurant(record) {
+  const { apiToken, ownerEmail, ownerPhone, ...publicFields } = serializeRestaurant(record);
+  return publicFields;
 }
 
 function serializeOrder(record) {
@@ -3111,7 +3167,7 @@ app.get("/api/restaurants", async (_req, res) => {
     include: { menuItems: true },
     orderBy: { name: "asc" }
   });
-  res.json(restaurants.map(serializeRestaurant));
+  res.json(restaurants.map(serializePublicRestaurant));
 });
 
 app.get("/api/restaurants/:id", async (req, res) => {
@@ -3125,7 +3181,7 @@ app.get("/api/restaurants/:id", async (req, res) => {
     return;
   }
 
-  res.json(serializeRestaurant(restaurant));
+  res.json(serializePublicRestaurant(restaurant));
 });
 
 app.post("/api/favorites/toggle", optionalAuth, async (req, res) => {
@@ -3180,16 +3236,17 @@ function serializeCourierPublic(record) {
   };
 }
 
-// Recherche d'un livreur par son code (6 derniers chiffres du téléphone).
-// Renvoie une liste car plusieurs livreurs peuvent partager les mêmes 6 chiffres.
+// Recherche d'un livreur par son code (6 derniers chiffres) OU par son numéro
+// de téléphone complet. Renvoie une liste car plusieurs livreurs peuvent
+// partager les mêmes 6 chiffres.
 app.get("/api/couriers/search", optionalAuth, async (req, res) => {
-  const code = String(req.query.code || "").replace(/\D/g, "");
-  if (code.length < 4) {
-    res.status(400).json({ message: "Code livreur invalide (au moins 4 chiffres)." });
+  const query = String(req.query.code ?? req.query.q ?? "").replace(/\D/g, "");
+  if (query.length < 4) {
+    res.status(400).json({ message: "Saisissez au moins 4 chiffres (code ou numéro)." });
     return;
   }
   const couriers = await prisma.courier.findMany({ orderBy: { createdAt: "asc" } });
-  const matches = couriers.filter((courier) => courierCode(courier.phone) === code);
+  const matches = couriers.filter((courier) => matchesCourierPhoneQuery(courier.phone, query));
   res.json({ couriers: matches.map(serializeCourierPublic) });
 });
 
@@ -3344,7 +3401,7 @@ app.get("/api/public/qr/:qrToken", async (req, res) => {
   }
 
   res.json({
-    restaurant: serializeRestaurant(restaurant),
+    restaurant: serializePublicRestaurant(restaurant),
     orderChannel: "QR_ONSITE",
     landingUrl: getRestaurantQrLandingUrl(req.params.qrToken),
   });
@@ -3535,7 +3592,7 @@ app.get("/qr/:qrToken", async (req, res) => {
         }
         const menuCards = available.map((item) => "<div class='card'><h3>" + item.name + "</h3><p class='muted'>" + (item.description || "") + "</p><strong>" + money(item.price) + "</strong><button onclick='addToCartById(" + JSON.stringify(item.id) + ")'>Ajouter</button></div>").join("");
         const cartTotal = state.cart.reduce((sum, item) => sum + item.basePrice * item.quantity, 0);
-        app.innerHTML = menuCards + "<div class='card'><h3>Votre commande</h3><p>" + (state.cart.map((item) => item.name + " x" + item.quantity).join("<br/>") || "Panier vide") + "</p><strong>Total: " + money(cartTotal) + "</strong><form id='qr-form'><input class='field' name='customerName' placeholder='Nom' required /><input class='field' name='customerPhone' placeholder='Telephone' required /><input class='field' name='tableLabel' placeholder='Numero de table' value=\"" + presetTable.replace(/[\"'<>]/g, "") + "\" /><textarea class='field' name='notes' placeholder='Note cuisine'></textarea><button type='submit'>Commander sur place</button><div id='result' class='ok'></div></form></div>";
+        app.innerHTML = menuCards + "<div class='card'><h3>Votre commande</h3><p>" + (state.cart.map((item) => item.name + " x" + item.quantity).join("<br/>") || "Panier vide") + "</p><strong>Total: " + money(cartTotal) + "</strong><form id='qr-form'><input class='field' name='customerName' placeholder='Nom' required /><input class='field' name='customerPhone' placeholder='Telephone' required /><input class='field' name='tableLabel' placeholder='Numero de table' value='" + presetTable.replace(/['\\"<>]/g, "") + "' /><textarea class='field' name='notes' placeholder='Note cuisine'></textarea><button type='submit'>Commander sur place</button><div id='result' class='ok'></div></form></div>";
         document.getElementById("qr-form").addEventListener("submit", submitOrder);
       }
       window.addToCartById = function(menuItemId) {
@@ -6222,6 +6279,59 @@ app.get("/api/restaurant/portal/qr", requireAuth, requireRestaurant, wrapAsync(a
   const qrUrl = getRestaurantQrLandingUrl(restaurant.qrCodeToken);
   const qrDataUrl = await QRCode.toDataURL(qrUrl, { margin: 1, width: 360 });
   res.json({ qrCodeToken: restaurant.qrCodeToken, qrUrl, qrDataUrl });
+}));
+
+// ─── Livreurs préférés (géré par le restaurateur lui-même) ────────────────────
+// Le restaurateur ne voit jamais la liste complète de la flotte : il recherche un
+// livreur par son code (6 chiffres) ou son numéro, que le livreur lui communique
+// après s'être inscrit sur l'app SpeedZ Livreur.
+app.get("/api/restaurant/portal/couriers/search", requireAuth, requireRestaurant, wrapAsync(async (req, res) => {
+  const query = String(req.query.q ?? req.query.code ?? "").replace(/\D/g, "");
+  if (query.length < 4) {
+    res.status(400).json({ message: "Saisissez au moins 4 chiffres (code ou numéro)." });
+    return;
+  }
+  const couriers = await prisma.courier.findMany({ orderBy: { createdAt: "asc" } });
+  const matches = couriers.filter((courier) => matchesCourierPhoneQuery(courier.phone, query));
+  res.json({ couriers: matches.map(serializeCourierPublic) });
+}));
+
+app.get("/api/restaurant/portal/preferred-couriers", requireAuth, requireRestaurant, wrapAsync(async (req, res) => {
+  const links = await prisma.restaurantPreferredCourier.findMany({
+    where: { restaurantId: req.restaurantAuth.id },
+    include: { courier: true },
+    orderBy: { createdAt: "asc" },
+  });
+  res.json({ couriers: links.map((link) => serializeCourierPublic(link.courier)) });
+}));
+
+app.put("/api/restaurant/portal/preferred-couriers", requireAuth, requireRestaurant, wrapAsync(async (req, res) => {
+  // L'id du restaurant vient du compte connecté, jamais du corps de la requête :
+  // un restaurateur ne peut pas modifier les préférés d'un autre restaurant.
+  const restaurantId = req.restaurantAuth.id;
+  const requested = Array.isArray(req.body?.courierIds) ? req.body.courierIds.filter(Boolean) : [];
+
+  // On ne garde que des ids de livreurs réellement existants.
+  const existing = await prisma.courier.findMany({
+    where: { id: { in: requested } },
+    select: { id: true },
+  });
+  const courierIds = existing.map((courier) => courier.id);
+
+  await prisma.restaurantPreferredCourier.deleteMany({ where: { restaurantId } });
+  if (courierIds.length) {
+    await prisma.restaurantPreferredCourier.createMany({
+      data: courierIds.map((courierId) => ({ restaurantId, courierId })),
+      skipDuplicates: true,
+    });
+  }
+
+  const links = await prisma.restaurantPreferredCourier.findMany({
+    where: { restaurantId },
+    include: { courier: true },
+    orderBy: { createdAt: "asc" },
+  });
+  res.json({ couriers: links.map((link) => serializeCourierPublic(link.courier)) });
 }));
 
 // ─── Tableau de bord (KPIs temps réel) ────────────────────────────────────────

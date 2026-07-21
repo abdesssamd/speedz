@@ -108,8 +108,8 @@ export function FavoriteCouriersScreen() {
             value={code}
             onChangeText={setCode}
             placeholder={t("favorite_couriers_search_placeholder")}
-            keyboardType="number-pad"
-            maxLength={10}
+            keyboardType="phone-pad"
+            maxLength={16}
             style={[s.input, { textAlign: isRTL ? "right" : "left" }]}
           />
           <ScalePressable containerStyle={s.searchBtn} onPress={search}>

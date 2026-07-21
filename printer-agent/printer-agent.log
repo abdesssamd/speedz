@@ -2361,3 +2361,275 @@ requests.exceptions.HTTPError: 500 Server Error: Internal Server Error for url: 
 2026-07-18 14:50:05,160 INFO Aucune imprimante -> ticket ecrit dans E:\SpeedZ\printer-agent\ticket-1784382605.bin
 2026-07-18 14:50:09,450 ERROR Handshake status 404 Not Found -+-+- {'server': 'nginx', 'date': 'Sat, 18 Jul 2026 13:50:10 GMT', 'content-type': 'text/html; charset=utf-8', 'content-length': '141', 'connection': 'keep-alive', 'x-dns-prefetch-control': 'off', 'ratelimit-limit': '300', 'vary': 'Origin', 'origin-agent-cluster': '?1', 'ratelimit-remaining': '298', 'ratelimit-policy': '300;w=60', 'cross-origin-resource-policy': 'same-origin', 'x-frame-options': 'SAMEORIGIN', 'content-security-policy': "default-src 'none'", 'access-control-allow-origin': 'https://speedz.microtechdz13.com', 'referrer-policy': 'no-referrer', 'x-permitted-cross-domain-policies': 'none', 'cross-origin-opener-policy': 'same-origin', 'x-xss-protection': '0', 'access-control-allow-credentials': 'true', 'x-download-options': 'noopen', 'x-content-type-options': 'nosniff', 'ratelimit-reset': '60', 'x-powered-by': 'Phusion Passenger(R) 6.1.5', 'status': '404 Not Found'} -+-+- b'<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<title>Error</title>\n</head>\n<body>\n<pre>Cannot GET /ws</pre>\n</body>\n</html>\n' - goodbye
 2026-07-18 14:50:15,083 ERROR Handshake status 404 Not Found -+-+- {'server': 'nginx', 'date': 'Sat, 18 Jul 2026 13:50:16 GMT', 'content-type': 'text/html; charset=utf-8', 'content-length': '141', 'connection': 'keep-alive', 'x-dns-prefetch-control': 'off', 'ratelimit-limit': '300', 'vary': 'Origin', 'origin-agent-cluster': '?1', 'ratelimit-remaining': '298', 'ratelimit-policy': '300;w=60', 'cross-origin-resource-policy': 'same-origin', 'x-frame-options': 'SAMEORIGIN', 'content-security-policy': "default-src 'none'", 'access-control-allow-origin': 'https://speedz.microtechdz13.com', 'referrer-policy': 'no-referrer', 'x-permitted-cross-domain-policies': 'none', 'cross-origin-opener-policy': 'same-origin', 'x-xss-protection': '0', 'access-control-allow-credentials': 'true', 'x-download-options': 'noopen', 'x-content-type-options': 'nosniff', 'ratelimit-reset': '60', 'x-powered-by': 'Phusion Passenger(R) 6.1.5', 'status': '404 Not Found'} -+-+- b'<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<title>Error</title>\n</head>\n<body>\n<pre>Cannot GET /ws</pre>\n</body>\n</html>\n' - goodbye
+2026-07-21 15:27:47,264 INFO Websocket connected
+2026-07-21 15:27:47,753 INFO Connecte au restaurant : REsta Plannet
+2026-07-21 15:27:48,444 INFO Aucune imprimante -> ticket ecrit dans E:\SpeedZ\printer-agent\ticket-1784644068.bin
+2026-07-21 15:27:48,522 INFO Commande #UTRGN9 imprimee
+2026-07-21 15:29:37,441 INFO Aucune imprimante -> ticket ecrit dans E:\SpeedZ\printer-agent\ticket-1784644177.bin
+2026-07-21 15:29:37,516 INFO Commande #0F5RHC imprimee
+2026-07-21 15:35:48,470 ERROR Connection to remote host was lost. - goodbye
+2026-07-21 15:35:53,750 INFO Websocket connected
+2026-07-21 15:53:13,474 ERROR Connection to remote host was lost. - goodbye
+2026-07-21 15:53:18,744 INFO Websocket connected
+2026-07-21 16:23:44,470 ERROR Connection to remote host was lost. - goodbye
+2026-07-21 16:23:49,732 INFO Websocket connected
+2026-07-21 16:31:12,449 ERROR Connection to remote host was lost. - goodbye
+2026-07-21 16:31:18,736 INFO Websocket connected
+2026-07-21 16:31:57,278 ERROR Erreur de polling: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+  File "C:\Python314\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 300, in _read_status
+    raise RemoteDisconnected("Remote end closed connection without"
+                             " response")
+http.client.RemoteDisconnected: Remote end closed connection without response
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 486, in send
+    resp = conn.urlopen(
+        method=request.method,
+    ...<9 lines>...
+        chunked=chunked,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+        method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\retry.py", line 490, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\util.py", line 38, in reraise
+    raise value.with_traceback(tb)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+  File "C:\Python314\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 300, in _read_status
+    raise RemoteDisconnected("Remote end closed connection without"
+                             " response")
+urllib3.exceptions.ProtocolError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 665, in loop
+    self._process_orders()
+    ~~~~~~~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 552, in _process_orders
+    orders = self.fetch_orders()
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 237, in fetch_orders
+    return self._request("GET", "/api/restaurant/printer/orders", timeout=20).json()
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 208, in _request
+    response = self.session.request(method, url, headers=self.headers, timeout=timeout)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 501, in send
+    raise ConnectionError(err, request=request)
+requests.exceptions.ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-07-21 16:31:57,489 INFO Reseau instable, pause 5s
+2026-07-21 16:40:03,490 ERROR Connection to remote host was lost. - goodbye
+2026-07-21 16:40:08,864 INFO Websocket connected
+2026-07-21 16:49:30,733 ERROR Erreur de polling: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+  File "C:\Python314\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 300, in _read_status
+    raise RemoteDisconnected("Remote end closed connection without"
+                             " response")
+http.client.RemoteDisconnected: Remote end closed connection without response
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 486, in send
+    resp = conn.urlopen(
+        method=request.method,
+    ...<9 lines>...
+        chunked=chunked,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+        method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\retry.py", line 490, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\util.py", line 38, in reraise
+    raise value.with_traceback(tb)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+  File "C:\Python314\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 300, in _read_status
+    raise RemoteDisconnected("Remote end closed connection without"
+                             " response")
+urllib3.exceptions.ProtocolError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 665, in loop
+    self._process_orders()
+    ~~~~~~~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 552, in _process_orders
+    orders = self.fetch_orders()
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 237, in fetch_orders
+    return self._request("GET", "/api/restaurant/printer/orders", timeout=20).json()
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 208, in _request
+    response = self.session.request(method, url, headers=self.headers, timeout=timeout)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 501, in send
+    raise ConnectionError(err, request=request)
+requests.exceptions.ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-07-21 16:49:30,740 INFO Reseau instable, pause 5s
+2026-07-21 16:49:50,743 WARNING Heartbeat en echec (ignore): HTTPSConnectionPool(host='speedz.microtechdz13.com', port=443): Max retries exceeded with url: /api/restaurant/printer/heartbeat (Caused by ConnectTimeoutError(<HTTPSConnection(host='speedz.microtechdz13.com', port=443) at 0x1fd280f3250>, 'Connection to speedz.microtechdz13.com timed out. (connect timeout=15)'))
+2026-07-21 16:50:14,380 ERROR Erreur de polling: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+  File "C:\Python314\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 300, in _read_status
+    raise RemoteDisconnected("Remote end closed connection without"
+                             " response")
+http.client.RemoteDisconnected: Remote end closed connection without response
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 486, in send
+    resp = conn.urlopen(
+        method=request.method,
+    ...<9 lines>...
+        chunked=chunked,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+        method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\retry.py", line 490, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\util\util.py", line 38, in reraise
+    raise value.with_traceback(tb)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\urllib3\connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+  File "C:\Python314\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\http\client.py", line 300, in _read_status
+    raise RemoteDisconnected("Remote end closed connection without"
+                             " response")
+urllib3.exceptions.ProtocolError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 665, in loop
+    self._process_orders()
+    ~~~~~~~~~~~~~~~~~~~~^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 552, in _process_orders
+    orders = self.fetch_orders()
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 237, in fetch_orders
+    return self._request("GET", "/api/restaurant/printer/orders", timeout=20).json()
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\SpeedZ\printer-agent\printer_agent.py", line 208, in _request
+    response = self.session.request(method, url, headers=self.headers, timeout=timeout)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+  File "C:\Users\MICROTECH\AppData\Roaming\Python\Python314\site-packages\requests\adapters.py", line 501, in send
+    raise ConnectionError(err, request=request)
+requests.exceptions.ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-07-21 16:50:14,386 INFO Reseau instable, pause 10s
+2026-07-21 16:52:54,412 ERROR Connection to remote host was lost. - goodbye
+2026-07-21 16:53:00,099 INFO Websocket connected
+2026-07-21 16:59:29,475 ERROR Connection to remote host was lost. - goodbye
+2026-07-21 16:59:34,735 INFO Websocket connected
+2026-07-21 17:09:30,191 INFO Websocket connected
+2026-07-21 17:09:30,706 INFO Connecte au restaurant : REsta Plannet

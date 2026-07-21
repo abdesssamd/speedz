@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo } from "react";
 import {
   FlatList,
+  Linking,
   SafeAreaView,
   StyleSheet,
   Text,
@@ -22,7 +23,6 @@ import {
 } from "react-native";
 import { AnimatedCard } from "../components/AnimatedCard";
 import { EmptyState } from "../components/EmptyState";
-import { LiveDeliveryMap } from "../components/LiveDeliveryMap";
 import { useApp } from "../context/AppContext";
 import { alignStart, mobileTheme, rowDirection, ThemeColors } from "../theme/mobile";
 import { useTheme } from "../theme/ThemeProvider";
@@ -122,13 +122,9 @@ function useTrackerStyles() {
 }
 
 // ─── Carte commande active ────────────────────────────────────────────────────
-function ActiveOrderCard({ item, index, restaurants, currentLocation, language, isRTL, translate }: any) {
+function ActiveOrderCard({ item, index, language, isRTL, translate }: any) {
   const s = useOrdersStyles();
-  const restaurant = restaurants.find((r: any) => r.id === item.restaurantId);
-  const courierCoords =
-    item.courier?.currentLat != null && item.courier?.currentLng != null
-      ? { latitude: item.courier.currentLat, longitude: item.courier.currentLng }
-      : null;
+  const courierPhone = item.courier?.phone;
 
   return (
     <AnimatedCard delay={Math.min(index * 60, 200)} style={s.activeCard}>
@@ -157,55 +153,50 @@ function ActiveOrderCard({ item, index, restaurants, currentLocation, language, 
       {/* Tracker JE */}
       <JETracker status={item.status} language={language} isRTL={isRTL} />
 
-      {/* Carte livreur */}
-      {item.courier && (
+      {/* Livreur — ou recherche en cours */}
+      {item.courier ? (
         <View style={s.courierCard}>
           <View style={s.courierAvatar}>
             <Ionicons name="person" size={18} color={JE.orange} />
           </View>
           <View style={s.courierInfo}>
-            <Text style={s.courierName}>{item.courier.name}</Text>
-            <Text style={s.courierVehicle}>{item.courier.vehicle}</Text>
+            <Text style={s.courierName} numberOfLines={1}>{item.courier.name}</Text>
+            <Text style={s.courierVehicle} numberOfLines={1}>{item.courier.vehicle}</Text>
           </View>
-          <TouchableOpacity style={s.callBtn}>
-            <Ionicons name="call-outline" size={16} color={JE.orange} />
-          </TouchableOpacity>
-          <TouchableOpacity style={s.chatBtn}>
-            <Ionicons name="chatbubble-outline" size={16} color={JE.blue} />
-          </TouchableOpacity>
+          {courierPhone && (
+            <TouchableOpacity
+              style={s.callBtn}
+              activeOpacity={0.8}
+              onPress={() => Linking.openURL(`tel:${courierPhone}`)}
+            >
+              <Ionicons name="call" size={15} color={JE.white} />
+              <Text style={s.callTxt}>{translate("call_courier")}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      ) : (
+        <View style={s.searchingCard}>
+          <Ionicons name="search" size={15} color={JE.orange} />
+          <Text style={s.searchingTxt} numberOfLines={1}>
+            {translate("waiting_courier")}
+          </Text>
         </View>
       )}
 
-      {/* Chips méta */}
-      <View style={s.chips}>
-        <View style={s.chip}>
-          <Ionicons name="receipt-outline" size={11} color={JE.orange} />
-          <Text style={s.chipTxt}>{item.items.length} {translate("articles")}</Text>
+      {/* Résumé compact : articles · total · adresse */}
+      <View style={s.summary}>
+        <View style={s.summaryLine}>
+          <Ionicons name="receipt-outline" size={13} color={JE.grey} />
+          <Text style={s.summaryTxt}>
+            {item.items.length} {translate("articles")}
+          </Text>
+          <Text style={s.summaryTotal}>{formatCurrency(item.total)}</Text>
         </View>
-        <View style={s.chip}>
-          <Ionicons name="cash-outline" size={11} color={JE.orange} />
-          <Text style={s.chipTxt}>{formatCurrency(item.total)}</Text>
-        </View>
-        <View style={s.chip}>
-          <Ionicons name="location-outline" size={11} color={JE.orange} />
-          <Text style={s.chipTxt} numberOfLines={1}>{item.address}</Text>
+        <View style={s.summaryLine}>
+          <Ionicons name="location-outline" size={13} color={JE.grey} />
+          <Text style={s.summaryTxt} numberOfLines={1}>{item.address}</Text>
         </View>
       </View>
-
-      {/* Carte live */}
-      {restaurant && (
-        <LiveDeliveryMap
-          pickup={restaurant.coordinates}
-          destination={currentLocation.coordinates}
-          courier={courierCoords}
-          title={item.courier ? `${translate("live_tracking")} 🛵` : translate("waiting_courier")}
-          subtitle={
-            item.courier
-              ? `${item.courier.name} est en route vers vous.`
-              : "Le suivi s'active dès qu'un livreur est assigné."
-          }
-        />
-      )}
     </AnimatedCard>
   );
 }
@@ -257,7 +248,7 @@ function DeliveredOrderCard({
 
 // ─────────────────────────────────────────────────────────────────────────────
 export function OrdersScreen() {
-  const { orders, restaurants, currentLocation, reorder, t, language, isRTL } = useApp();
+  const { orders, reorder, t, language, isRTL } = useApp();
   const s = useOrdersStyles();
   const { colors: c } = useTheme();
 
@@ -358,8 +349,6 @@ export function OrdersScreen() {
               <ActiveOrderCard
                 item={item.data}
                 index={item.idx}
-                restaurants={restaurants}
-                currentLocation={currentLocation}
                 language={language}
                 isRTL={isRTL}
                 translate={t}
@@ -472,24 +461,29 @@ function makeStyles(c: ThemeColors) {
   courierName: { color: c.text, fontWeight: "800", fontSize: 14 },
   courierVehicle: { color: c.textMuted, fontSize: 12, marginTop: 1 },
   callBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: c.brandSoft, alignItems: "center", justifyContent: "center",
+    flexDirection: "row", alignItems: "center", gap: 6,
+    height: 36, borderRadius: 18, paddingHorizontal: 14,
+    backgroundColor: JE.orange,
   },
-  chatBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: c.infoSoft, alignItems: "center", justifyContent: "center",
-  },
+  callTxt: { color: JE.white, fontWeight: "800", fontSize: 13 },
 
-  // Chips
-  chips: {
-    flexDirection: "row", flexWrap: "wrap", gap: 8,
-    paddingHorizontal: 16, paddingBottom: 14,
+  // Recherche d'un livreur
+  searchingCard: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    marginHorizontal: 16, marginBottom: 10,
+    backgroundColor: c.brandSoft, borderRadius: 14,
+    paddingHorizontal: 12, paddingVertical: 11,
   },
-  chip: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    backgroundColor: c.brandSoft, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6,
+  searchingTxt: { flex: 1, color: JE.orange, fontWeight: "700", fontSize: 13 },
+
+  // Résumé compact
+  summary: {
+    gap: 6, paddingHorizontal: 16, paddingBottom: 14,
+    borderTopWidth: 1, borderTopColor: c.borderSoft, paddingTop: 12, marginHorizontal: 0,
   },
-  chipTxt: { color: JE.orange, fontWeight: "700", fontSize: 11, maxWidth: 120 },
+  summaryLine: { flexDirection: "row", alignItems: "center", gap: 7 },
+  summaryTxt: { flex: 1, color: c.textMuted, fontSize: 13, fontWeight: "600" },
+  summaryTotal: { color: c.text, fontSize: 14, fontWeight: "900" },
 
   // Carte livrée
   deliveredCard: {
