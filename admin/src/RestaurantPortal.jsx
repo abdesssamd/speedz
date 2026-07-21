@@ -707,6 +707,8 @@ function MenuScreen({ call, token, notify }) {
   const [editing, setEditing] = useState(null); // objet en cours d'édition ou null
   const [showCategories, setShowCategories] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [activeCategory, setActiveCategory] = useState("__all__");
+  const [search, setSearch] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -745,6 +747,30 @@ function MenuScreen({ call, token, notify }) {
     }
   };
 
+  // Catégories réellement présentes dans le menu, pour les onglets de filtrage.
+  const usedCategories = useMemo(() => {
+    const names = [];
+    for (const item of items) {
+      const name = item.category || "Divers";
+      if (!names.includes(name)) names.push(name);
+    }
+    return names.sort((a, b) => a.localeCompare(b));
+  }, [items]);
+
+  const stockoutCount = useMemo(() => items.filter((item) => !item.isAvailable).length, [items]);
+
+  const visibleItems = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return items.filter((item) => {
+      const category = item.category || "Divers";
+      if (activeCategory === "__stockout__") {
+        if (item.isAvailable) return false;
+      } else if (activeCategory !== "__all__" && category !== activeCategory) return false;
+      if (!needle) return true;
+      return `${item.name} ${item.description || ""}`.toLowerCase().includes(needle);
+    });
+  }, [items, activeCategory, search]);
+
   // Ordre des catégories : selon le sortOrder déclaré (MenuCategory), puis alpha.
   const grouped = useMemo(() => {
     const rank = {};
@@ -752,7 +778,7 @@ function MenuScreen({ call, token, notify }) {
       rank[c.name] = c.sortOrder ?? i;
     });
     const map = {};
-    for (const item of items) {
+    for (const item of visibleItems) {
       (map[item.category || "Divers"] ||= []).push(item);
     }
     return Object.entries(map).sort((a, b) => {
@@ -760,13 +786,13 @@ function MenuScreen({ call, token, notify }) {
       const rb = rank[b[0]] ?? 999;
       return ra - rb || a[0].localeCompare(b[0]);
     });
-  }, [items, categories]);
+  }, [visibleItems, categories]);
 
   return (
     <div>
       <ScreenHeader
         title="Menu"
-        subtitle={`${items.length} plat(s) · ${grouped.length} catégorie(s)`}
+        subtitle={`${items.length} plat(s) · ${usedCategories.length} catégorie(s)${stockoutCount ? ` · ${stockoutCount} en rupture` : ""}`}
         actions={
           <div className="flex items-center gap-2">
             <button
@@ -785,10 +811,53 @@ function MenuScreen({ call, token, notify }) {
         }
       />
 
+      {!loading && items.length > 0 ? (
+        <div className="mb-4 space-y-3">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Rechercher un plat…"
+            className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+          />
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setActiveCategory("__all__")}
+              className={`rounded-full px-3 py-1.5 text-sm font-semibold border ${activeCategory === "__all__" ? "bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 dark:border-white" : "border-slate-200 dark:border-slate-700 text-slate-500"}`}
+            >
+              Tout ({items.length})
+            </button>
+            {usedCategories.map((name) => {
+              const count = items.filter((item) => (item.category || "Divers") === name).length;
+              return (
+                <button
+                  key={name}
+                  onClick={() => setActiveCategory(name)}
+                  className={`rounded-full px-3 py-1.5 text-sm font-semibold border ${activeCategory === name ? "bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 dark:border-white" : "border-slate-200 dark:border-slate-700 text-slate-500"}`}
+                >
+                  {name} ({count})
+                </button>
+              );
+            })}
+            {/* Le retour au menu étant manuel, ce filtre évite d'oublier un plat
+                masqué depuis la veille. */}
+            {stockoutCount > 0 ? (
+              <button
+                onClick={() => setActiveCategory("__stockout__")}
+                className={`rounded-full px-3 py-1.5 text-sm font-semibold border ${activeCategory === "__stockout__" ? "bg-amber-500 text-white border-amber-500" : "border-amber-300 text-amber-600 dark:border-amber-800 dark:text-amber-400"}`}
+              >
+                En rupture ({stockoutCount})
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       {loading ? (
         <p className="text-slate-500">Chargement du menu…</p>
-      ) : grouped.length === 0 ? (
+      ) : items.length === 0 ? (
         <Card className="p-10 text-center text-slate-400">Aucun plat pour l'instant. Ajoutez votre premier plat.</Card>
+      ) : grouped.length === 0 ? (
+        <Card className="p-10 text-center text-slate-400">Aucun plat ne correspond à ce filtre.</Card>
       ) : (
         <div className="space-y-6">
           {grouped.map(([category, list]) => (
@@ -813,9 +882,10 @@ function MenuScreen({ call, token, notify }) {
                       <div className="flex items-center gap-2 mt-2">
                         <button
                           onClick={() => toggleAvailability(item)}
+                          title={item.isAvailable ? "Ingrédient épuisé : retirer du menu" : "Remettre le plat au menu"}
                           className={`text-xs font-semibold rounded-lg px-2 py-0.5 ${item.isAvailable ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "bg-slate-200 text-slate-500 dark:bg-slate-800"}`}
                         >
-                          {item.isAvailable ? "Disponible" : "Indisponible"}
+                          {item.isAvailable ? "Disponible" : "En rupture"}
                         </button>
                         {(item.options || []).length ? (
                           <span className="text-xs text-slate-400">{item.options.length} option(s)</span>
