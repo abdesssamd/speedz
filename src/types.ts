@@ -92,6 +92,7 @@ export type Restaurant = {
   apiToken?: string | null;
   qrCodeToken?: string | null;
   qrCodeUrl?: string | null;
+  pickupAvailable?: boolean;
   validatedAt?: string | null;
   printerLastSeenAt?: string | null;
   // « En service » : l'agent d'impression du restaurant communique. Remplace les
@@ -279,6 +280,7 @@ export type CheckoutDraft = {
   address: string;
   paymentMethod: PaymentMethod;
   notes: string;
+  orderChannel?: "DELIVERY" | "PICKUP";
 };
 
 export type PartnerApplicationType = "RESTAURANT" | "COURIER";

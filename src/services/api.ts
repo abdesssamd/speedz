@@ -323,7 +323,7 @@ export const api = {
     draft: CheckoutDraft;
     userCoordinates: { latitude: number; longitude: number };
     promoCode?: string;
-    orderChannel?: "DELIVERY" | "QR_ONSITE";
+    orderChannel?: "DELIVERY" | "QR_ONSITE" | "PICKUP";
     tableLabel?: string;
   }) {
     return request<{
@@ -341,7 +341,7 @@ export const api = {
     cart: CartItem[];
     userCoordinates: { latitude: number; longitude: number };
     promoCode?: string;
-    orderChannel?: "DELIVERY" | "QR_ONSITE";
+    orderChannel?: "DELIVERY" | "QR_ONSITE" | "PICKUP";
   }) {
     return request<CartSummary>("/api/cart/quote", {
       method: "POST",

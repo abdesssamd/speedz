@@ -31,7 +31,16 @@ if (!JWT_SECRET || JWT_SECRET === "change-me-in-production") {
   process.exit(1);
 }
 const DEMO_USER_EMAIL = "nina.morel@demo.app";
-const DEFAULT_QR_WEBAPP_URL = process.env.QR_WEBAPP_URL || `http://localhost:${PORT}`;
+// Base des URLs QR (page menu, QR de table). QR_WEBAPP_URL en priorité, puis les
+// autres variables d'URL publique déjà utilisées ailleurs (images), pour éviter
+// de retomber silencieusement sur localhost si QR_WEBAPP_URL n'est pas défini.
+const DEFAULT_QR_WEBAPP_URL = (
+  process.env.QR_WEBAPP_URL ||
+  process.env.PUBLIC_BASE_URL ||
+  process.env.API_BASE_URL ||
+  process.env.IMAGE_URL_BASE ||
+  `http://localhost:${PORT}`
+).replace(/\/+$/, "");
 const APP_LOGIN_URL = process.env.APP_LOGIN_URL || "fooddelyvry://auth";
 const AUTH_COOKIE_NAME = process.env.AUTH_COOKIE_NAME || "speedz_admin_session";
 const WHATSAPP_API_VERSION = process.env.WHATSAPP_API_VERSION || "v23.0";
@@ -609,6 +618,9 @@ function serializeRestaurant(record) {
     allowSpeedzFallback: Boolean(record.allowSpeedzFallback),
     qrAuthRequired: record.qrAuthRequired ?? null,
     qrServerValidation: record.qrServerValidation ?? null,
+    pickupEnabled: record.pickupEnabled ?? null,
+    // Valeur résolue (booléen) pour l'app / la page QR : afficher ou non l'option.
+    pickupAvailable: restaurantPickupEnabled(record),
     menu: (record.menuItems || [])
       .filter((item) => !item.deletedAt)
       .map((item) => ({
@@ -709,6 +721,13 @@ function restaurantRequiresMenuAuth(restaurant) {
 }
 function restaurantServerValidation(restaurant) {
   return restaurant?.qrServerValidation ?? SERVER_ORDER_VALIDATION;
+}
+
+// PICKUP_ENABLED=oui (défaut) : les restaurants acceptent par défaut les commandes
+// « à récupérer par le client ». Chaque restaurant peut surcharger.
+const PICKUP_ENABLED = String(process.env.PICKUP_ENABLED ?? "oui").toLowerCase() === "oui";
+function restaurantPickupEnabled(restaurant) {
+  return restaurant?.pickupEnabled ?? PICKUP_ENABLED;
 }
 
 function serializeTable(record, restaurant) {
@@ -2085,12 +2104,15 @@ async function computeSummary({ restaurantId, cart, userCoordinates, promoCode, 
         },
       })
     : null;
+  // Sur place (QR_ONSITE) et à récupérer par le client (PICKUP) : aucun frais de
+  // livraison, pas de distance, le client se déplace.
+  const noDeliveryChannel = orderChannel === "QR_ONSITE" || orderChannel === "PICKUP";
   const delivery =
-    orderChannel === "QR_ONSITE"
+    noDeliveryChannel
       ? {
           distanceKm: 0,
           fee: 0,
-          tierLabel: "Sur place",
+          tierLabel: orderChannel === "PICKUP" ? "A recuperer" : "Sur place",
           estimatedMinutes: 12,
           estimatedLabel: "10-18 min"
         }
@@ -2102,7 +2124,7 @@ async function computeSummary({ restaurantId, cart, userCoordinates, promoCode, 
   // rayon de gratuité, sauf si aucun de ses livreurs n'est disponible (repli SpeedZ
   // payant, décidé ici pour que le client voie le bon prix avant de commander).
   const { quote: appliedDelivery, useSpeedzFleet } = await applyOwnDeliveryPricing(restaurant, delivery);
-  const serviceFee = orderChannel === "QR_ONSITE" ? 0 : calculateServiceFee(subtotal);
+  const serviceFee = noDeliveryChannel ? 0 : calculateServiceFee(subtotal);
   const discountAmount = calculatePromotionDiscount({ promotion, subtotal });
   const total = Number((subtotal + appliedDelivery.fee + serviceFee - discountAmount).toFixed(2));
   // Points : programme global administré par l'admin (plus de taux par restaurant).
@@ -2528,6 +2550,11 @@ async function createOrderRecord({
     return null;
   }
 
+  // Ce restaurant refuse-t-il le retrait par le client ?
+  if (orderChannel === "PICKUP" && !restaurantPickupEnabled(restaurant)) {
+    return { error: "PICKUP_DISABLED" };
+  }
+
   // Restaurant hors service (agent d'impression déconnecté) : on refuse la commande.
   // Désactivable via REQUIRE_PRINTER_ONLINE=false si des restaurants n'ont pas
   // encore installé l'agent SpeedZPrinter.
@@ -2545,6 +2572,10 @@ async function createOrderRecord({
   let initialStatus;
   if (orderChannel === "DELIVERY") {
     initialStatus = "AwaitingCourier";
+  } else if (orderChannel === "PICKUP") {
+    // À récupérer par le client : toujours en attente. L'administration appelle le
+    // client puis confirme (→ Confirmed → impression). Jamais proposée aux livreurs.
+    initialStatus = "Accepted";
   } else {
     initialStatus = restaurantServerValidation(restaurant) ? "Accepted" : "Confirmed";
   }
@@ -3401,6 +3432,14 @@ app.post("/api/orders", optionalAuth, validateBody(Schemas.createOrder), async (
     return;
   }
 
+  if (order.error === "PICKUP_DISABLED") {
+    res.status(409).json({
+      message: "Ce restaurant n'accepte pas les commandes à récupérer.",
+      code: "PICKUP_DISABLED",
+    });
+    return;
+  }
+
   const payload = await fetchBootstrapPayload(demoUser.id);
   res.status(201).json({
     order: serializeOrder(order),
@@ -3502,10 +3541,15 @@ async function handleQrOrder({ req, res, restaurant, table }) {
     });
   }
 
+  // Mode de retrait : « à récupérer par le client » (PICKUP) désolidarise la
+  // commande de la table — elle passe en attente de confirmation par le back-office.
+  const isPickup = req.body && req.body.fulfillment === "PICKUP";
+  const boundTable = isPickup ? null : table;
+
   // Plafond par table : empêche l'inondation de la cuisine depuis une table.
-  if (table) {
+  if (boundTable) {
     const activeCount = await prisma.order.count({
-      where: { tableId: table.id, status: { in: RESTAURANT_ACTIVE_ORDER_STATUSES } },
+      where: { tableId: boundTable.id, status: { in: RESTAURANT_ACTIVE_ORDER_STATUSES } },
     });
     if (activeCount >= MAX_ACTIVE_ORDERS_PER_TABLE) {
       res.status(429).json({
@@ -3520,15 +3564,17 @@ async function handleQrOrder({ req, res, restaurant, table }) {
     restaurantId: restaurant.id,
     cart,
     draft: {
-      address: table ? `Sur place - Table ${table.label}` : "Sur place",
+      address: isPickup
+        ? "A recuperer par le client"
+        : (boundTable ? `Sur place - Table ${boundTable.label}` : "Sur place"),
       paymentMethod: paymentMethod || "Cash",
       notes: notes || null,
     },
     userCoordinates: { latitude: restaurant.latitude, longitude: restaurant.longitude },
     promoCode,
-    orderChannel: "QR_ONSITE",
-    tableLabel: table?.label || null,
-    tableId: table?.id || null,
+    orderChannel: isPickup ? "PICKUP" : "QR_ONSITE",
+    tableLabel: boundTable?.label || null,
+    tableId: boundTable?.id || null,
     userId: customer.id,
   });
 
@@ -3540,17 +3586,25 @@ async function handleQrOrder({ req, res, restaurant, table }) {
     return;
   }
 
+  if (order?.error === "PICKUP_DISABLED") {
+    res.status(409).json({
+      message: "Ce restaurant n'accepte pas les commandes à récupérer.",
+      code: "PICKUP_DISABLED",
+    });
+    return;
+  }
+
   if (!order) {
     res.status(400).json({ message: "Impossible de creer la commande QR." });
     return;
   }
 
-  if (table) {
+  if (boundTable) {
     await prisma.restaurantTable.update({
-      where: { id: table.id },
+      where: { id: boundTable.id },
       data: { status: "ORDER_IN_PROGRESS" },
     });
-    broadcastRealtime("restaurant/table-updated", { restaurantId: restaurant.id, tableId: table.id });
+    broadcastRealtime("restaurant/table-updated", { restaurantId: restaurant.id, tableId: boundTable.id });
   }
 
   res.status(201).json({
@@ -3619,6 +3673,7 @@ function renderQrPage(res, { restaurant, mode, token }) {
     orderUrl: `${resolveUrl}/orders`,
     playStoreUrl: process.env.PLAY_STORE_URL || null,
     authRequired: restaurantRequiresMenuAuth(restaurant),
+    pickupAvailable: restaurantPickupEnabled(restaurant),
   };
 
   // Le <script> inline nécessite d'assouplir la CSP globale (script-src 'self'
@@ -3752,7 +3807,7 @@ function renderQrPage(res, { restaurant, mode, token }) {
     <script>
       var CFG = ${JSON.stringify(cfg)};
       var TK = "speedz_token";
-      var state = { restaurant: null, table: null, cart: [], category: "__all__", error: null, user: null, sending: false, auth: null };
+      var state = { restaurant: null, table: null, cart: [], category: "__all__", error: null, user: null, sending: false, auth: null, fulfillment: null };
 
       var elMenu = document.getElementById("menu");
       var elCats = document.getElementById("cats");
@@ -3883,8 +3938,24 @@ function renderQrPage(res, { restaurant, mode, token }) {
           canSubmit = Boolean(state.user);
           submitLabel = state.user ? 'Envoyer la commande' : 'Connectez-vous pour envoyer';
         }
+        // Mode de retrait. Proposé seulement si le restaurant accepte le retrait
+        // par le client. Par défaut : sur place si table, sinon à récupérer.
+        if (state.fulfillment == null) {
+          state.fulfillment = (CFG.pickupAvailable && !state.table) ? "PICKUP" : "ONSITE";
+        }
+        var fulfillment = "";
+        if (CFG.pickupAvailable) {
+          var onsiteLabel = state.table ? "Sur place" : "Sur place";
+          fulfillment =
+            '<div class="tabs">' +
+            '<button class="tab" type="button" data-fulfil="ONSITE" aria-pressed="' + (state.fulfillment === "ONSITE") + '">' + onsiteLabel + '</button>' +
+            '<button class="tab" type="button" data-fulfil="PICKUP" aria-pressed="' + (state.fulfillment === "PICKUP") + '">A recuperer</button>' +
+            '</div>' +
+            (state.fulfillment === "PICKUP" ? '<p class="sub">Commande a recuperer au comptoir. Elle sera confirmee par le restaurant, puis vous presenterez votre numero de commande.</p>' : '');
+        }
         openSheet(
-          '<h2>Votre commande</h2>' + (state.table ? '<p class="sub">Table ' + esc(state.table.label) + '</p>' : '') +
+          '<h2>Votre commande</h2>' + (state.table && state.fulfillment !== "PICKUP" ? '<p class="sub">Table ' + esc(state.table.label) + '</p>' : '') +
+          fulfillment +
           cartLinesHtml() +
           '<div class="totals"><span>Total</span><span>' + money(cartTotal()) + '</span></div>' +
           identity +
@@ -3988,6 +4059,7 @@ function renderQrPage(res, { restaurant, mode, token }) {
         var honeypot = document.getElementById("hp-order");
         payload.company = honeypot ? honeypot.value : "";
         payload.notes = (document.getElementById("notes") && document.getElementById("notes").value) || "";
+        if (state.fulfillment === "PICKUP") { payload.fulfillment = "PICKUP"; }
         state.sending = true;
         var btn = elSheet.querySelector("[data-submit]");
         if (btn) { btn.disabled = true; btn.textContent = "Envoi en cours..."; }
@@ -3995,20 +4067,29 @@ function renderQrPage(res, { restaurant, mode, token }) {
           if (r.status === 401) { state.user = null; setToken(""); renderAccountButton(); state.sending = false; result("Session expiree, reconnectez-vous.", "ko"); showAuth(); return; }
           if (!r.ok) { state.sending = false; if (btn) { btn.disabled = false; btn.textContent = "Envoyer la commande"; } return result(r.body.message || "Commande refusee.", "ko"); }
           var ref = r.body.order ? r.body.order.id : "";
+          // Numéro court affiché au client, identique à celui du ticket cuisine.
+          var shortRef = ref ? ("#" + String(ref).slice(-6).toUpperCase()) : "";
+          var wasPickup = state.fulfillment === "PICKUP";
           state.cart = [];
+          state.fulfillment = null;
           renderMenu(); renderBar();
           var store = CFG.playStoreUrl ? '<a class="primary" style="display:block;text-decoration:none;text-align:center" href="' + esc(CFG.playStoreUrl) + '" target="_blank" rel="noopener">Suivre dans l app SpeedZ</a>' : '';
-          openSheet('<div class="done"><div class="tick">&#9989;</div><h2>Commande envoyee</h2><p>Reference : <strong>' + esc(ref) + '</strong></p><p>La cuisine a bien recu votre commande.</p>' + store + '<button class="ghost" type="button" data-close="1">Fermer</button></div>');
+          var numberBlock = '<p class="sub">Votre numero de commande</p><div style="font-size:38px;font-weight:800;letter-spacing:.04em;margin:4px 0 14px">' + esc(shortRef) + '</div>';
+          var body = wasPickup
+            ? '<h2>Commande enregistree</h2>' + numberBlock + '<p>Le restaurant va vous appeler pour confirmer. Presentez ce numero au comptoir pour recuperer votre commande.</p>'
+            : '<h2>Commande envoyee</h2>' + numberBlock + '<p>La cuisine a bien recu votre commande.</p>';
+          openSheet('<div class="done"><div class="tick">&#9989;</div>' + body + store + '<button class="ghost" type="button" data-close="1">Fermer</button></div>');
           state.sending = false;
         }).catch(function () { state.sending = false; if (btn) { btn.disabled = false; btn.textContent = "Envoyer la commande"; } result("Connexion impossible. Reessayez.", "ko"); });
       }
 
       // ── Événements ──────────────────────────────────────────────────────
       document.addEventListener("click", function (event) {
-        var t = event.target.closest("[data-inc],[data-dec],[data-cat],[data-retry],[data-tab],[data-send-code],[data-verify-code],[data-register],[data-login-email],[data-back],[data-back-cart],[data-login],[data-logout],[data-submit],[data-close]");
+        var t = event.target.closest("[data-inc],[data-dec],[data-cat],[data-retry],[data-tab],[data-fulfil],[data-send-code],[data-verify-code],[data-register],[data-login-email],[data-back],[data-back-cart],[data-login],[data-logout],[data-submit],[data-close]");
         if (!t) { return; }
         if (t.hasAttribute("data-retry")) { return loadMenu(); }
         if (t.hasAttribute("data-close")) { return closeSheet(); }
+        if (t.hasAttribute("data-fulfil")) { state.fulfillment = t.getAttribute("data-fulfil"); showCart(); return; }
         if (t.hasAttribute("data-cat")) { state.category = t.getAttribute("data-cat"); renderCats(); renderMenu(); return; }
         if (t.hasAttribute("data-inc")) { changeQty(t.getAttribute("data-inc"), 1); if (!elBackdrop.classList.contains("hidden")) { showCart(); } return; }
         if (t.hasAttribute("data-dec")) { changeQty(t.getAttribute("data-dec"), -1); if (!elBackdrop.classList.contains("hidden")) { showCart(); } return; }
@@ -6270,6 +6351,7 @@ app.patch("/api/restaurant/portal/profile", requireAuth, requireRestaurant, vali
   if (body.heroColor !== undefined) data.heroColor = body.heroColor;
   if (body.qrAuthRequired !== undefined) data.qrAuthRequired = body.qrAuthRequired;
   if (body.qrServerValidation !== undefined) data.qrServerValidation = body.qrServerValidation;
+  if (body.pickupEnabled !== undefined) data.pickupEnabled = body.pickupEnabled;
   // Horaires par jour : on stocke la structure et on compose un résumé lisible
   // (openingHours) affiché sur la fiche resto et la page QR.
   if (body.weeklyHours !== undefined) {

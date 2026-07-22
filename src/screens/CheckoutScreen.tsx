@@ -19,12 +19,19 @@ import { PaymentMethod } from "../types";
 export function CheckoutScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const {
-    cart, currentLocation, getCartSummary, createCheckoutDraft, placeOrder,
+    cart, cartRestaurant, currentLocation, getCartSummary, createCheckoutDraft, placeOrder,
     pushNotification, promoCode, savedAddresses, t, isRTL,
   } = useApp();
   const { colors: c } = useTheme();
   const s = useMemo(() => makeStyles(c), [c]);
-  const summary = getCartSummary();
+  const baseSummary = getCartSummary();
+  const pickupAvailable = Boolean(cartRestaurant?.pickupAvailable);
+  const [fulfillment, setFulfillment] = useState<"DELIVERY" | "PICKUP">("DELIVERY");
+  const isPickup = fulfillment === "PICKUP";
+  // En retrait, ni frais de livraison ni frais de service.
+  const summary = isPickup
+    ? { ...baseSummary, deliveryFee: 0, serviceFee: 0, deliveryDistanceKm: 0, total: Number((baseSummary.subtotal - (baseSummary.discountAmount || 0)).toFixed(2)) }
+    : baseSummary;
   const [address, setAddress] = useState(currentLocation.label);
   const [paymentMethod] = useState<PaymentMethod>("Cash");
   const [notes, setNotes] = useState("");
@@ -41,10 +48,10 @@ export function CheckoutScreen() {
   );
 
   const onConfirm = async () => {
-    if (!address.trim()) { pushNotification({ title: t("address_required"), message: t("address_required_msg"), tone: "error" }); return; }
+    if (!isPickup && !address.trim()) { pushNotification({ title: t("address_required"), message: t("address_required_msg"), tone: "error" }); return; }
     setIsSubmitting(true);
     try {
-      const draft = createCheckoutDraft({ address, paymentMethod, notes });
+      const draft = createCheckoutDraft({ address, paymentMethod, notes, orderChannel: fulfillment });
       const result = await placeOrder(draft);
       setIsSubmitting(false);
       if (!result.order) {
@@ -55,9 +62,12 @@ export function CheckoutScreen() {
         );
         return;
       }
+      const shortRef = "#" + String(result.order.id).slice(-6).toUpperCase();
       Alert.alert(
         "✅ " + t("order_confirmed"),
-        `${result.order.id} ${t("order_created")} ${result.order.pointsEarned ?? 0} ${t("points")}`,
+        isPickup
+          ? `Commande à récupérer.\nVotre numéro : ${shortRef}\nLe restaurant vous appellera pour confirmer. Présentez ce numéro au comptoir.`
+          : `${result.order.id} ${t("order_created")} ${result.order.pointsEarned ?? 0} ${t("points")}`,
         [{ text: t("see_orders"), onPress: () => navigation.navigate("MainTabs") }],
       );
     } catch (error) {
@@ -103,6 +113,32 @@ export function CheckoutScreen() {
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
         <Text style={s.pageTitle}>{t("checkout_title")}</Text>
 
+        {/* Mode : livraison ou à récupérer (si le restaurant l'accepte) */}
+        {pickupAvailable && (
+          <View style={s.fulfilRow}>
+            <TouchableOpacity
+              style={[s.fulfilBtn, !isPickup && s.fulfilBtnActive]}
+              onPress={() => setFulfillment("DELIVERY")}
+            >
+              <Ionicons name="bicycle-outline" size={16} color={!isPickup ? "#FF7622" : "#A0A5BA"} />
+              <Text style={[s.fulfilTxt, !isPickup && s.fulfilTxtActive]}>{t("delivery")}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.fulfilBtn, isPickup && s.fulfilBtnActive]}
+              onPress={() => setFulfillment("PICKUP")}
+            >
+              <Ionicons name="bag-handle-outline" size={16} color={isPickup ? "#FF7622" : "#A0A5BA"} />
+              <Text style={[s.fulfilTxt, isPickup && s.fulfilTxtActive]}>À récupérer</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        {isPickup && (
+          <View style={s.pickupNote}>
+            <Ionicons name="information-circle-outline" size={16} color="#FF7622" />
+            <Text style={s.pickupNoteTxt}>Commande à récupérer au comptoir, sans frais. Le restaurant vous appellera pour confirmer, puis vous présenterez votre numéro de commande.</Text>
+          </View>
+        )}
+
         {/* Delivery info bar */}
         <View style={s.infoBar}>
           <View style={s.infoChip}>
@@ -115,7 +151,8 @@ export function CheckoutScreen() {
           </View>
         </View>
 
-        {/* Address */}
+        {/* Address (masquée en retrait) */}
+        {!isPickup && (
         <AnimatedCard style={s.section}>
           <View style={s.sectionHeader}>
             <View style={s.sectionIconWrap}><Ionicons name="location-outline" size={18} color="#FF7622" /></View>
@@ -139,6 +176,7 @@ export function CheckoutScreen() {
             </TouchableOpacity>
           )}
         </AnimatedCard>
+        )}
 
         {/* Payment */}
         <AnimatedCard style={s.section}>
@@ -215,6 +253,14 @@ function makeStyles(c: ThemeColors) {
   safe: { flex: 1, backgroundColor: c.background },
   content: { padding: 20, gap: 16, paddingBottom: 36 },
   pageTitle: { color: c.text, fontSize: 28, fontWeight: "900" },
+
+  fulfilRow: { flexDirection: "row", gap: 10 },
+  fulfilBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: c.surface, borderRadius: 16, paddingVertical: 14, borderWidth: 1.5, borderColor: c.borderSoft },
+  fulfilBtnActive: { borderColor: "#FF7622", backgroundColor: c.brandSurface },
+  fulfilTxt: { color: c.textMuted, fontWeight: "800", fontSize: 14 },
+  fulfilTxtActive: { color: "#FF7622" },
+  pickupNote: { flexDirection: "row", gap: 8, alignItems: "flex-start", backgroundColor: c.brandSoft, borderRadius: 14, padding: 12 },
+  pickupNoteTxt: { flex: 1, color: c.textMuted, fontSize: 13, lineHeight: 18 },
 
   infoBar: { flexDirection: "row", gap: 12 },
   infoChip: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: c.surface, borderRadius: 16, padding: 12, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 },

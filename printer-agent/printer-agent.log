@@ -2637,3 +2637,7 @@ requests.exceptions.ConnectionError: ('Connection aborted.', RemoteDisconnected(
 2026-07-21 17:24:53,733 INFO Connecte au restaurant : REsta Plannet
 2026-07-21 17:33:12,413 ERROR Connection to remote host was lost. - goodbye
 2026-07-21 17:33:17,733 INFO Websocket connected
+2026-07-22 16:35:48,548 INFO Websocket connected
+2026-07-22 16:35:49,359 INFO Connecte au restaurant : REsta Plannet
+2026-07-22 16:35:55,051 ERROR Connection to remote host was lost. - goodbye
+2026-07-22 16:36:00,456 INFO Websocket connected

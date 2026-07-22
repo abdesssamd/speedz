@@ -1321,12 +1321,15 @@ export function AppProvider({ children }: PropsWithChildren) {
 
   const createCheckoutDraft = (input: Partial<CheckoutDraft>) => ({
     address:
-      input.address?.trim() ||
-      getPreferredAddress(savedAddresses, user.defaultAddress) ||
-      currentLocation.label ||
-      fallbackUserLocation.label,
+      input.orderChannel === "PICKUP"
+        ? (cartRestaurant?.address || "A recuperer sur place")
+        : (input.address?.trim() ||
+          getPreferredAddress(savedAddresses, user.defaultAddress) ||
+          currentLocation.label ||
+          fallbackUserLocation.label),
     paymentMethod: "Cash" as PaymentMethod,
     notes: input.notes ?? "",
+    orderChannel: input.orderChannel ?? "DELIVERY",
   });
 
   const placeOrder = async (draft: CheckoutDraft) => {
@@ -1336,7 +1339,8 @@ export function AppProvider({ children }: PropsWithChildren) {
 
     const normalizedDraft = createCheckoutDraft(draft);
 
-    if (!normalizedDraft.address.trim()) {
+    // En retrait par le client, l'adresse de livraison n'est pas requise.
+    if (normalizedDraft.orderChannel !== "PICKUP" && !normalizedDraft.address.trim()) {
       return { order: null, error: "Veuillez renseigner une adresse de livraison." };
     }
 
@@ -1347,6 +1351,7 @@ export function AppProvider({ children }: PropsWithChildren) {
         draft: normalizedDraft,
         userCoordinates: currentLocation.coordinates,
         promoCode: promoCode || undefined,
+        orderChannel: normalizedDraft.orderChannel,
       });
 
       setOrders(payload.orders);

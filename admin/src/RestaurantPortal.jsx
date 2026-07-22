@@ -614,14 +614,24 @@ function normalizeStatus(status) {
 function KdsTicket({ order, column, busy, onChange }) {
   const wait = minutesSince(order.createdAt);
   const isOnsite = order.channel === "QR_ONSITE";
+  const isPickup = order.channel === "PICKUP";
+  // Commande à récupérer non encore confirmée : le personnel appelle le client
+  // puis confirme (→ impression).
+  const needsPickupConfirm = isPickup && order.status === "Accepted";
   const urgent = wait >= 15;
+  const badgeClass = isPickup
+    ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+    : isOnsite
+      ? "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+      : "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300";
+  const badgeLabel = isPickup ? "À récupérer" : isOnsite ? (order.tableLabel ? `Table ${order.tableLabel}` : "Sur place") : "Livraison";
 
   return (
     <Card className={`p-3 ${urgent ? "ring-2 ring-red-300 dark:ring-red-900" : ""}`}>
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-bold ${isOnsite ? "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300" : "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300"}`}>
-            {isOnsite ? (order.tableLabel ? `Table ${order.tableLabel}` : "Sur place") : "Livraison"}
+          <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-bold ${badgeClass}`}>
+            {badgeLabel}
           </span>
           <span className="text-xs text-slate-400">#{order.id.slice(-5)}</span>
         </div>
@@ -654,7 +664,12 @@ function KdsTicket({ order, column, busy, onChange }) {
           </button>
         </div>
         <div className="flex gap-2">
-          {column === "new" && (
+          {column === "new" && needsPickupConfirm && (
+            <TicketButton disabled={busy} onClick={() => onChange(order, "Confirmed")} tone="primary">
+              Confirmer &amp; imprimer
+            </TicketButton>
+          )}
+          {column === "new" && !needsPickupConfirm && (
             <TicketButton disabled={busy} onClick={() => onChange(order, "Preparing")} tone="primary">
               Préparer
             </TicketButton>
@@ -1727,6 +1742,7 @@ function SettingsScreen({ call, restaurant, account, onLogout, notify, onProfile
   const [qr, setQr] = useState({
     auth: toTri(restaurant?.qrAuthRequired),
     validation: toTri(restaurant?.qrServerValidation),
+    pickup: toTri(restaurant?.pickupEnabled),
   });
   const [savingQr, setSavingQr] = useState(false);
 
@@ -1736,7 +1752,7 @@ function SettingsScreen({ call, restaurant, account, onLogout, notify, onProfile
     try {
       const updated = await call("/api/restaurant/portal/profile", {
         method: "PATCH",
-        body: JSON.stringify({ qrAuthRequired: toBool(qr.auth), qrServerValidation: toBool(qr.validation) }),
+        body: JSON.stringify({ qrAuthRequired: toBool(qr.auth), qrServerValidation: toBool(qr.validation), pickupEnabled: toBool(qr.pickup) }),
       });
       onProfileUpdated?.(updated);
       notify("Réglages QR mis à jour");
@@ -1888,6 +1904,13 @@ function SettingsScreen({ call, restaurant, account, onLogout, notify, onProfile
               <option value="global">Réglage global</option>
               <option value="oui">Oui — valider au KDS avant impression</option>
               <option value="non">Non — impression immédiate</option>
+            </select>
+          </Field>
+          <Field label="Commandes à récupérer par le client">
+            <select className="input" value={qr.pickup} onChange={(e) => setQr((q) => ({ ...q, pickup: e.target.value }))}>
+              <option value="global">Réglage global</option>
+              <option value="oui">Oui — accepter le retrait au comptoir</option>
+              <option value="non">Non — désactiver</option>
             </select>
           </Field>
         </div>

@@ -396,6 +396,12 @@ class PrinterAgent:
     def _order_meta(self, order):
         out = bytearray()
         out += BOLD_ON + self._txt(f"Commande #{str(order.get('id', ''))[-6:].upper()}") + BOLD_OFF + FEED
+        # Commande a recuperer par le client : mise en avant bien visible.
+        if order.get("channel") == "PICKUP":
+            out += ALIGN_CENTER + BOLD_ON + SIZE_DOUBLE
+            out += self._txt("A RECUPERER") + FEED
+            out += self._txt("PAR LE CLIENT") + FEED
+            out += SIZE_NORMAL + BOLD_OFF + ALIGN_LEFT
         out += self._txt(f"Canal   : {order.get('channel', 'DELIVERY')}") + FEED
         dest = order.get("tableLabel") or order.get("address") or "-"
         out += self._txt(f"Adr/Tbl : {dest}") + FEED

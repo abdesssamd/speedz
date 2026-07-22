@@ -78,6 +78,7 @@ enum RestaurantValidationStatus {
 enum OrderChannel {
   DELIVERY
   QR_ONSITE
+  PICKUP
 }
 
 model User {
@@ -150,6 +151,7 @@ model Restaurant {
   // (variables AUTHENTIFICATION_MENU / VALIDATION_PARSERVEUR).
   qrAuthRequired     Boolean?   // true = compte client requis pour commander
   qrServerValidation Boolean?   // true = le personnel valide au KDS avant impression
+  pickupEnabled      Boolean?   // true = accepte les commandes « à récupérer par le client »
   menuItems        MenuItem[]
   orders           Order[]
   favorites        Favorite[]

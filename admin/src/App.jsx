@@ -2563,7 +2563,7 @@ export default function App() {
           <h1>${order.restaurantName}</h1>
           <p class="meta">Commande ${order.id}</p>
           <p class="meta">Creee a ${formatOrderCreatedAt(order.createdAt)}</p>
-          <p class="meta">${order.channel === "QR_ONSITE" ? `Sur place ${order.tableLabel || ""}` : order.address}</p>
+          <p class="meta">${order.channel === "PICKUP" ? "A RECUPERER PAR LE CLIENT" : order.channel === "QR_ONSITE" ? `Sur place ${order.tableLabel || ""}` : order.address}</p>
           ${itemsMarkup}
           ${order.notes ? `<p style="margin-top:14px;"><strong>Commentaire client:</strong> ${order.notes}</p>` : ""}
           <p class="total">Total: ${formatMoney(order.total)}</p>
@@ -4217,7 +4217,7 @@ export default function App() {
                           <span>{order.estimatedDeliveryLabel}</span>
                           <span>{order.items.length} article(s)</span>
                           <span>{order.courier?.name || t("assign_courier")}</span>
-                          <span className="metric-delivery">{order.channel === "QR_ONSITE" ? "QR / Sur place" : "Livraison"}</span>
+                          <span className="metric-delivery">{order.channel === "PICKUP" ? "À récupérer" : order.channel === "QR_ONSITE" ? "QR / Sur place" : "Livraison"}</span>
                         </div>
                         <div className="button-row quick-actions">
                           <button className="ghost small" onClick={() => setExpandedOrderId((current) => (current === order.id ? "" : order.id))}>

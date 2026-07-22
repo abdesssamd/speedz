@@ -259,7 +259,7 @@ const Schemas = {
       longitude: z.number().min(-180).max(180),
     }),
     promoCode: z.string().max(30).optional(),
-    orderChannel: z.enum(["DELIVERY", "QR_ONSITE"]).optional(),
+    orderChannel: z.enum(["DELIVERY", "QR_ONSITE", "PICKUP"]).optional(),
   }),
 
   // POST /api/orders
@@ -288,7 +288,7 @@ const Schemas = {
       longitude: z.number().min(-180).max(180),
     }),
     promoCode: z.string().max(30).optional(),
-    orderChannel: z.enum(["DELIVERY", "QR_ONSITE"]).optional(),
+    orderChannel: z.enum(["DELIVERY", "QR_ONSITE", "PICKUP"]).optional(),
     tableLabel: z.string().max(50).optional(),
   }),
 
@@ -556,7 +556,7 @@ const Schemas = {
 
   // Transition de statut d'une commande côté restaurant (KDS).
   portalOrderStatus: z.object({
-    status: z.enum(["Accepted", "Preparing", "Ready", "OnTheWay", "Delivered", "Cancelled"]),
+    status: z.enum(["Confirmed", "Accepted", "Preparing", "Ready", "OnTheWay", "Delivered", "Cancelled"]),
     reason: z.string().max(500).optional(),
   }),
 
@@ -590,6 +590,7 @@ const Schemas = {
     heroColor: z.string().max(30).optional(),
     qrAuthRequired: z.boolean().nullable().optional(),
     qrServerValidation: z.boolean().nullable().optional(),
+    pickupEnabled: z.boolean().nullable().optional(),
     weeklyHours: z
       .record(
         z.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
