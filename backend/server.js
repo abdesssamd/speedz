@@ -3785,8 +3785,12 @@ function renderQrPage(res, { restaurant, mode, token }) {
       function qtyOf(id) { var l = state.cart.find(function (e) { return e.menuItemId === id; }); return l ? l.quantity : 0; }
       function cartTotal() { return state.cart.reduce(function (s, l) { return s + l.basePrice * l.quantity; }, 0); }
       function cartCount() { return state.cart.reduce(function (s, l) { return s + l.quantity; }, 0); }
+      // Restaurant hors service (agent d'impression déconnecté) : menu en lecture
+      // seule, aucune commande ni changement de quantité possible.
+      function offline() { return Boolean(state.restaurant && state.restaurant.isOnline === false); }
 
       function changeQty(id, delta) {
+        if (offline()) { return; }
         var item = availableItems().find(function (e) { return e.id === id; });
         if (!item) { return; }
         var line = state.cart.find(function (e) { return e.menuItemId === id; });
@@ -3804,9 +3808,11 @@ function renderQrPage(res, { restaurant, mode, token }) {
       function itemHtml(item) {
         var q = qtyOf(item.id);
         var thumb = item.image ? '<img class="thumb" src="' + esc(item.image) + '" alt="" loading="lazy" />' : '<div class="thumb-empty">&#127869;</div>';
-        var control = q > 0
-          ? '<div class="stepper"><button type="button" data-dec="' + esc(item.id) + '">&minus;</button><span>' + q + '</span><button type="button" data-inc="' + esc(item.id) + '">+</button></div>'
-          : '<button class="add" type="button" data-inc="' + esc(item.id) + '">Ajouter</button>';
+        var control = offline()
+          ? ''
+          : (q > 0
+            ? '<div class="stepper"><button type="button" data-dec="' + esc(item.id) + '">&minus;</button><span>' + q + '</span><button type="button" data-inc="' + esc(item.id) + '">+</button></div>'
+            : '<button class="add" type="button" data-inc="' + esc(item.id) + '">Ajouter</button>');
         var badge = item.badge ? '<span class="badge">' + esc(item.badge) + '</span>' : "";
         var desc = item.description ? '<p class="item-desc">' + esc(item.description) + '</p>' : "";
         return '<article class="item">' + thumb + '<div class="item-body"><h3 class="item-name">' + esc(item.name) + badge + '</h3>' + desc + '<div class="item-foot"><span class="price">' + money(item.price) + '</span>' + control + '</div></div></article>';
@@ -3840,7 +3846,7 @@ function renderQrPage(res, { restaurant, mode, token }) {
 
       function renderBar() {
         var c = cartCount();
-        if (!c) { elBar.classList.add("hidden"); return; }
+        if (!c || offline()) { elBar.classList.add("hidden"); return; }
         elBar.classList.remove("hidden");
         document.getElementById("bar-count").textContent = c + (c > 1 ? " articles" : " article");
         document.getElementById("bar-total").textContent = money(cartTotal());
