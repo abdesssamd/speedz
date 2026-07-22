@@ -673,13 +673,21 @@ function serializeOrder(record) {
   };
 }
 
+// URL du QR d'une table : basée sur le jeton opaque unique de la table, jamais
+// sur son libellé. Le numéro de table n'apparaît donc pas dans l'adresse et ne
+// peut pas être modifié par le client (un convive de la table 1 ne peut pas
+// commander pour la table 2 en éditant l'URL).
 function getRestaurantTableQrUrl(restaurant, table) {
-  const base = restaurant.qrCodeToken ? getRestaurantQrLandingUrl(restaurant.qrCodeToken) : null;
-  if (!base) {
+  if (!table?.qrToken) {
     return null;
   }
-  return `${base}?table=${encodeURIComponent(table.label)}`;
+  const base = DEFAULT_QR_WEBAPP_URL.replace(/\/+$/, "");
+  return `${base}/t/${table.qrToken}`;
 }
+
+// Nombre maximum de commandes actives (non servies, non annulées) qu'une même
+// table peut avoir en cours. Empêche l'inondation de la cuisine depuis une table.
+const MAX_ACTIVE_ORDERS_PER_TABLE = Number(process.env.MAX_ACTIVE_ORDERS_PER_TABLE || 5);
 
 function serializeTable(record, restaurant) {
   return {
@@ -3417,51 +3425,57 @@ app.get("/api/public/qr/:qrToken", async (req, res) => {
   });
 });
 
-app.post("/api/public/qr/:qrToken/orders", async (req, res) => {
-  const restaurant = await prisma.restaurant.findFirst({
-    where: {
-      qrCodeToken: req.params.qrToken,
-      validationStatus: "VALIDATED",
-    }
-  });
-
-  if (!restaurant) {
-    res.status(404).json({ message: "Restaurant QR introuvable." });
+// Logique de création commune aux commandes QR (lien restaurant et QR de table).
+// `table` non nul = commande liée à une table précise (déduite d'un jeton, jamais
+// d'une saisie client). Le client est TOUJOURS un compte authentifié : req.auth.
+async function handleQrOrder({ req, res, restaurant, table }) {
+  // Honeypot : ce champ est masqué en CSS et jamais rempli par un humain. Un bot
+  // qui remplit tout le formulaire le remplit aussi. On répond « ok » sans rien
+  // créer, pour ne pas lui signaler qu'il a été détecté.
+  if (req.body && String(req.body.company || "").trim()) {
+    res.status(201).json({ order: { id: "OK" } });
     return;
   }
 
-  const { cart, customerName, customerPhone, tableLabel, notes, paymentMethod, promoCode } = req.body || {};
-  if (!Array.isArray(cart) || !cart.length || !customerPhone) {
+  const customer = await prisma.user.findUnique({ where: { id: req.auth.sub } });
+  if (!customer) {
+    res.status(401).json({ message: "Compte introuvable. Reconnectez-vous." });
+    return;
+  }
+
+  const { cart, notes, paymentMethod, promoCode } = req.body || {};
+  if (!Array.isArray(cart) || !cart.length) {
     res.status(400).json({ message: "Commande QR incomplete." });
     return;
   }
 
-  const customer = await findOrCreateGuestCustomer({
-    name: customerName,
-    phone: customerPhone,
-    restaurantId: restaurant.id,
-  });
-
-  // Rattache la commande à une table du plan de salle si le libellé correspond.
-  const matchedTable = tableLabel
-    ? await prisma.restaurantTable.findFirst({
-        where: { restaurantId: restaurant.id, label: String(tableLabel).trim() },
-      })
-    : null;
+  // Plafond par table : empêche l'inondation de la cuisine depuis une table.
+  if (table) {
+    const activeCount = await prisma.order.count({
+      where: { tableId: table.id, status: { in: RESTAURANT_ACTIVE_ORDER_STATUSES } },
+    });
+    if (activeCount >= MAX_ACTIVE_ORDERS_PER_TABLE) {
+      res.status(429).json({
+        message: "Cette table a déjà plusieurs commandes en cours. Merci de patienter.",
+        code: "TABLE_ORDER_LIMIT",
+      });
+      return;
+    }
+  }
 
   const order = await createOrderRecord({
     restaurantId: restaurant.id,
     cart,
     draft: {
-      address: tableLabel ? `Sur place - Table ${tableLabel}` : "Sur place",
+      address: table ? `Sur place - Table ${table.label}` : "Sur place",
       paymentMethod: paymentMethod || "Cash",
       notes: notes || null,
     },
     userCoordinates: { latitude: restaurant.latitude, longitude: restaurant.longitude },
     promoCode,
     orderChannel: "QR_ONSITE",
-    tableLabel: tableLabel || null,
-    tableId: matchedTable?.id || null,
+    tableLabel: table?.label || null,
+    tableId: table?.id || null,
     userId: customer.id,
   });
 
@@ -3478,39 +3492,88 @@ app.post("/api/public/qr/:qrToken/orders", async (req, res) => {
     return;
   }
 
-  if (matchedTable) {
+  if (table) {
     await prisma.restaurantTable.update({
-      where: { id: matchedTable.id },
+      where: { id: table.id },
       data: { status: "ORDER_IN_PROGRESS" },
     });
-    broadcastRealtime("restaurant/table-updated", { restaurantId: restaurant.id, tableId: matchedTable.id });
+    broadcastRealtime("restaurant/table-updated", { restaurantId: restaurant.id, tableId: table.id });
   }
 
   res.status(201).json({
     order: serializeOrder(order),
     customer: { name: customer.name, phone: customer.phone },
   });
-});
+}
 
-app.get("/qr/:qrToken", async (req, res) => {
+// Commande depuis le lien restaurant partageable (à emporter / sur place sans
+// table). Authentification obligatoire ; aucun libellé de table n'est accepté
+// ici — l'attribution à une table passe exclusivement par un QR de table.
+app.post("/api/public/qr/:qrToken/orders", requireAuth, async (req, res) => {
   const restaurant = await prisma.restaurant.findFirst({
-    where: { qrCodeToken: req.params.qrToken, validationStatus: "VALIDATED" }
+    where: { qrCodeToken: req.params.qrToken, validationStatus: "VALIDATED" },
   });
-
   if (!restaurant) {
-    res.status(404).send("<h1>QR restaurant introuvable</h1>");
+    res.status(404).json({ message: "Restaurant QR introuvable." });
     return;
   }
+  await handleQrOrder({ req, res, restaurant, table: null });
+});
 
-  // Cette page utilise un <script> inline pour charger et rendre le menu. La CSP
-  // globale de helmet interdit les scripts inline (scriptSrc 'self') — sans cette
-  // surcharge, le navigateur bloque le script en production et le menu reste vide.
+// Résout un QR de table : renvoie le restaurant + la table (libellé fourni par le
+// serveur, pas par le client). Base du menu affiché sur une table.
+app.get("/api/public/table/:tableToken", async (req, res) => {
+  const table = await prisma.restaurantTable.findUnique({
+    where: { qrToken: req.params.tableToken },
+    include: { restaurant: { include: { menuItems: true } } },
+  });
+  if (!table || !table.restaurant || table.restaurant.validationStatus !== "VALIDATED") {
+    res.status(404).json({ message: "Table introuvable." });
+    return;
+  }
+  res.json({
+    restaurant: serializePublicRestaurant(table.restaurant),
+    table: { id: table.id, label: table.label, zone: table.zone || null },
+    orderChannel: "QR_ONSITE",
+  });
+});
+
+// Commande liée à une table : la table vient du jeton, jamais du corps de requête.
+app.post("/api/public/table/:tableToken/orders", requireAuth, async (req, res) => {
+  const table = await prisma.restaurantTable.findUnique({
+    where: { qrToken: req.params.tableToken },
+    include: { restaurant: true },
+  });
+  if (!table || !table.restaurant || table.restaurant.validationStatus !== "VALIDATED") {
+    res.status(404).json({ message: "Table introuvable." });
+    return;
+  }
+  await handleQrOrder({ req, res, restaurant: table.restaurant, table });
+});
+
+// Rendu de la page de commande QR, partagé entre le lien restaurant (consultation
+// + commande à emporter) et le QR de table (commande liée à une table). En mode
+// table, le libellé provient du serveur via l'endpoint de résolution : il n'est
+// jamais lu dans l'URL, donc non falsifiable par le client.
+function renderQrPage(res, { restaurant, mode, token }) {
+  const heroColor = restaurant.heroColor || "#EA580C";
+  const resolveUrl = mode === "table"
+    ? `/api/public/table/${token}`
+    : `/api/public/qr/${token}`;
+  const cfg = {
+    mode,
+    resolveUrl,
+    orderUrl: `${resolveUrl}/orders`,
+    playStoreUrl: process.env.PLAY_STORE_URL || null,
+  };
+
+  // Le <script> inline nécessite d'assouplir la CSP globale (script-src 'self'
+  // seul bloquerait l'inline en production).
   res.setHeader(
     "Content-Security-Policy",
     "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https: wss:; font-src 'self'"
   );
 
-  const heroColor = restaurant.heroColor || "#EA580C";
   res.type("html").send(`<!doctype html>
 <html lang="fr">
   <head>
@@ -3521,139 +3584,90 @@ app.get("/qr/:qrToken", async (req, res) => {
     <style>
       :root {
         --brand: ${heroColor};
-        --ink: #17181c;
-        --muted: #6f7280;
-        --line: #e9e6e1;
-        --surface: #ffffff;
-        --page: #faf7f3;
-        --radius: 16px;
+        --ink: #17181c; --muted: #6f7280; --line: #e9e6e1;
+        --surface: #ffffff; --page: #faf7f3; --radius: 16px;
       }
       * { box-sizing: border-box; }
       body {
-        margin: 0;
-        background: var(--page);
-        color: var(--ink);
+        margin: 0; background: var(--page); color: var(--ink);
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        -webkit-font-smoothing: antialiased;
-        padding-bottom: 96px;
+        -webkit-font-smoothing: antialiased; padding-bottom: 96px;
       }
-      .hero {
-        background: linear-gradient(160deg, var(--brand), #1b1c22);
-        color: #fff;
-        padding: 28px 20px 32px;
-      }
+      .hero { background: linear-gradient(160deg, var(--brand), #1b1c22); color: #fff; padding: 22px 20px 26px; }
       .hero-inner { max-width: 900px; margin: 0 auto; display: flex; gap: 16px; align-items: center; }
-      .hero-logo {
-        width: 64px; height: 64px; border-radius: 18px; object-fit: cover; flex: none;
-        background: rgba(255,255,255,.18); border: 2px solid rgba(255,255,255,.35);
-      }
-      .hero h1 { margin: 0; font-size: 26px; line-height: 1.15; letter-spacing: -.02em; }
-      .hero p { margin: 6px 0 0; opacity: .85; font-size: 14px; }
+      .hero-logo { width: 60px; height: 60px; border-radius: 16px; object-fit: cover; flex: none; background: rgba(255,255,255,.18); border: 2px solid rgba(255,255,255,.35); }
+      .hero h1 { margin: 0; font-size: 24px; line-height: 1.15; letter-spacing: -.02em; }
+      .hero p { margin: 5px 0 0; opacity: .85; font-size: 13.5px; }
+      .hero-top { max-width: 900px; margin: 0 auto 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+      .table-tag { background: rgba(255,255,255,.16); color: #fff; font-weight: 700; font-size: 13px; padding: 6px 12px; border-radius: 999px; }
+      .account { background: rgba(255,255,255,.16); color: #fff; border: 0; font-weight: 700; font-size: 13px; padding: 6px 12px; border-radius: 999px; cursor: pointer; }
       .wrap { max-width: 900px; margin: 0 auto; padding: 0 16px; }
-      .notice {
-        margin: 16px auto 0; max-width: 868px; background: #fff4e5; border: 1px solid #f3d1a0;
-        color: #8a4b08; border-radius: 12px; padding: 12px 14px; font-size: 14px; font-weight: 600;
-      }
-      .cats { display: flex; gap: 8px; overflow-x: auto; padding: 18px 16px 4px; -webkit-overflow-scrolling: touch; }
+      .notice { margin: 14px auto 0; max-width: 868px; background: #fff4e5; border: 1px solid #f3d1a0; color: #8a4b08; border-radius: 12px; padding: 12px 14px; font-size: 14px; font-weight: 600; }
+      .promo { margin: 14px auto 0; max-width: 868px; display: flex; align-items: center; gap: 12px; background: #eef4ff; border: 1px solid #cddcff; color: #1e3a8a; border-radius: 12px; padding: 12px 14px; font-size: 14px; }
+      .promo a { margin-left: auto; background: #1e3a8a; color: #fff; text-decoration: none; font-weight: 700; padding: 8px 14px; border-radius: 10px; white-space: nowrap; }
+      .cats { display: flex; gap: 8px; overflow-x: auto; padding: 16px 16px 4px; -webkit-overflow-scrolling: touch; }
       .cats::-webkit-scrollbar { display: none; }
-      .chip {
-        flex: none; border: 1px solid var(--line); background: var(--surface); color: var(--muted);
-        padding: 9px 16px; border-radius: 999px; font-size: 14px; font-weight: 600; cursor: pointer;
-        white-space: nowrap;
-      }
+      .chip { flex: none; border: 1px solid var(--line); background: var(--surface); color: var(--muted); padding: 9px 16px; border-radius: 999px; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
       .chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
-      .cat-title { margin: 24px 0 10px; font-size: 13px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
-      .item {
-        display: flex; gap: 14px; align-items: stretch; background: var(--surface);
-        border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; margin-bottom: 12px;
-      }
-      .thumb {
-        width: 92px; height: 92px; flex: none; border-radius: 12px; object-fit: cover; background: #f1ede8;
-      }
-      .thumb-empty {
-        width: 92px; height: 92px; flex: none; border-radius: 12px; background: #f1ede8;
-        display: grid; place-items: center; font-size: 28px;
-      }
+      .cat-title { margin: 22px 0 10px; font-size: 13px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+      .menu-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+      .item { display: flex; gap: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
+      .thumb, .thumb-empty { width: 92px; height: 92px; flex: none; border-radius: 12px; object-fit: cover; background: #f1ede8; }
+      .thumb-empty { display: grid; place-items: center; font-size: 28px; }
       .item-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
       .item-name { margin: 0; font-size: 16px; font-weight: 700; }
-      .item-desc {
-        margin: 4px 0 0; color: var(--muted); font-size: 13.5px; line-height: 1.35;
-        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-      }
+      .item-desc { margin: 4px 0 0; color: var(--muted); font-size: 13.5px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
       .item-foot { margin-top: auto; padding-top: 8px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
       .price { font-weight: 800; font-size: 15.5px; }
-      .badge {
-        display: inline-block; margin-left: 8px; background: #fde8d7; color: #a5451a;
-        font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 999px; vertical-align: middle;
-      }
-      .add {
-        border: 0; background: var(--ink); color: #fff; font-weight: 700; font-size: 14px;
-        padding: 10px 18px; border-radius: 999px; cursor: pointer;
-      }
+      .badge { display: inline-block; margin-left: 8px; background: #fde8d7; color: #a5451a; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 999px; vertical-align: middle; }
+      .add { border: 0; background: var(--ink); color: #fff; font-weight: 700; font-size: 14px; padding: 10px 18px; border-radius: 999px; cursor: pointer; }
       .stepper { display: flex; align-items: center; gap: 12px; background: var(--ink); border-radius: 999px; padding: 4px; }
-      .stepper button {
-        width: 30px; height: 30px; border: 0; border-radius: 50%; background: rgba(255,255,255,.16);
-        color: #fff; font-size: 17px; font-weight: 700; cursor: pointer; line-height: 1;
-      }
+      .stepper button { width: 30px; height: 30px; border: 0; border-radius: 50%; background: rgba(255,255,255,.16); color: #fff; font-size: 17px; font-weight: 700; cursor: pointer; line-height: 1; }
       .stepper span { color: #fff; font-weight: 700; min-width: 16px; text-align: center; font-size: 14px; }
       .empty { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px; text-align: center; }
       .empty h3 { margin: 0 0 6px; }
       .empty p { margin: 0; color: var(--muted); }
-      .bar {
-        position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface);
-        border-top: 1px solid var(--line); padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-        display: flex; align-items: center; gap: 14px; z-index: 20;
-      }
+      .bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--line); padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 14px; z-index: 20; }
       .bar-info { flex: 1; min-width: 0; }
       .bar-count { font-size: 12.5px; color: var(--muted); }
       .bar-total { font-size: 17px; font-weight: 800; }
-      .cta {
-        border: 0; background: var(--brand); color: #fff; font-weight: 800; font-size: 15px;
-        padding: 14px 24px; border-radius: 999px; cursor: pointer;
-      }
+      .cta { border: 0; background: var(--brand); color: #fff; font-weight: 800; font-size: 15px; padding: 14px 24px; border-radius: 999px; cursor: pointer; }
       .cta[disabled] { opacity: .5; cursor: not-allowed; }
-      .backdrop {
-        position: fixed; inset: 0; background: rgba(15,16,20,.5); z-index: 30;
-        display: flex; align-items: flex-end; justify-content: center;
-      }
-      .sheet {
-        background: var(--page); width: 100%; max-width: 560px; border-radius: 22px 22px 0 0;
-        max-height: 90vh; overflow-y: auto; padding: 8px 18px calc(24px + env(safe-area-inset-bottom));
-      }
+      .backdrop { position: fixed; inset: 0; background: rgba(15,16,20,.5); z-index: 30; display: flex; align-items: flex-end; justify-content: center; }
+      .sheet { background: var(--page); width: 100%; max-width: 560px; border-radius: 22px 22px 0 0; max-height: 92vh; overflow-y: auto; padding: 8px 18px calc(24px + env(safe-area-inset-bottom)); }
       .grabber { width: 42px; height: 4px; border-radius: 999px; background: #d8d3cc; margin: 8px auto 14px; }
-      .sheet h2 { margin: 0 0 14px; font-size: 20px; }
+      .sheet h2 { margin: 0 0 4px; font-size: 20px; }
+      .sheet .sub { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
       .line { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
       .line-name { flex: 1; font-weight: 600; font-size: 15px; }
       .line-price { font-weight: 700; font-size: 14px; }
       .totals { display: flex; justify-content: space-between; padding: 16px 0 4px; font-size: 19px; font-weight: 800; }
-      .field {
-        width: 100%; margin-top: 10px; padding: 14px; border-radius: 12px;
-        border: 1px solid var(--line); background: var(--surface); font-size: 16px; font-family: inherit;
-      }
+      .field { width: 100%; margin-top: 10px; padding: 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-size: 16px; font-family: inherit; }
       .field:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
-      .submit {
-        width: 100%; margin-top: 16px; border: 0; background: var(--brand); color: #fff;
-        font-weight: 800; font-size: 16px; padding: 16px; border-radius: 14px; cursor: pointer;
-      }
-      .submit[disabled] { opacity: .6; cursor: progress; }
-      .ghost {
-        width: 100%; margin-top: 10px; border: 0; background: none; color: var(--muted);
-        font-size: 14px; font-weight: 600; padding: 10px; cursor: pointer;
-      }
+      .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+      .tabs { display: flex; gap: 8px; margin: 6px 0 4px; }
+      .tab { flex: 1; border: 1px solid var(--line); background: var(--surface); color: var(--muted); padding: 10px; border-radius: 12px; font-weight: 700; font-size: 14px; cursor: pointer; }
+      .tab[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+      .primary { width: 100%; margin-top: 16px; border: 0; background: var(--brand); color: #fff; font-weight: 800; font-size: 16px; padding: 16px; border-radius: 14px; cursor: pointer; }
+      .primary[disabled] { opacity: .6; cursor: progress; }
+      .ghost { width: 100%; margin-top: 10px; border: 0; background: none; color: var(--muted); font-size: 14px; font-weight: 600; padding: 10px; cursor: pointer; }
       .result { margin-top: 14px; padding: 14px; border-radius: 12px; font-weight: 700; font-size: 14.5px; }
       .result.ok { background: #e7f6ec; color: #14612f; }
       .result.ko { background: #fdeaea; color: #99231f; }
       .done { text-align: center; padding: 24px 8px; }
       .done .tick { font-size: 44px; }
+      .who { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-top: 12px; font-size: 14px; }
+      .who button { border: 0; background: none; color: var(--brand); font-weight: 700; cursor: pointer; font-size: 14px; }
       .hidden { display: none !important; }
-      @media (min-width: 720px) {
-        .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .menu-grid .item { margin-bottom: 0; }
-      }
+      @media (min-width: 720px) { .menu-grid { grid-template-columns: 1fr 1fr; } }
     </style>
   </head>
   <body>
     <header class="hero">
+      <div class="hero-top">
+        <span id="table-tag" class="table-tag hidden"></span>
+        <button id="account-btn" class="account" type="button">Se connecter</button>
+      </div>
       <div class="hero-inner">
         ${restaurant.image ? `<img class="hero-logo" src="${escapeHtml(toPublicAssetUrl(restaurant.image))}" alt="" />` : ""}
         <div>
@@ -3664,305 +3678,328 @@ app.get("/qr/:qrToken", async (req, res) => {
     </header>
 
     <div id="offline" class="notice hidden">Ce restaurant est actuellement hors service. Vous pouvez consulter le menu, mais la commande est indisponible.</div>
+    <div id="promo" class="promo hidden"><span>&#128241; Suivez vos commandes et cumulez des points dans l'app SpeedZ.</span><a id="promo-link" href="#" target="_blank" rel="noopener">Installer</a></div>
 
     <nav id="cats" class="cats"></nav>
     <main id="menu" class="wrap"></main>
 
     <div id="bar" class="bar hidden">
-      <div class="bar-info">
-        <div id="bar-count" class="bar-count"></div>
-        <div id="bar-total" class="bar-total"></div>
-      </div>
+      <div class="bar-info"><div id="bar-count" class="bar-count"></div><div id="bar-total" class="bar-total"></div></div>
       <button id="bar-cta" class="cta" type="button">Commander</button>
     </div>
 
     <div id="backdrop" class="backdrop hidden">
-      <section class="sheet" role="dialog" aria-modal="true" aria-label="Votre commande">
+      <section class="sheet" role="dialog" aria-modal="true" aria-label="Commande">
         <div class="grabber"></div>
-        <div id="sheet-body">
-          <h2>Votre commande</h2>
-          <div id="lines"></div>
-          <div class="totals"><span>Total</span><span id="sheet-total"></span></div>
-          <form id="order-form" novalidate>
-            <input class="field" name="customerName" placeholder="Votre nom" autocomplete="name" required />
-            <input class="field" name="customerPhone" placeholder="Telephone" inputmode="tel" autocomplete="tel" required />
-            <input class="field" id="tableLabel" name="tableLabel" placeholder="Numero de table" inputmode="numeric" />
-            <textarea class="field" name="notes" rows="2" placeholder="Note pour la cuisine (optionnel)"></textarea>
-            <button id="submit-btn" class="submit" type="submit">Envoyer la commande</button>
-            <div id="result" class="result hidden"></div>
-          </form>
-          <button id="close-sheet" class="ghost" type="button">Continuer la commande</button>
-        </div>
+        <div id="sheet-body"></div>
       </section>
     </div>
 
     <script>
-      var qrToken = ${JSON.stringify(req.params.qrToken)};
-      var presetTable = new URLSearchParams(location.search).get("table") || "";
-      var state = { restaurant: null, cart: [], category: "__all__", error: null, sending: false };
+      var CFG = ${JSON.stringify(cfg)};
+      var TK = "speedz_token";
+      var state = { restaurant: null, table: null, cart: [], category: "__all__", error: null, user: null, sending: false, auth: null };
 
       var elMenu = document.getElementById("menu");
       var elCats = document.getElementById("cats");
       var elBar = document.getElementById("bar");
       var elBackdrop = document.getElementById("backdrop");
-      var elLines = document.getElementById("lines");
-      var elResult = document.getElementById("result");
-      var elForm = document.getElementById("order-form");
-      var elSubmit = document.getElementById("submit-btn");
+      var elSheet = document.getElementById("sheet-body");
 
-      function esc(value) {
-        return String(value == null ? "" : value)
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .replace(/"/g, "&quot;")
-          .replace(/'/g, "&#39;");
+      function esc(v) {
+        return String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
       }
+      function money(v) {
+        return Number(v || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " Da";
+      }
+      function token() { try { return localStorage.getItem(TK) || ""; } catch (e) { return ""; } }
+      function setToken(t) { try { t ? localStorage.setItem(TK, t) : localStorage.removeItem(TK); } catch (e) {} }
 
-      function money(value) {
-        var amount = Number(value || 0);
-        return amount.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " Da";
+      function api(path, options) {
+        options = options || {};
+        var headers = options.headers || {};
+        headers["Content-Type"] = "application/json";
+        var t = token();
+        if (t) { headers["Authorization"] = "Bearer " + t; }
+        return fetch(path, { method: options.method || "GET", headers: headers, body: options.body })
+          .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { return { ok: r.ok, status: r.status, body: b }; }); });
       }
 
       function availableItems() {
-        return ((state.restaurant && state.restaurant.menu) || []).filter(function (item) {
-          return item.isAvailable !== false;
-        });
+        return ((state.restaurant && state.restaurant.menu) || []).filter(function (i) { return i.isAvailable !== false; });
       }
+      function qtyOf(id) { var l = state.cart.find(function (e) { return e.menuItemId === id; }); return l ? l.quantity : 0; }
+      function cartTotal() { return state.cart.reduce(function (s, l) { return s + l.basePrice * l.quantity; }, 0); }
+      function cartCount() { return state.cart.reduce(function (s, l) { return s + l.quantity; }, 0); }
 
-      function qtyOf(menuItemId) {
-        var line = state.cart.find(function (entry) { return entry.menuItemId === menuItemId; });
-        return line ? line.quantity : 0;
-      }
-
-      function changeQty(menuItemId, delta) {
-        var item = availableItems().find(function (entry) { return entry.id === menuItemId; });
+      function changeQty(id, delta) {
+        var item = availableItems().find(function (e) { return e.id === id; });
         if (!item) { return; }
-        var line = state.cart.find(function (entry) { return entry.menuItemId === menuItemId; });
+        var line = state.cart.find(function (e) { return e.menuItemId === id; });
         if (!line) {
           if (delta < 0) { return; }
-          state.cart.push({
-            id: menuItemId + "::qr",
-            restaurantId: state.restaurant.id,
-            menuItemId: menuItemId,
-            name: item.name,
-            image: item.image,
-            quantity: 1,
-            basePrice: item.price,
-            selectedOptions: []
-          });
+          state.cart.push({ id: id + "::qr", restaurantId: state.restaurant.id, menuItemId: id, name: item.name, image: item.image, quantity: 1, basePrice: item.price, selectedOptions: [] });
         } else {
           line.quantity += delta;
-          if (line.quantity <= 0) {
-            state.cart = state.cart.filter(function (entry) { return entry.menuItemId !== menuItemId; });
-          }
+          if (line.quantity <= 0) { state.cart = state.cart.filter(function (e) { return e.menuItemId !== id; }); }
         }
         renderMenu();
-        renderCart();
-      }
-
-      function cartTotal() {
-        return state.cart.reduce(function (sum, line) { return sum + line.basePrice * line.quantity; }, 0);
-      }
-
-      function cartCount() {
-        return state.cart.reduce(function (sum, line) { return sum + line.quantity; }, 0);
+        renderBar();
       }
 
       function itemHtml(item) {
-        var quantity = qtyOf(item.id);
-        var thumb = item.image
-          ? '<img class="thumb" src="' + esc(item.image) + '" alt="" loading="lazy" />'
-          : '<div class="thumb-empty">&#127869;</div>';
-        var control = quantity > 0
-          ? '<div class="stepper"><button type="button" data-dec="' + esc(item.id) + '" aria-label="Retirer">&minus;</button>' +
-            '<span>' + quantity + '</span>' +
-            '<button type="button" data-inc="' + esc(item.id) + '" aria-label="Ajouter">+</button></div>'
+        var q = qtyOf(item.id);
+        var thumb = item.image ? '<img class="thumb" src="' + esc(item.image) + '" alt="" loading="lazy" />' : '<div class="thumb-empty">&#127869;</div>';
+        var control = q > 0
+          ? '<div class="stepper"><button type="button" data-dec="' + esc(item.id) + '">&minus;</button><span>' + q + '</span><button type="button" data-inc="' + esc(item.id) + '">+</button></div>'
           : '<button class="add" type="button" data-inc="' + esc(item.id) + '">Ajouter</button>';
         var badge = item.badge ? '<span class="badge">' + esc(item.badge) + '</span>' : "";
-        var description = item.description ? '<p class="item-desc">' + esc(item.description) + '</p>' : "";
-        return '<article class="item">' + thumb +
-          '<div class="item-body"><h3 class="item-name">' + esc(item.name) + badge + '</h3>' + description +
-          '<div class="item-foot"><span class="price">' + money(item.price) + '</span>' + control + '</div></div></article>';
+        var desc = item.description ? '<p class="item-desc">' + esc(item.description) + '</p>' : "";
+        return '<article class="item">' + thumb + '<div class="item-body"><h3 class="item-name">' + esc(item.name) + badge + '</h3>' + desc + '<div class="item-foot"><span class="price">' + money(item.price) + '</span>' + control + '</div></div></article>';
       }
 
       function renderCats() {
         var cats = [];
-        availableItems().forEach(function (item) {
-          var name = item.category || "Autres";
-          if (cats.indexOf(name) === -1) { cats.push(name); }
-        });
+        availableItems().forEach(function (i) { var n = i.category || "Autres"; if (cats.indexOf(n) === -1) { cats.push(n); } });
         if (cats.length < 2) { elCats.classList.add("hidden"); return; }
         elCats.classList.remove("hidden");
         var chips = ['<button class="chip" type="button" data-cat="__all__" aria-pressed="' + (state.category === "__all__") + '">Tout</button>'];
-        cats.forEach(function (name) {
-          chips.push('<button class="chip" type="button" data-cat="' + esc(name) + '" aria-pressed="' + (state.category === name) + '">' + esc(name) + '</button>');
-        });
+        cats.forEach(function (n) { chips.push('<button class="chip" type="button" data-cat="' + esc(n) + '" aria-pressed="' + (state.category === n) + '">' + esc(n) + '</button>'); });
         elCats.innerHTML = chips.join("");
       }
 
       function renderMenu() {
-        if (state.error) {
-          elMenu.innerHTML = '<div class="empty"><h3>' + esc(state.error) + '</h3><button class="add" type="button" data-retry="1">Reessayer</button></div>';
-          return;
-        }
-        if (!state.restaurant) {
-          elMenu.innerHTML = '<div class="empty"><p>Chargement du menu...</p></div>';
-          return;
-        }
+        if (state.error) { elMenu.innerHTML = '<div class="empty"><h3>' + esc(state.error) + '</h3><button class="add" type="button" data-retry="1">Reessayer</button></div>'; return; }
+        if (!state.restaurant) { elMenu.innerHTML = '<div class="empty"><p>Chargement du menu...</p></div>'; return; }
         var items = availableItems();
-        if (!items.length) {
-          elMenu.innerHTML = '<div class="empty"><h3>Menu en cours de preparation</h3><p>Ce restaurant n a pas encore publie de plats. Merci de revenir bientot.</p></div>';
-          return;
-        }
+        if (!items.length) { elMenu.innerHTML = '<div class="empty"><h3>Menu en cours de preparation</h3><p>Ce restaurant n a pas encore publie de plats.</p></div>'; return; }
         var groups = [];
-        items.forEach(function (item) {
-          var name = item.category || "Autres";
-          if (state.category !== "__all__" && state.category !== name) { return; }
-          var group = groups.find(function (entry) { return entry.name === name; });
-          if (!group) { group = { name: name, items: [] }; groups.push(group); }
-          group.items.push(item);
+        items.forEach(function (i) {
+          var n = i.category || "Autres";
+          if (state.category !== "__all__" && state.category !== n) { return; }
+          var g = groups.find(function (e) { return e.name === n; });
+          if (!g) { g = { name: n, items: [] }; groups.push(g); }
+          g.items.push(i);
         });
-        elMenu.innerHTML = groups.map(function (group) {
-          return '<h2 class="cat-title">' + esc(group.name) + '</h2><div class="menu-grid">' +
-            group.items.map(itemHtml).join("") + '</div>';
-        }).join("");
+        elMenu.innerHTML = groups.map(function (g) { return '<h2 class="cat-title">' + esc(g.name) + '</h2><div class="menu-grid">' + g.items.map(itemHtml).join("") + '</div>'; }).join("");
       }
 
-      function renderCart() {
-        var count = cartCount();
-        if (!count) {
-          elBar.classList.add("hidden");
-          closeSheet();
-          return;
-        }
+      function renderBar() {
+        var c = cartCount();
+        if (!c) { elBar.classList.add("hidden"); return; }
         elBar.classList.remove("hidden");
-        document.getElementById("bar-count").textContent = count + (count > 1 ? " articles" : " article");
+        document.getElementById("bar-count").textContent = c + (c > 1 ? " articles" : " article");
         document.getElementById("bar-total").textContent = money(cartTotal());
-        elLines.innerHTML = state.cart.map(function (line) {
-          return '<div class="line"><span class="line-name">' + esc(line.name) + '</span>' +
-            '<div class="stepper"><button type="button" data-dec="' + esc(line.menuItemId) + '">&minus;</button>' +
-            '<span>' + line.quantity + '</span>' +
-            '<button type="button" data-inc="' + esc(line.menuItemId) + '">+</button></div>' +
-            '<span class="line-price">' + money(line.basePrice * line.quantity) + '</span></div>';
+      }
+
+      function renderAccountButton() {
+        var btn = document.getElementById("account-btn");
+        btn.textContent = state.user ? ("\u{1F464} " + (state.user.firstName || state.user.name || "Mon compte")) : "Se connecter";
+      }
+
+      function openSheet(html) { elSheet.innerHTML = html; elBackdrop.classList.remove("hidden"); document.body.style.overflow = "hidden"; }
+      function closeSheet() { elBackdrop.classList.add("hidden"); document.body.style.overflow = ""; }
+
+      function cartLinesHtml() {
+        return state.cart.map(function (l) {
+          return '<div class="line"><span class="line-name">' + esc(l.name) + '</span><div class="stepper"><button type="button" data-dec="' + esc(l.menuItemId) + '">&minus;</button><span>' + l.quantity + '</span><button type="button" data-inc="' + esc(l.menuItemId) + '">+</button></div><span class="line-price">' + money(l.basePrice * l.quantity) + '</span></div>';
         }).join("");
-        document.getElementById("sheet-total").textContent = money(cartTotal());
       }
 
-      function openSheet() {
-        elBackdrop.classList.remove("hidden");
-        document.body.style.overflow = "hidden";
+      // ── Étapes du panier ────────────────────────────────────────────────
+      function showCart() {
+        if (!cartCount()) { closeSheet(); return; }
+        var who = state.user
+          ? '<div class="who"><span>Connecte : <strong>' + esc(state.user.firstName || state.user.name) + '</strong></span><button type="button" data-logout="1">Changer</button></div>'
+          : '<div class="who"><span>Identifiez-vous pour commander</span><button type="button" data-login="1">Se connecter</button></div>';
+        openSheet(
+          '<h2>Votre commande</h2>' + (state.table ? '<p class="sub">Table ' + esc(state.table.label) + '</p>' : '') +
+          cartLinesHtml() +
+          '<div class="totals"><span>Total</span><span>' + money(cartTotal()) + '</span></div>' +
+          who +
+          '<input class="hp" tabindex="-1" autocomplete="off" id="hp-order" />' +
+          '<textarea class="field" id="notes" rows="2" placeholder="Note pour la cuisine (optionnel)"></textarea>' +
+          '<button class="primary" type="button" data-submit="1"' + (state.user ? '' : ' disabled') + '>' + (state.user ? 'Envoyer la commande' : 'Connectez-vous pour envoyer') + '</button>' +
+          '<div id="result" class="result hidden"></div>'
+        );
       }
 
-      function closeSheet() {
-        elBackdrop.classList.add("hidden");
-        document.body.style.overflow = "";
+      function result(msg, kind) { var el = document.getElementById("result"); if (el) { el.textContent = msg; el.className = "result " + kind; } }
+
+      // ── Authentification ────────────────────────────────────────────────
+      function showAuth() {
+        state.auth = { tab: "phone", step: "input", challengeId: null, phone: "" };
+        renderAuth();
       }
-
-      function showResult(message, kind) {
-        elResult.textContent = message;
-        elResult.className = "result " + kind;
-      }
-
-      document.addEventListener("click", function (event) {
-        var target = event.target.closest("[data-inc], [data-dec], [data-cat], [data-retry]");
-        if (!target) { return; }
-        if (target.hasAttribute("data-retry")) { loadMenu(); return; }
-        if (target.hasAttribute("data-cat")) {
-          state.category = target.getAttribute("data-cat");
-          renderCats();
-          renderMenu();
-          return;
-        }
-        if (target.hasAttribute("data-inc")) { changeQty(target.getAttribute("data-inc"), 1); }
-        else { changeQty(target.getAttribute("data-dec"), -1); }
-      });
-
-      document.getElementById("bar-cta").addEventListener("click", openSheet);
-      document.getElementById("close-sheet").addEventListener("click", closeSheet);
-      elBackdrop.addEventListener("click", function (event) {
-        if (event.target === elBackdrop) { closeSheet(); }
-      });
-
-      elForm.addEventListener("submit", function (event) {
-        event.preventDefault();
-        if (state.sending) { return; }
-        var data = new FormData(elForm);
-        if (!String(data.get("customerName") || "").trim() || !String(data.get("customerPhone") || "").trim()) {
-          showResult("Merci d indiquer votre nom et votre telephone.", "ko");
-          return;
-        }
-        state.sending = true;
-        elSubmit.disabled = true;
-        elSubmit.textContent = "Envoi en cours...";
-        fetch("/api/public/qr/" + qrToken + "/orders", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            cart: state.cart,
-            customerName: data.get("customerName"),
-            customerPhone: data.get("customerPhone"),
-            tableLabel: data.get("tableLabel"),
-            notes: data.get("notes"),
-            paymentMethod: "Cash"
-          })
-        }).then(function (response) {
-          return response.json().then(function (payload) { return { ok: response.ok, payload: payload }; });
-        }).then(function (result) {
-          if (!result.ok) {
-            showResult(result.payload.message || "La commande n a pas pu etre envoyee.", "ko");
-            return;
+      function renderAuth() {
+        var a = state.auth;
+        var tabs = '<div class="tabs"><button class="tab" type="button" data-tab="phone" aria-pressed="' + (a.tab === "phone") + '">WhatsApp</button><button class="tab" type="button" data-tab="email" aria-pressed="' + (a.tab === "email") + '">Email</button></div>';
+        var inner = "";
+        if (a.tab === "phone") {
+          if (a.step === "input") {
+            inner = '<input class="field" id="a-phone" inputmode="tel" placeholder="Numero de telephone" value="' + esc(a.phone) + '" /><button class="primary" type="button" data-send-code="1">Recevoir un code</button>';
+          } else if (a.step === "code") {
+            inner = '<p class="sub">Code envoye par WhatsApp au ' + esc(a.phone) + '.</p><input class="field" id="a-code" inputmode="numeric" placeholder="Code a 6 chiffres" /><button class="primary" type="button" data-verify-code="1">Valider</button><button class="ghost" type="button" data-back="1">Changer de numero</button>';
+          } else if (a.step === "profile") {
+            inner = '<p class="sub">Derniere etape : votre nom pour la cuisine.</p><input class="field" id="a-name" placeholder="Nom et prenom" autocomplete="name" /><button class="primary" type="button" data-register="1">Creer mon compte</button>';
           }
-          var reference = result.payload.order ? result.payload.order.id : "";
-          document.getElementById("sheet-body").innerHTML =
-            '<div class="done"><div class="tick">&#9989;</div><h2>Commande envoyee</h2>' +
-            '<p>Reference : <strong>' + esc(reference) + '</strong></p>' +
-            '<p>La cuisine a recu votre commande.</p>' +
-            '<button class="submit" type="button" onclick="location.reload()">Nouvelle commande</button></div>';
-          state.cart = [];
-          renderMenu();
-          elBar.classList.add("hidden");
-        }).catch(function () {
-          showResult("Connexion impossible. Verifiez votre reseau puis reessayez.", "ko");
-        }).then(function () {
-          state.sending = false;
-          elSubmit.disabled = false;
-          elSubmit.textContent = "Envoyer la commande";
+        } else {
+          inner = '<input class="field" id="e-email" type="email" inputmode="email" placeholder="Email" autocomplete="email" /><input class="field" id="e-pass" type="password" placeholder="Mot de passe" autocomplete="current-password" /><button class="primary" type="button" data-login-email="1">Se connecter</button>';
+        }
+        openSheet('<h2>Connexion</h2><p class="sub">Un compte est requis pour commander en toute securite.</p>' + tabs + '<input class="hp" tabindex="-1" autocomplete="off" id="hp-auth" />' + inner + '<div id="result" class="result hidden"></div><button class="ghost" type="button" data-back-cart="1">Retour au panier</button>');
+      }
+
+      function sendCode() {
+        var phone = (document.getElementById("a-phone").value || "").trim();
+        if (!phone) { return result("Entrez votre numero.", "ko"); }
+        state.auth.phone = phone;
+        result("Envoi du code...", "ok");
+        api("/api/auth/request-code", { method: "POST", body: JSON.stringify({ method: "WHATSAPP", phone: phone }) }).then(function (r) {
+          if (!r.ok) { return result(r.body.message || "Envoi impossible.", "ko"); }
+          state.auth.challengeId = r.body.challengeId;
+          state.auth.step = "code";
+          renderAuth();
+          if (r.body.demoCode) { result("Code de test : " + r.body.demoCode, "ok"); }
         });
+      }
+      function verifyCode() {
+        var code = (document.getElementById("a-code").value || "").trim();
+        if (!code) { return result("Entrez le code recu.", "ko"); }
+        api("/api/auth/verify-code", { method: "POST", body: JSON.stringify({ challengeId: state.auth.challengeId, code: code }) }).then(function (r) {
+          if (!r.ok) { return result(r.body.message || "Code incorrect.", "ko"); }
+          if (r.body.token && r.body.isProfileComplete) { return onAuthenticated(r.body.token, r.body.user); }
+          state.auth.step = "profile";
+          renderAuth();
+        });
+      }
+      function registerProfile() {
+        var name = (document.getElementById("a-name").value || "").trim();
+        if (!name) { return result("Entrez votre nom.", "ko"); }
+        var parts = name.split(" ");
+        var firstName = parts.shift();
+        var lastName = parts.join(" ") || firstName;
+        var address = (state.restaurant && state.restaurant.address) || "Sur place";
+        api("/api/auth/register-profile", { method: "POST", body: JSON.stringify({ challengeId: state.auth.challengeId, firstName: firstName, lastName: lastName, addresses: [{ label: "Sur place", address: address }] }) }).then(function (r) {
+          if (!r.ok) { return result(r.body.message || "Inscription impossible.", "ko"); }
+          onAuthenticated(r.body.token, r.body.user);
+        });
+      }
+      function loginEmail() {
+        var email = (document.getElementById("e-email").value || "").trim();
+        var pass = document.getElementById("e-pass").value || "";
+        if (!email || !pass) { return result("Email et mot de passe requis.", "ko"); }
+        api("/api/auth/login", { method: "POST", body: JSON.stringify({ email: email, password: pass }) }).then(function (r) {
+          if (!r.ok) { return result(r.body.message || "Identifiants incorrects.", "ko"); }
+          onAuthenticated(r.body.token, r.body.user);
+        });
+      }
+      function onAuthenticated(tok, user) {
+        setToken(tok);
+        state.user = user;
+        renderAccountButton();
+        showCart();
+      }
+      function logout() { setToken(""); state.user = null; renderAccountButton(); }
+
+      // ── Envoi commande ──────────────────────────────────────────────────
+      function submitOrder() {
+        if (state.sending || !state.user) { return; }
+        var honeypot = document.getElementById("hp-order");
+        var notes = (document.getElementById("notes") && document.getElementById("notes").value) || "";
+        state.sending = true;
+        var btn = elSheet.querySelector("[data-submit]");
+        if (btn) { btn.disabled = true; btn.textContent = "Envoi en cours..."; }
+        api(CFG.orderUrl, { method: "POST", body: JSON.stringify({ cart: state.cart, notes: notes, paymentMethod: "Cash", company: honeypot ? honeypot.value : "" }) }).then(function (r) {
+          if (r.status === 401) { state.user = null; setToken(""); renderAccountButton(); state.sending = false; result("Session expiree, reconnectez-vous.", "ko"); showAuth(); return; }
+          if (!r.ok) { state.sending = false; if (btn) { btn.disabled = false; btn.textContent = "Envoyer la commande"; } return result(r.body.message || "Commande refusee.", "ko"); }
+          var ref = r.body.order ? r.body.order.id : "";
+          state.cart = [];
+          renderMenu(); renderBar();
+          var store = CFG.playStoreUrl ? '<a class="primary" style="display:block;text-decoration:none;text-align:center" href="' + esc(CFG.playStoreUrl) + '" target="_blank" rel="noopener">Suivre dans l app SpeedZ</a>' : '';
+          openSheet('<div class="done"><div class="tick">&#9989;</div><h2>Commande envoyee</h2><p>Reference : <strong>' + esc(ref) + '</strong></p><p>La cuisine a bien recu votre commande.</p>' + store + '<button class="ghost" type="button" data-close="1">Fermer</button></div>');
+          state.sending = false;
+        }).catch(function () { state.sending = false; if (btn) { btn.disabled = false; btn.textContent = "Envoyer la commande"; } result("Connexion impossible. Reessayez.", "ko"); });
+      }
+
+      // ── Événements ──────────────────────────────────────────────────────
+      document.addEventListener("click", function (event) {
+        var t = event.target.closest("[data-inc],[data-dec],[data-cat],[data-retry],[data-tab],[data-send-code],[data-verify-code],[data-register],[data-login-email],[data-back],[data-back-cart],[data-login],[data-logout],[data-submit],[data-close]");
+        if (!t) { return; }
+        if (t.hasAttribute("data-retry")) { return loadMenu(); }
+        if (t.hasAttribute("data-close")) { return closeSheet(); }
+        if (t.hasAttribute("data-cat")) { state.category = t.getAttribute("data-cat"); renderCats(); renderMenu(); return; }
+        if (t.hasAttribute("data-inc")) { changeQty(t.getAttribute("data-inc"), 1); if (!elBackdrop.classList.contains("hidden")) { showCart(); } return; }
+        if (t.hasAttribute("data-dec")) { changeQty(t.getAttribute("data-dec"), -1); if (!elBackdrop.classList.contains("hidden")) { showCart(); } return; }
+        if (t.hasAttribute("data-tab")) { state.auth.tab = t.getAttribute("data-tab"); renderAuth(); return; }
+        if (t.hasAttribute("data-send-code")) { return sendCode(); }
+        if (t.hasAttribute("data-verify-code")) { return verifyCode(); }
+        if (t.hasAttribute("data-register")) { return registerProfile(); }
+        if (t.hasAttribute("data-login-email")) { return loginEmail(); }
+        if (t.hasAttribute("data-back")) { state.auth.step = "input"; renderAuth(); return; }
+        if (t.hasAttribute("data-back-cart")) { return showCart(); }
+        if (t.hasAttribute("data-login")) { return showAuth(); }
+        if (t.hasAttribute("data-logout")) { logout(); return showCart(); }
+        if (t.hasAttribute("data-submit")) { return submitOrder(); }
       });
 
+      document.getElementById("bar-cta").addEventListener("click", showCart);
+      document.getElementById("account-btn").addEventListener("click", function () { if (state.user) { logout(); } else { showAuth(); } });
+      elBackdrop.addEventListener("click", function (e) { if (e.target === elBackdrop) { closeSheet(); } });
+
+      // ── Chargement ──────────────────────────────────────────────────────
       function loadMenu() {
         state.error = null;
         renderMenu();
-        fetch("/api/public/qr/" + qrToken).then(function (response) {
-          if (response.status === 429) { throw new Error("busy"); }
-          if (!response.ok) { throw new Error("notfound"); }
-          return response.json();
-        }).then(function (payload) {
-          state.restaurant = payload.restaurant;
-          if (state.restaurant && state.restaurant.isOnline === false) {
-            document.getElementById("offline").classList.remove("hidden");
-          }
-          renderCats();
-          renderMenu();
-          renderCart();
-        }).catch(function (err) {
-          if (err.message === "busy") {
-            state.error = "Service occupe, nouvelle tentative...";
-            renderMenu();
-            setTimeout(loadMenu, 3000);
-          } else {
-            state.error = "Menu indisponible pour ce QR code.";
-            renderMenu();
-          }
+        api(CFG.resolveUrl).then(function (r) {
+          if (r.status === 429) { state.error = "Service occupe, nouvelle tentative..."; renderMenu(); setTimeout(loadMenu, 3000); return; }
+          if (!r.ok) { state.error = "Menu indisponible pour ce QR code."; renderMenu(); return; }
+          state.restaurant = r.body.restaurant;
+          state.table = r.body.table || null;
+          if (state.table) { var tag = document.getElementById("table-tag"); tag.textContent = "Table " + state.table.label; tag.classList.remove("hidden"); }
+          if (state.restaurant && state.restaurant.isOnline === false) { document.getElementById("offline").classList.remove("hidden"); }
+          if (CFG.playStoreUrl) { document.getElementById("promo-link").href = CFG.playStoreUrl; document.getElementById("promo").classList.remove("hidden"); }
+          renderCats(); renderMenu(); renderBar();
         });
       }
 
-      document.getElementById("tableLabel").value = presetTable;
+      function restoreSession() {
+        if (!token()) { return; }
+        api("/api/auth/me").then(function (r) {
+          if (r.ok && r.body && (r.body.user || r.body.id)) { state.user = r.body.user || r.body; renderAccountButton(); }
+          else { setToken(""); }
+        });
+      }
+
+      renderAccountButton();
+      restoreSession();
       loadMenu();
     </script>
   </body>
 </html>`);
+}
+
+app.get("/qr/:qrToken", async (req, res) => {
+  const restaurant = await prisma.restaurant.findFirst({
+    where: { qrCodeToken: req.params.qrToken, validationStatus: "VALIDATED" },
+  });
+  if (!restaurant) {
+    res.status(404).send("<h1>QR restaurant introuvable</h1>");
+    return;
+  }
+  renderQrPage(res, { restaurant, mode: "restaurant", token: req.params.qrToken });
+});
+
+// QR collé sur une table : la commande sera liée à cette table (jeton opaque).
+app.get("/t/:tableToken", async (req, res) => {
+  const table = await prisma.restaurantTable.findUnique({
+    where: { qrToken: req.params.tableToken },
+    include: { restaurant: true },
+  });
+  if (!table || !table.restaurant || table.restaurant.validationStatus !== "VALIDATED") {
+    res.status(404).send("<h1>Table introuvable</h1>");
+    return;
+  }
+  renderQrPage(res, { restaurant: table.restaurant, mode: "table", token: req.params.tableToken });
 });
 
 // Connexion livreur : téléphone + mot de passe.
