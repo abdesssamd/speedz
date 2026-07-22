@@ -1722,6 +1722,30 @@ function SettingsScreen({ call, restaurant, account, onLogout, notify, onProfile
   const [pwd, setPwd] = useState({ currentPassword: "", newPassword: "", confirm: "" });
   const [savingPwd, setSavingPwd] = useState(false);
   const [pwdMsg, setPwdMsg] = useState("");
+  // Réglages QR tri-état : "global" (suit le défaut plateforme) | "oui" | "non".
+  const toTri = (v) => (v == null ? "global" : v ? "oui" : "non");
+  const [qr, setQr] = useState({
+    auth: toTri(restaurant?.qrAuthRequired),
+    validation: toTri(restaurant?.qrServerValidation),
+  });
+  const [savingQr, setSavingQr] = useState(false);
+
+  const saveQr = async () => {
+    const toBool = (v) => (v === "global" ? null : v === "oui");
+    setSavingQr(true);
+    try {
+      const updated = await call("/api/restaurant/portal/profile", {
+        method: "PATCH",
+        body: JSON.stringify({ qrAuthRequired: toBool(qr.auth), qrServerValidation: toBool(qr.validation) }),
+      });
+      onProfileUpdated?.(updated);
+      notify("Réglages QR mis à jour");
+    } catch (err) {
+      notify(err.message || "Enregistrement impossible");
+    } finally {
+      setSavingQr(false);
+    }
+  };
 
   const saveProfile = async (e) => {
     e.preventDefault();
@@ -1847,6 +1871,30 @@ function SettingsScreen({ call, restaurant, account, onLogout, notify, onProfile
           </Card>
         </div>
       </div>
+
+      <Card className="p-6 mt-4">
+        <h3 className="font-bold mb-1 flex items-center gap-2"><QrCode size={16} /> Commande via QR code</h3>
+        <p className="text-sm text-slate-400 mb-4">Comportement de la page scannée par vos clients. « Réglage global » suit la configuration de la plateforme.</p>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <Field label="Compte client obligatoire">
+            <select className="input" value={qr.auth} onChange={(e) => setQr((q) => ({ ...q, auth: e.target.value }))}>
+              <option value="global">Réglage global</option>
+              <option value="oui">Oui — connexion requise</option>
+              <option value="non">Non — commande directe (nom + tél)</option>
+            </select>
+          </Field>
+          <Field label="Validation avant impression">
+            <select className="input" value={qr.validation} onChange={(e) => setQr((q) => ({ ...q, validation: e.target.value }))}>
+              <option value="global">Réglage global</option>
+              <option value="oui">Oui — valider au KDS avant impression</option>
+              <option value="non">Non — impression immédiate</option>
+            </select>
+          </Field>
+        </div>
+        <button onClick={saveQr} disabled={savingQr} className="mt-4 rounded-xl bg-slate-900 dark:bg-white dark:text-slate-900 text-white px-4 py-2.5 text-sm font-semibold flex items-center gap-2 disabled:opacity-50">
+          <Save size={15} /> {savingQr ? "…" : "Enregistrer"}
+        </button>
+      </Card>
 
       <Card className="p-6 mt-4">
         <div className="flex items-center justify-between mb-4">

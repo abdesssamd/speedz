@@ -607,6 +607,8 @@ function serializeRestaurant(record) {
     deliveryMode: record.deliveryMode || "SPEEDZ",
     freeDeliveryRadiusKm: record.freeDeliveryRadiusKm ?? null,
     allowSpeedzFallback: Boolean(record.allowSpeedzFallback),
+    qrAuthRequired: record.qrAuthRequired ?? null,
+    qrServerValidation: record.qrServerValidation ?? null,
     menu: (record.menuItems || [])
       .filter((item) => !item.deletedAt)
       .map((item) => ({
@@ -688,6 +690,26 @@ function getRestaurantTableQrUrl(restaurant, table) {
 // Nombre maximum de commandes actives (non servies, non annulées) qu'une même
 // table peut avoir en cours. Empêche l'inondation de la cuisine depuis une table.
 const MAX_ACTIVE_ORDERS_PER_TABLE = Number(process.env.MAX_ACTIVE_ORDERS_PER_TABLE || 5);
+
+// Valeurs GLOBALES par défaut, utilisées quand un restaurant n'a pas défini son
+// propre réglage (colonnes qrAuthRequired / qrServerValidation à null).
+// AUTHENTIFICATION_MENU=oui : commander via QR exige un compte client.
+// =non (défaut) : le client scanne et commande directement (nom + téléphone).
+const MENU_AUTH_REQUIRED = String(process.env.AUTHENTIFICATION_MENU ?? "non").toLowerCase() === "oui";
+
+// VALIDATION_PARSERVEUR=oui (défaut) : les commandes QR arrivent « à valider » au
+// KDS et ne s'impriment qu'une fois lancées par le personnel (bouton « Préparer »).
+// =non : impression immédiate dès réception.
+const SERVER_ORDER_VALIDATION = String(process.env.VALIDATION_PARSERVEUR ?? "oui").toLowerCase() === "oui";
+
+// Réglages effectifs pour un restaurant : sa valeur propre si définie, sinon le
+// défaut global.
+function restaurantRequiresMenuAuth(restaurant) {
+  return restaurant?.qrAuthRequired ?? MENU_AUTH_REQUIRED;
+}
+function restaurantServerValidation(restaurant) {
+  return restaurant?.qrServerValidation ?? SERVER_ORDER_VALIDATION;
+}
 
 function serializeTable(record, restaurant) {
   return {
@@ -2516,8 +2538,16 @@ async function createOrderRecord({
   // Les commandes en livraison démarrent en AwaitingCourier (aucun livreur, non
   // imprimées) : elles sont proposées aux livreurs (favoris d'abord, cf.
   // dispatchDeliveryOrder) et ne s'impriment qu'une fois confirmées par le livreur.
-  // Les commandes sur place (QR_ONSITE) sont confirmées et imprimées immédiatement.
-  const initialStatus = orderChannel === "DELIVERY" ? "AwaitingCourier" : "Confirmed";
+  // Les commandes sur place (QR_ONSITE) sont normalement confirmées et imprimées
+  // immédiatement ; si VALIDATION_PARSERVEUR est actif, elles démarrent en
+  // « Accepted » : visibles au KDS mais non imprimées tant que le personnel ne les
+  // a pas lancées (l'agent d'impression ne récupère que Confirmed/Preparing).
+  let initialStatus;
+  if (orderChannel === "DELIVERY") {
+    initialStatus = "AwaitingCourier";
+  } else {
+    initialStatus = restaurantServerValidation(restaurant) ? "Accepted" : "Confirmed";
+  }
 
   const order = await prisma.order.create({
     data: {
@@ -3427,7 +3457,8 @@ app.get("/api/public/qr/:qrToken", async (req, res) => {
 
 // Logique de création commune aux commandes QR (lien restaurant et QR de table).
 // `table` non nul = commande liée à une table précise (déduite d'un jeton, jamais
-// d'une saisie client). Le client est TOUJOURS un compte authentifié : req.auth.
+// d'une saisie client). Le client est soit un compte authentifié (req.auth), soit
+// un invité (mode AUTHENTIFICATION_MENU=non) identifié par nom + téléphone.
 async function handleQrOrder({ req, res, restaurant, table }) {
   // Honeypot : ce champ est masqué en CSS et jamais rempli par un humain. Un bot
   // qui remplit tout le formulaire le remplit aussi. On répond « ok » sans rien
@@ -3437,16 +3468,38 @@ async function handleQrOrder({ req, res, restaurant, table }) {
     return;
   }
 
-  const customer = await prisma.user.findUnique({ where: { id: req.auth.sub } });
-  if (!customer) {
-    res.status(401).json({ message: "Compte introuvable. Reconnectez-vous." });
-    return;
-  }
-
-  const { cart, notes, paymentMethod, promoCode } = req.body || {};
+  const { cart, notes, paymentMethod, promoCode, customerName, customerPhone } = req.body || {};
   if (!Array.isArray(cart) || !cart.length) {
     res.status(400).json({ message: "Commande QR incomplete." });
     return;
+  }
+
+  // Ce restaurant exige-t-il un compte pour commander ? (réglage par restaurant,
+  // sinon défaut global). Décidé ici car le restaurant n'est connu qu'après
+  // résolution du jeton, donc pas dans un middleware en amont.
+  if (restaurantRequiresMenuAuth(restaurant) && !req.auth) {
+    res.status(401).json({ message: "Connexion requise pour commander.", code: "AUTH_REQUIRED" });
+    return;
+  }
+
+  // Client : compte authentifié si présent, sinon invité (nom + téléphone).
+  let customer;
+  if (req.auth) {
+    customer = await prisma.user.findUnique({ where: { id: req.auth.sub } });
+    if (!customer) {
+      res.status(401).json({ message: "Compte introuvable. Reconnectez-vous." });
+      return;
+    }
+  } else {
+    if (!String(customerPhone || "").trim()) {
+      res.status(400).json({ message: "Nom et téléphone requis." });
+      return;
+    }
+    customer = await findOrCreateGuestCustomer({
+      name: customerName,
+      phone: customerPhone,
+      restaurantId: restaurant.id,
+    });
   }
 
   // Plafond par table : empêche l'inondation de la cuisine depuis une table.
@@ -3509,7 +3562,7 @@ async function handleQrOrder({ req, res, restaurant, table }) {
 // Commande depuis le lien restaurant partageable (à emporter / sur place sans
 // table). Authentification obligatoire ; aucun libellé de table n'est accepté
 // ici — l'attribution à une table passe exclusivement par un QR de table.
-app.post("/api/public/qr/:qrToken/orders", requireAuth, async (req, res) => {
+app.post("/api/public/qr/:qrToken/orders", optionalAuth, async (req, res) => {
   const restaurant = await prisma.restaurant.findFirst({
     where: { qrCodeToken: req.params.qrToken, validationStatus: "VALIDATED" },
   });
@@ -3539,7 +3592,7 @@ app.get("/api/public/table/:tableToken", async (req, res) => {
 });
 
 // Commande liée à une table : la table vient du jeton, jamais du corps de requête.
-app.post("/api/public/table/:tableToken/orders", requireAuth, async (req, res) => {
+app.post("/api/public/table/:tableToken/orders", optionalAuth, async (req, res) => {
   const table = await prisma.restaurantTable.findUnique({
     where: { qrToken: req.params.tableToken },
     include: { restaurant: true },
@@ -3565,6 +3618,7 @@ function renderQrPage(res, { restaurant, mode, token }) {
     resolveUrl,
     orderUrl: `${resolveUrl}/orders`,
     playStoreUrl: process.env.PLAY_STORE_URL || null,
+    authRequired: restaurantRequiresMenuAuth(restaurant),
   };
 
   // Le <script> inline nécessite d'assouplir la CSP globale (script-src 'self'
@@ -3794,6 +3848,7 @@ function renderQrPage(res, { restaurant, mode, token }) {
 
       function renderAccountButton() {
         var btn = document.getElementById("account-btn");
+        if (!CFG.authRequired) { btn.classList.add("hidden"); return; }
         btn.textContent = state.user ? ("\u{1F464} " + (state.user.firstName || state.user.name || "Mon compte")) : "Se connecter";
       }
 
@@ -3809,17 +3864,27 @@ function renderQrPage(res, { restaurant, mode, token }) {
       // ── Étapes du panier ────────────────────────────────────────────────
       function showCart() {
         if (!cartCount()) { closeSheet(); return; }
-        var who = state.user
-          ? '<div class="who"><span>Connecte : <strong>' + esc(state.user.firstName || state.user.name) + '</strong></span><button type="button" data-logout="1">Changer</button></div>'
-          : '<div class="who"><span>Identifiez-vous pour commander</span><button type="button" data-login="1">Se connecter</button></div>';
+        var identity, canSubmit, submitLabel;
+        if (!CFG.authRequired) {
+          // Mode invité : nom + téléphone directement, sans compte.
+          identity = '<input class="field" id="g-name" placeholder="Votre nom" autocomplete="name" /><input class="field" id="g-phone" inputmode="tel" placeholder="Telephone" autocomplete="tel" />';
+          canSubmit = true;
+          submitLabel = 'Envoyer la commande';
+        } else {
+          identity = state.user
+            ? '<div class="who"><span>Connecte : <strong>' + esc(state.user.firstName || state.user.name) + '</strong></span><button type="button" data-logout="1">Changer</button></div>'
+            : '<div class="who"><span>Identifiez-vous pour commander</span><button type="button" data-login="1">Se connecter</button></div>';
+          canSubmit = Boolean(state.user);
+          submitLabel = state.user ? 'Envoyer la commande' : 'Connectez-vous pour envoyer';
+        }
         openSheet(
           '<h2>Votre commande</h2>' + (state.table ? '<p class="sub">Table ' + esc(state.table.label) + '</p>' : '') +
           cartLinesHtml() +
           '<div class="totals"><span>Total</span><span>' + money(cartTotal()) + '</span></div>' +
-          who +
+          identity +
           '<input class="hp" tabindex="-1" autocomplete="off" id="hp-order" />' +
           '<textarea class="field" id="notes" rows="2" placeholder="Note pour la cuisine (optionnel)"></textarea>' +
-          '<button class="primary" type="button" data-submit="1"' + (state.user ? '' : ' disabled') + '>' + (state.user ? 'Envoyer la commande' : 'Connectez-vous pour envoyer') + '</button>' +
+          '<button class="primary" type="button" data-submit="1"' + (canSubmit ? '' : ' disabled') + '>' + submitLabel + '</button>' +
           '<div id="result" class="result hidden"></div>'
         );
       }
@@ -3903,13 +3968,24 @@ function renderQrPage(res, { restaurant, mode, token }) {
 
       // ── Envoi commande ──────────────────────────────────────────────────
       function submitOrder() {
-        if (state.sending || !state.user) { return; }
+        if (state.sending) { return; }
+        var payload = { cart: state.cart, paymentMethod: "Cash" };
+        if (CFG.authRequired) {
+          if (!state.user) { return; }
+        } else {
+          var gName = (document.getElementById("g-name") && document.getElementById("g-name").value) || "";
+          var gPhone = (document.getElementById("g-phone") && document.getElementById("g-phone").value || "").trim();
+          if (!gPhone) { return result("Entrez votre nom et telephone.", "ko"); }
+          payload.customerName = gName;
+          payload.customerPhone = gPhone;
+        }
         var honeypot = document.getElementById("hp-order");
-        var notes = (document.getElementById("notes") && document.getElementById("notes").value) || "";
+        payload.company = honeypot ? honeypot.value : "";
+        payload.notes = (document.getElementById("notes") && document.getElementById("notes").value) || "";
         state.sending = true;
         var btn = elSheet.querySelector("[data-submit]");
         if (btn) { btn.disabled = true; btn.textContent = "Envoi en cours..."; }
-        api(CFG.orderUrl, { method: "POST", body: JSON.stringify({ cart: state.cart, notes: notes, paymentMethod: "Cash", company: honeypot ? honeypot.value : "" }) }).then(function (r) {
+        api(CFG.orderUrl, { method: "POST", body: JSON.stringify(payload) }).then(function (r) {
           if (r.status === 401) { state.user = null; setToken(""); renderAccountButton(); state.sending = false; result("Session expiree, reconnectez-vous.", "ko"); showAuth(); return; }
           if (!r.ok) { state.sending = false; if (btn) { btn.disabled = false; btn.textContent = "Envoyer la commande"; } return result(r.body.message || "Commande refusee.", "ko"); }
           var ref = r.body.order ? r.body.order.id : "";
@@ -3963,7 +4039,7 @@ function renderQrPage(res, { restaurant, mode, token }) {
       }
 
       function restoreSession() {
-        if (!token()) { return; }
+        if (!CFG.authRequired || !token()) { return; }
         api("/api/auth/me").then(function (r) {
           if (r.ok && r.body && (r.body.user || r.body.id)) { state.user = r.body.user || r.body; renderAccountButton(); }
           else { setToken(""); }
@@ -6186,6 +6262,8 @@ app.patch("/api/restaurant/portal/profile", requireAuth, requireRestaurant, vali
   if (body.ownerPhone !== undefined) data.ownerPhone = body.ownerPhone || null;
   if (body.image !== undefined) data.image = body.image;
   if (body.heroColor !== undefined) data.heroColor = body.heroColor;
+  if (body.qrAuthRequired !== undefined) data.qrAuthRequired = body.qrAuthRequired;
+  if (body.qrServerValidation !== undefined) data.qrServerValidation = body.qrServerValidation;
   // Horaires par jour : on stocke la structure et on compose un résumé lisible
   // (openingHours) affiché sur la fiche resto et la page QR.
   if (body.weeklyHours !== undefined) {

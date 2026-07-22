@@ -588,6 +588,8 @@ const Schemas = {
     ownerPhone: z.string().max(40).nullable().optional(),
     image: z.string().max(2000).optional(),
     heroColor: z.string().max(30).optional(),
+    qrAuthRequired: z.boolean().nullable().optional(),
+    qrServerValidation: z.boolean().nullable().optional(),
     weeklyHours: z
       .record(
         z.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),

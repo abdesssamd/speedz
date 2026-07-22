@@ -146,6 +146,10 @@ model Restaurant {
   // Mode OWN : si aucun livreur propre ne prend la course, la basculer vers la
   // flotte SpeedZ (sinon elle reste en attente des livreurs du restaurant).
   allowSpeedzFallback Boolean   @default(false)
+  // Commande via QR, réglable par restaurant. Null = suit la valeur globale
+  // (variables AUTHENTIFICATION_MENU / VALIDATION_PARSERVEUR).
+  qrAuthRequired     Boolean?   // true = compte client requis pour commander
+  qrServerValidation Boolean?   // true = le personnel valide au KDS avant impression
   menuItems        MenuItem[]
   orders           Order[]
   favorites        Favorite[]
